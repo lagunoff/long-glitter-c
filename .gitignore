@@ -1,0 +1,15 @@
+**/tags
+**/TAGS
+**/.#*
+**/*~
+**/*.kate-swp
+**/.directory
+/.dir-locals.el
+*/dist
+/tmp
+result
+dist
+out
+locals.nix
+.envrc
+screenlog.*
