@@ -174,3 +174,39 @@ void scroll_page(
   c->pos = s->pos;
   cursor_fixup_x0(c, buf);
 }
+
+void backward_paragraph(struct cursor *c, char *buf) {
+  int i0 = c->pos;
+  for (; i0>0; i0--) if (!isspace(buf[i0])) break;
+  for (; i0>0; i0--) {
+    if (buf[i0] == '\n') {
+      for (int i1=i0 - 1; i1>0; i1--) {
+        if (buf[i1] == '\n') {
+          goto found_paragraph;
+        }
+        if (!isspace(buf[i1])) break;
+      }
+    }
+  }
+  found_paragraph:
+  c->pos = i0;
+  cursor_fixup_x0(c, buf);
+}
+
+void forward_paragraph(struct cursor *c, char *buf, int buf_len) {
+  int i0 = c->pos;
+  for (; i0<buf_len; i0++) {
+    if (buf[i0] == '\n') {
+      for (int i1=i0 + 1; i1<buf_len; i1++) {
+        if (buf[i1] == '\n') {
+          i0 = i1;
+          goto found_paragraph;
+        }
+        if (!isspace(buf[i1])) break;
+      }
+    }
+  }
+  found_paragraph:
+  c->pos = i0;
+  cursor_fixup_x0(c, buf);
+}

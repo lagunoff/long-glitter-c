@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+#include "buff-string.h"
 #include "cursor.h"
 #include "main.h"
 
@@ -32,6 +33,9 @@ int main(int argc, char **argv) {
   fstat(fd, &st);
   char *buf = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED,fd, 0);
 
+  struct buff_string str = {buf, st.st_size, NULL};
+  struct buff_string_iter iter = BUFF_STRING_BEGIN(&str);
+
   SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO);
   SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE|SDL_WINDOW_MAXIMIZED, &window, &renderer);
   TTF_Init();
@@ -43,7 +47,6 @@ int main(int argc, char **argv) {
     SDL_Texture *texture1;
     char temp[1024 * 16]; // Maximum line length — 16kb
     char *iter = buf + scrollY.pos;
-    printf("scrollY.pos: %d\n", scrollY.pos);
     char *end = buf + st.st_size;
     int y=0;
     char *cur_ptr = buf + cur.pos;
@@ -167,6 +170,16 @@ int main(int argc, char **argv) {
         render();
         continue;
       }
+      if (e.key.keysym.scancode == SDL_SCANCODE_LEFTBRACKET && (e.key.keysym.mod & (KMOD_ALT | KMOD_SHIFT))) {
+        MODIFY_CURSOR(backward_paragraph, &cur, buf);
+        render();
+        continue;
+      }
+      if (e.key.keysym.scancode == SDL_SCANCODE_RIGHTBRACKET && (e.key.keysym.mod & (KMOD_ALT | KMOD_SHIFT))) {
+        MODIFY_CURSOR(forward_paragraph, &cur, buf, st.st_size);
+        render();
+        continue;
+      }
       if (e.key.keysym.scancode == SDL_SCANCODE_EQUALS  && (e.key.keysym.mod & KMOD_CTRL)) {
         TTF_CloseFont(lf.font);
         init_font(&lf, lf.font_size + 1);
@@ -182,7 +195,6 @@ int main(int argc, char **argv) {
     }
   }
 
-  /* Deinit TTF. */
   TTF_CloseFont(lf.font);
   TTF_Quit();
 
@@ -221,10 +233,10 @@ void get_text_and_rect(SDL_Renderer *renderer, int x, int y, char *text,
   rect->h = text_height;
 }
 
-char* str_takewhile(char *out, char* src, bool (*p)(char *)) {
+char* str_takewhile(char *dest, char* src, bool (*p)(char *)) {
   char *src_ptr=src;
-  char *out_ptr=out;
-  for (; p(src_ptr); src_ptr++, out_ptr++) *out_ptr = *src_ptr;
-  *out_ptr='\0';
+  char *dest_ptr=dest;
+  for (; p(src_ptr); src_ptr++, dest_ptr++) *dest_ptr = *src_ptr;
+  *dest_ptr='\0';
   return src_ptr;
 }

@@ -1,3 +1,4 @@
+#pragma once
 
 struct loaded_font;
 
@@ -19,8 +20,10 @@ void cursor_eol(struct cursor *c, char *buf, int buf_len);
 void cursor_backward_word(struct cursor *c, char *buf);
 void cursor_forward_word(struct cursor *c, char *buf, int buf_len);
 void cursor_forward_word(struct cursor *c, char *buf, int buf_len);
-
 void scroll_lines(struct scroll *s, char *buf, int buf_len, int n);
+void backward_paragraph(struct cursor *c, char *buf);
+void forward_paragraph(struct cursor *c, char *buf, int buf_len);
+
 void scroll_page(
   struct scroll *s,
   struct cursor *c,

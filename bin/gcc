@@ -12,4 +12,4 @@ CFLAGS=$(echo $NIX_CFLAGS_COMPILE |
 LDLAGS=$(echo $NIX_LDFLAGS |
   sed 's/-rpath \//-Wl,-rpath,/g' )
 
-$CC $CFLAGS $LDLAGS -lSDL2 -lSDL2_ttf "$@"
+$CC $CFLAGS $LDLAGS -lSDL2 -lSDL2_ttf -lm "$@"
