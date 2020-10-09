@@ -1,113 +1,140 @@
 #include <ctype.h>
 #include "cursor.h"
 #include "main.h"
+#include "buff-string.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define SCROLL_JUMP 8
 
-static void cursor_fixup_x0(struct cursor *c, char *buf) {
-  int i = c->pos;
-  for (;i>0;i--) {
-    if (buf[i - 1] == '\n') break;
-  }
-  c->x0 = c->pos - i;
+static void cursor_fixup_x0(struct cursor *cur) {
+  struct buff_string_iter iter = cur->pos;
+  bool no_eof = buff_string_move(&iter, -1);
+  cur->x0 = 0;
+  if (no_eof) buff_string_find_back(&iter, lambda(bool _(char c) {
+    if (c!='\n') cur->x0++;
+    return c=='\n';
+  }));
 }
 
-void cursor_up(struct cursor *c, char *buf) {
-  int i0 = c->pos;
-  for (; i0>0; i0--) {
-    if (buf[i0 - 1] == '\n') break;
-  }
-  int i1 = i0 - 1;
-  for (; i1>0; i1--) {
-    if (buf[i1 - 1] == '\n') break;
-  }
-  c->pos = MAX(0, MIN(i0 - 1, (i1 + c->x0)));
+void cursor_up(struct cursor *c) {
+  struct buff_string_iter i0 = c->pos;
+  buff_string_move(&i0, -1);
+  bool found0 = buff_string_find_back(&i0, lambda(bool _(char c) {
+    return c=='\n';
+  }));
+
+  if (!found0) return;
+
+  struct buff_string_iter i1 = i0;
+  int line_len = 0;
+  buff_string_move(&i1, -1);
+  buff_string_find_back(&i1, lambda(bool _(char c) {
+    if (c!='\n') line_len++;
+    return c=='\n';
+  }));
+  buff_string_move(&i1, MIN(line_len + 1, c->x0 + 1));
+  c->pos = i1;
 }
 
-void cursor_down(struct cursor *c, char *buf, int buf_len) {
-  int i0 = c->pos;
-  for (; i0<buf_len; i0++) {
-    if (buf[i0] == '\n') break;
-  }
-  int i1 = i0 + 1;
-  for (; i1<buf_len; i1++) {
-    if (buf[i1] == '\n') break;
-  }
-  c->pos = MIN(MIN(i1, (i0 + 1 + c->x0)), buf_len);
+void cursor_down(struct cursor *c) {
+  struct buff_string_iter i0 = c->pos;
+  if (*(c->pos.current)!='\n') buff_string_move(&i0, 1);
+  bool found0 = buff_string_find(&i0, lambda(bool _(char c) {
+    return c=='\n';
+  }));
+  if (!found0) return;
+
+  struct buff_string_iter i1 = i0;
+  int line_len = 0;
+  buff_string_move(&i1, 1);
+  buff_string_find(&i1, lambda(bool _(char c) {
+    if (c!='\n') line_len++;
+    return c=='\n';
+  }));
+  buff_string_move(&i0, MIN(line_len + 1, c->x0 + 1));
+  c->pos = i0;
 }
 
-void cursor_left(struct cursor *c, char *buf) {
-  c->pos = MAX(c->pos - 1, 0);
-  cursor_fixup_x0(c, buf);
+void cursor_left(struct cursor *c) {
+  buff_string_move(&(c->pos), -1);
+  cursor_fixup_x0(c);
 }
 
-void cursor_right(struct cursor *c, char *buf, int buf_len) {
-  c->pos = MIN(c->pos + 1, buf_len);
-  cursor_fixup_x0(c, buf);
+void cursor_right(struct cursor *c) {
+  buff_string_move(&(c->pos), 1);
+  cursor_fixup_x0(c);
 }
 
-void cursor_bol(struct cursor *c, char *buf) {
-  int i = buf[c->pos] == '\n' ? c->pos - 1 : c->pos;
-  for (; i>0; i--) {
-    if (buf[i] == '\n') break;
+void cursor_bol(struct cursor *c) {
+  if (*(c->pos.current)=='\n') {
+    buff_string_move(&(c->pos), -1);
   }
-  c->pos = i == 0 ? i : i + 1;
-  cursor_fixup_x0(c, buf);
+  bool found = buff_string_find_back(&(c->pos), lambda(bool _(char c) {
+    return c=='\n';
+  }));
+  if (found) {
+    buff_string_move(&(c->pos), 1);
+  }
+  cursor_fixup_x0(c);
 }
 
-void cursor_eol(struct cursor *c, char *buf, int buf_len) {
-  int i = c->pos;
-  for (; i < buf_len;i++) {
-    if (buf[i] == '\n') break;
-  }
-  c->pos = i;
-  cursor_fixup_x0(c, buf);
+void cursor_eol(struct cursor *c) {
+  buff_string_find(&(c->pos), lambda(bool _(char c) {
+    return c=='\n';
+  }));
+  cursor_fixup_x0(c);
 }
 
-void cursor_backward_word(struct cursor *c, char *buf) {
-  int i = c->pos;
-  for (; i>0; i--) {
-    if (isalnum(buf[i])) break;
-  }
-  for (; i>0; i--) {
-    if (!isalnum(buf[i])) break;
-  }
-  c->pos = i;
-  cursor_fixup_x0(c, buf);
+void cursor_backward_word(struct cursor *c) {
+  buff_string_find_back(&(c->pos), lambda(bool _(char c) {
+    return isalnum(c);
+  }));
+  buff_string_find_back(&(c->pos), lambda(bool _(char c) {
+    return !isalnum(c);
+  }));
+  cursor_fixup_x0(c);
 }
 
-void cursor_forward_word(struct cursor *c, char *buf, int buf_len) {
-  int i = c->pos;
-  for (; i < buf_len;i++) {
-    if (isalnum(buf[i])) break;
-  }
-  for (; i < buf_len;i++) {
-    if (!isalnum(buf[i])) break;
-  }
-  c->pos = i;
-  cursor_fixup_x0(c, buf);
+void cursor_forward_word(struct cursor *c) {
+  buff_string_find(&(c->pos), lambda(bool _(char c) {
+    return isalnum(c);
+  }));
+
+  buff_string_find(&(c->pos), lambda(bool _(char c) {
+    return !isalnum(c);
+  }));
+
+  cursor_fixup_x0(c);
 }
 
-void scroll_lines(struct scroll *s, char *buf, int buf_len, int n) {
-  printf("scroll_lines: %d %d\n", s->pos, n);
+void cursor_end(struct cursor *c) {
+  buff_string_end(&(c->pos), c->pos.str);
+  cursor_fixup_x0(c);
+}
+
+void cursor_begin(struct cursor *c) {
+  buff_string_begin(&(c->pos), c->pos.str);
+  cursor_fixup_x0(c);
+}
+
+void scroll_lines(struct scroll *s, int n) {
   if (n > 0) {
-    int i = s->pos;
-    for (int j=0; j<n; j++) {
-      for (; i<buf_len; i++) {
-        if (buf[i] == '\n') { i++; break; }
-      }
-    }
-    s->pos = i;
-  } else {
-    int i = s->pos;
     int newlines = 0;
-    for (; i>0; i--) {
-      if (buf[i] == '\n') newlines++;
-      if (newlines > abs(n) + 1) break;
-    }
-    s->pos = i;
+    buff_string_find(&(s->pos), lambda(bool _(char c) {
+      if (c=='\n') {
+        if (!(newlines++ < n)) return true;
+      }
+      return false;
+    }));
+  } else {
+    int newlines = 0;
+    buff_string_find_back(&(s->pos), lambda(bool _(char c) {
+      if (c=='\n') {
+        if (!(newlines++ < abs(n))) return true;
+      }
+      return false;
+    }));
   }
 }
 
@@ -116,42 +143,44 @@ void cursor_modified (
   struct cursor *prev,
   struct cursor *next,
   struct loaded_font *lf,
-  int height,
-  char *buf,
-  int buf_len
+  int height
 ) {
-  int diff = next->pos - prev->pos;
-  char *cur_ptr = buf + next->pos;
-  char *scroll_ptr = buf + s->pos;
+  int next_offset = buff_string_offset(&(next->pos));
+  int prev_offset = buff_string_offset(&(prev->pos));
+  int scroll_offset = buff_string_offset(&(s->pos));
+  int diff = next_offset - prev_offset;
   int screen_lines = div(height, lf->X_height).quot;
 
   int count_lines() {
+    struct buff_string_iter iter = prev->pos;
     int lines=0;
-    for (char *i=cur_ptr; i!=scroll_ptr;) {
-      if (cur_ptr > scroll_ptr) {
-        if (*i=='\n') lines++;
+    int i = next_offset;
+    if (next_offset > scroll_offset) {
+      buff_string_find_back(&iter, lambda(bool _(char c) {
+        if (c=='\n') lines++;
         i--;
-      } else {
-        if (*i=='\n') lines--;
+        if (i==scroll_offset) return true;
+        return false;
+      }));
+    } else {
+      buff_string_find(&iter, lambda(bool _(char c) {
+        if (c=='\n') lines--;
         i++;
-      }
+        if (i==scroll_offset) return true;
+        return false;
+      }));
     }
     return lines;
   }
   int lines = count_lines();
 
-  printf("screen_lines %d\n", screen_lines);
-  printf("lines %d\n", lines);
-  printf("next->pos %d\n", next->pos);
-
   if (diff > 0) {
     if (lines > screen_lines) {
-      scroll_lines(s, buf, buf_len, lines - screen_lines + SCROLL_JUMP);
+      scroll_lines(s, lines - screen_lines + SCROLL_JUMP);
     }
   } else {
-    int lines = count_lines();
     if (lines < 0) {
-      scroll_lines(s, buf, buf_len, lines - SCROLL_JUMP - 1);
+      scroll_lines(s, lines - SCROLL_JUMP - 1);
     }
   }
 }
@@ -161,52 +190,62 @@ void scroll_page(
   struct cursor *c,
   struct loaded_font *lf,
   int height,
-  char *buf,
-  int buf_len,
   int n
 ) {
   int screen_lines = div(height, lf->X_height).quot;
   if (n > 0) {
-    scroll_lines(s, buf, buf_len, screen_lines);
+    scroll_lines(s, screen_lines);
   } else {
-    scroll_lines(s, buf, buf_len, -screen_lines);
+    scroll_lines(s, -screen_lines);
   }
   c->pos = s->pos;
-  cursor_fixup_x0(c, buf);
+  cursor_fixup_x0(c);
 }
 
-void backward_paragraph(struct cursor *c, char *buf) {
-  int i0 = c->pos;
-  for (; i0>0; i0--) if (!isspace(buf[i0])) break;
-  for (; i0>0; i0--) {
-    if (buf[i0] == '\n') {
-      for (int i1=i0 - 1; i1>0; i1--) {
-        if (buf[i1] == '\n') {
-          goto found_paragraph;
-        }
-        if (!isspace(buf[i1])) break;
-      }
+void backward_paragraph(struct cursor *cur) {
+  int is_nl = false;
+  struct buff_string_iter i0 = cur->pos;
+  buff_string_find_back(&i0, lambda(bool _(char c) {
+    return !isspace(c);
+  }));
+
+  buff_string_find_back(&i0, lambda(bool _(char c) {
+    if (is_nl) {
+      if (c=='\n') return true;
+      if (isspace(c)) return false;
+      is_nl=false;
+      return false;
     }
-  }
-  found_paragraph:
-  c->pos = i0;
-  cursor_fixup_x0(c, buf);
+    if (c=='\n') {
+      cur->pos = i0;
+      is_nl=true;
+    }
+    return false;
+  }));
+  cursor_fixup_x0(cur);
 }
 
-void forward_paragraph(struct cursor *c, char *buf, int buf_len) {
-  int i0 = c->pos;
-  for (; i0<buf_len; i0++) {
-    if (buf[i0] == '\n') {
-      for (int i1=i0 + 1; i1<buf_len; i1++) {
-        if (buf[i1] == '\n') {
-          i0 = i1;
-          goto found_paragraph;
-        }
-        if (!isspace(buf[i1])) break;
+void forward_paragraph(struct cursor *cur) {
+  int is_nl = false;
+  struct buff_string_iter i0 = cur->pos;
+  buff_string_find(&i0, lambda(bool _(char c) {
+    if (is_nl) {
+      if (c=='\n') {
+        cur->pos = i0;
+        return true;
       }
+      if (isspace(c)) return false;
+      is_nl=false;
+      return false;
     }
-  }
-  found_paragraph:
-  c->pos = i0;
-  cursor_fixup_x0(c, buf);
+    if (c=='\n') {
+      is_nl=true;
+    }
+    return false;
+  }));
+  cursor_fixup_x0(cur);
+}
+
+void cursor_unittest() {
+  printf("cursor_unittest\n");
 }

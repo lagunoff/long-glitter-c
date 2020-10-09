@@ -11,7 +11,7 @@
 #include "cursor.h"
 #include "main.h"
 
-#define MODIFY_CURSOR(f, c, args...) ({ struct cursor __old = *(c); f((c), args); cursor_modified(&scrollY, &__old, (c), &lf, height, buf, st.st_size); })
+#define MODIFY_CURSOR(f, c) ({ struct cursor __old = *(c); f(c); cursor_modified(&scrollY, &__old, (c), &lf, height); })
 
 int main(int argc, char **argv) {
   SDL_Renderer *renderer;
@@ -19,26 +19,37 @@ int main(int argc, char **argv) {
   int width=WINDOW_WIDTH;
   int height=WINDOW_HEIGHT;
 
-  struct cursor cur = {x0: 0, pos: 0};
-  struct scroll scrollY = {pos: 0};
-  struct loaded_font lf = {0};
-
   if (argc < 2) {
     fputs("Need at least one argument\n", stderr);
+    return EXIT_FAILURE;
+  }
+
+  if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
+    return EXIT_FAILURE;
+  }
+
+  if (SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE|SDL_WINDOW_MAXIMIZED, &window, &renderer) != 0) {
+    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
+    return EXIT_FAILURE;
+  }
+
+  if (TTF_Init() != 0) {
+    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
 
   struct stat st;
   int fd = open(argv[1], O_RDONLY);
   fstat(fd, &st);
-  char *buf = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED,fd, 0);
+  char *contents = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED,fd, 0);
 
-  struct buff_string str = {buf, st.st_size, NULL};
-  struct buff_string_iter iter = BUFF_STRING_BEGIN(&str);
-
-  SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO);
-  SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE|SDL_WINDOW_MAXIMIZED, &window, &renderer);
-  TTF_Init();
+  struct buff_string buf = {contents, st.st_size, NULL, NULL};
+  struct cursor cur = {x0: 0, pos: {0}};
+  struct scroll scrollY = {pos: {0}};
+  struct loaded_font lf = {0};
+  buff_string_begin(&(cur.pos), &buf);
+  buff_string_begin(&(scrollY.pos), &buf);
 
   init_font(&lf, 16);
 
@@ -46,19 +57,18 @@ int main(int argc, char **argv) {
     SDL_Rect rect;
     SDL_Texture *texture1;
     char temp[1024 * 16]; // Maximum line length — 16kb
-    char *iter = buf + scrollY.pos;
-    char *end = buf + st.st_size;
+    struct buff_string_iter iter = scrollY.pos;
     int y=0;
-    char *cur_ptr = buf + cur.pos;
+    int cursor_offset = buff_string_offset(&(cur.pos));
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
     SDL_RenderClear(renderer);
 
     for(;;) {
-      char *iter0 = iter;
+      int offset0 = buff_string_offset(&iter);
 
-      iter = str_takewhile(temp, iter, lambda(bool _(char *c) {
-        return (*c != '\n') && (c < end);
+      buff_string_takewhile(&iter, temp, lambda(bool _(char c) {
+        return c != '\n';
       }));
 
       if (*temp != '\0' && *temp != '\n') {
@@ -67,9 +77,11 @@ int main(int argc, char **argv) {
         SDL_DestroyTexture(texture1);
       }
 
-      if (cur_ptr >= iter0 && cur_ptr <= iter) {
+      int iter_offset = buff_string_offset(&iter);
+
+      if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
         int w,h;
-        int cur_x_offset = cur_ptr - iter0;
+        int cur_x_offset = cursor_offset - offset0;
         temp[cur_x_offset]='\0';
         TTF_SizeText(lf.font,temp,&w,&h);
         SDL_Rect cursor_rect = {x:w,y:y,w:lf.X_width,h:lf.X_height};
@@ -78,8 +90,8 @@ int main(int argc, char **argv) {
       }
 
       y += lf.X_height;
-      if (iter >= end || y > height) break;
-      iter++;
+      if (y > height) break;
+      buff_string_move(&iter, 1);
     }
 
     SDL_RenderPresent(renderer);
@@ -111,72 +123,72 @@ int main(int argc, char **argv) {
       if ( e.key.keysym.scancode == SDL_SCANCODE_LEFT
         || e.key.keysym.scancode == SDL_SCANCODE_B && (e.key.keysym.mod & KMOD_CTRL)
       ) {
-        MODIFY_CURSOR(cursor_left, &cur, buf);
+        MODIFY_CURSOR(cursor_left, &cur);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_RIGHT
         || e.key.keysym.scancode == SDL_SCANCODE_F && (e.key.keysym.mod & KMOD_CTRL)
       ) {
-        MODIFY_CURSOR(cursor_right, &cur, buf, st.st_size);
+        MODIFY_CURSOR(cursor_right, &cur);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_DOWN && e.key.keysym.mod == 0
         || e.key.keysym.scancode == SDL_SCANCODE_N && (e.key.keysym.mod & KMOD_CTRL)
       ) {
-        MODIFY_CURSOR(cursor_down, &cur, buf, st.st_size);
+        MODIFY_CURSOR(cursor_down, &cur);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_UP && e.key.keysym.mod == 0
         || e.key.keysym.scancode == SDL_SCANCODE_P && (e.key.keysym.mod & KMOD_CTRL)
       ) {
-        MODIFY_CURSOR(cursor_up, &cur, buf);
+        MODIFY_CURSOR(cursor_up, &cur);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_F && (e.key.keysym.mod & KMOD_ALT)) {
-        MODIFY_CURSOR(cursor_forward_word, &cur, buf, st.st_size);
+        MODIFY_CURSOR(cursor_forward_word, &cur);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_B && (e.key.keysym.mod & KMOD_ALT)) {
-        MODIFY_CURSOR(cursor_backward_word, &cur, buf);
+        MODIFY_CURSOR(cursor_backward_word, &cur);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_E && (e.key.keysym.mod & KMOD_CTRL)) {
-        MODIFY_CURSOR(cursor_eol, &cur, buf, st.st_size);
+        MODIFY_CURSOR(cursor_eol, &cur);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_A && (e.key.keysym.mod & KMOD_CTRL)) {
-        MODIFY_CURSOR(cursor_bol, &cur, buf);
+        MODIFY_CURSOR(cursor_bol, &cur);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_V && (e.key.keysym.mod & KMOD_CTRL)
         || e.key.keysym.scancode == SDL_SCANCODE_PAGEDOWN && (e.key.keysym.mod==0)
       ) {
-        scroll_page(&scrollY, &cur, &lf, height, buf, st.st_size, 1);
+        scroll_page(&scrollY, &cur, &lf, height, 1);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_V && (e.key.keysym.mod & KMOD_ALT)
         || e.key.keysym.scancode == SDL_SCANCODE_PAGEUP && (e.key.keysym.mod==0)
       ) {
-        scroll_page(&scrollY, &cur, &lf, height, buf, st.st_size, -1);
+        scroll_page(&scrollY, &cur, &lf, height, -1);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_LEFTBRACKET && (e.key.keysym.mod & (KMOD_ALT | KMOD_SHIFT))) {
-        MODIFY_CURSOR(backward_paragraph, &cur, buf);
+        MODIFY_CURSOR(backward_paragraph, &cur);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_RIGHTBRACKET && (e.key.keysym.mod & (KMOD_ALT | KMOD_SHIFT))) {
-        MODIFY_CURSOR(forward_paragraph, &cur, buf, st.st_size);
+        MODIFY_CURSOR(forward_paragraph, &cur);
         render();
         continue;
       }
@@ -189,6 +201,16 @@ int main(int argc, char **argv) {
       if (e.key.keysym.scancode == SDL_SCANCODE_MINUS && (e.key.keysym.mod & KMOD_CTRL)) {
         TTF_CloseFont(lf.font);
         init_font(&lf, lf.font_size - 1);
+        render();
+        continue;
+      }
+      if (e.key.keysym.scancode == SDL_SCANCODE_PERIOD && (e.key.keysym.mod  & (KMOD_ALT | KMOD_SHIFT))) {
+        MODIFY_CURSOR(cursor_end, &cur);
+        render();
+        continue;
+      }
+      if (e.key.keysym.scancode == SDL_SCANCODE_COMMA && (e.key.keysym.mod  & (KMOD_ALT | KMOD_SHIFT))) {
+        MODIFY_CURSOR(cursor_begin, &cur);
         render();
         continue;
       }
