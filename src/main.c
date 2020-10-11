@@ -11,7 +11,7 @@
 #include "cursor.h"
 #include "main.h"
 
-#define MODIFY_CURSOR(f, c) ({ struct cursor __old = *(c); f(c); cursor_modified(&scrollY, &__old, (c), &lf, height); })
+#define MODIFY_CURSOR(f, cu) ({ struct cursor __old = *(cu); f(cu); cursor_modified(&scrollY, &__old, (cu), &lf, height); })
 
 int main(int argc, char **argv) {
   SDL_Renderer *renderer;
@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+  if (SDL_Init(SDL_INIT_VIDEO) != 0) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
@@ -64,6 +64,18 @@ int main(int argc, char **argv) {
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
     SDL_RenderClear(renderer);
 
+    char temp1[1024 * 16];
+    char temp2[1024 * 16];
+    struct buff_string_iter iter1 = scrollY.pos;
+
+    buff_string_takewhile(&iter1, temp1, lambda(bool _(char c) {
+          return c != '\n';
+    }));
+    iter1 = cur.pos;
+    buff_string_takewhile(&iter1, temp2, lambda(bool _(char c) {
+          return c != '\n';
+    }));
+
     for(;;) {
       int offset0 = buff_string_offset(&iter);
 
@@ -84,6 +96,7 @@ int main(int argc, char **argv) {
         int cur_x_offset = cursor_offset - offset0;
         temp[cur_x_offset]='\0';
         TTF_SizeText(lf.font,temp,&w,&h);
+        if (cur_x_offset == 0) w=0;
         SDL_Rect cursor_rect = {x:w,y:y,w:lf.X_width,h:lf.X_height};
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
         SDL_RenderFillRect(renderer, &cursor_rect);
@@ -211,6 +224,11 @@ int main(int argc, char **argv) {
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_COMMA && (e.key.keysym.mod  & (KMOD_ALT | KMOD_SHIFT))) {
         MODIFY_CURSOR(cursor_begin, &cur);
+        render();
+        continue;
+      }
+      if (e.key.keysym.scancode == SDL_SCANCODE_A && (e.key.keysym.mod == 0)) {
+        buff_string_insert(&(cur.pos), "A", 0, &(scrollY.pos), NULL);
         render();
         continue;
       }
