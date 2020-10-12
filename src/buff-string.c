@@ -70,10 +70,8 @@
 void _buff_string_insert_after_1(struct buff_string *str, struct splice *anchor, struct splice *new);
 void _buff_string_insert_after_cursor(struct buff_string_iter *iter, struct splice *anchor, struct splice *new);
 void _buff_string_insert_after_iter(struct buff_string_iter *iter, struct splice *anchor, struct splice *new);
-void _buff_string_iter_right_1(struct buff_string_iter *iter);
-void _buff_string_iter_right_2(struct buff_string_iter *iter);
-int _buff_string_iter_left_1(struct buff_string_iter *iter);
-int _buff_string_iter_left_2(struct buff_string_iter *iter);
+void _buff_string_iter_right(struct buff_string_iter *iter);
+int _buff_string_iter_left(struct buff_string_iter *iter);
 
 void inspect_splices_deep_2 (struct buff_string_iter *it) {
   char temp[16 * 1024];
@@ -139,11 +137,11 @@ void buff_string_index(struct buff_string *str, struct buff_string_iter *iter, i
 }
 
 struct splice *new_splice(int len) {
-  int alloc_len = pow(2, ceil(log2(len)));
-  struct splice *s = malloc(sizeof(struct splice) + alloc_len);
-  memset(s, 0, sizeof(struct splice) + alloc_len);
+  struct splice *s = malloc(sizeof(struct splice));
+  memset(s, 0, sizeof(struct splice));
+  s->bytes = malloc(len);
+  memset(s->bytes, 0, len);
   s->len = len;
-  s->alloc_len = alloc_len;
   return s;
 }
 
@@ -175,7 +173,8 @@ bool buff_string_find(struct buff_string_iter *iter, bool (*p)(char)) {
       for(;iter->current < base_end;iter->current++) {
         if (p(*(iter->current))) goto found;
       }
-      _buff_string_iter_right_1(iter);
+      debug0("_buff_string_iter_righ");
+      _buff_string_iter_right(iter);
       continue;
     }
 
@@ -185,7 +184,8 @@ bool buff_string_find(struct buff_string_iter *iter, bool (*p)(char)) {
       for(;iter->current < next->bytes + next->len; iter->current++) {
         if (p(*(iter->current))) goto found;
       }
-      _buff_string_iter_right_2(iter);
+      debug0("_buff_string_iter_righ");
+      _buff_string_iter_right(iter);
       continue;
     }
 
@@ -215,7 +215,7 @@ bool buff_string_find_back(struct buff_string_iter *iter, bool (*p)(char)) {
       for(;iter->current >= base_start;iter->current--) {
         if (p(*(iter->current))) goto found;
       }
-      _buff_string_iter_left_1(iter);
+      _buff_string_iter_left(iter);
       continue;
     }
 
@@ -224,7 +224,7 @@ bool buff_string_find_back(struct buff_string_iter *iter, bool (*p)(char)) {
       for(;iter->current >= next->bytes;iter->current--) {
         if (p(*(iter->current))) goto found;
       }
-      _buff_string_iter_left_2(iter);
+      _buff_string_iter_left(iter);
       continue;
     }
 
@@ -254,7 +254,8 @@ void buff_string_takewhile(struct buff_string_iter *iter, char *dest, bool (*p)(
         if (!p(*(iter->current))) goto pred_end;
         dest[j++] = *(iter->current);
       }
-      _buff_string_iter_right_1(iter);
+      debug0("_buff_string_iter_righ");
+      _buff_string_iter_right(iter);
       continue;
     }
 
@@ -264,7 +265,8 @@ void buff_string_takewhile(struct buff_string_iter *iter, char *dest, bool (*p)(
         if (!p(*(iter->current))) goto pred_end;
         dest[j++] = *(iter->current);
       }
-      _buff_string_iter_right_2(iter);
+      debug0("_buff_string_iter_righ");
+      _buff_string_iter_right(iter);
       continue;
     }
 
@@ -306,46 +308,80 @@ bool buff_string_is_end(struct buff_string_iter *iter) {
   return iter->current == iter->str->bytes + iter->str->len;
 }
 
-void _buff_string_iter_right_1(struct buff_string_iter *iter) {
-  DESTRUCT_ITER(iter);
-  iter->current = next ? next->bytes : base_end;
+void _buff_string_iter_right(struct buff_string_iter *iter) {
+  debug0("ENTERED");
+  int i = 0;
+  while(1) {
+    assert0(i++ < 100);
+
+    DESTRUCT_ITER(iter);
+
+    if (buff_string_is_end(iter)) goto end;
+
+    if ((iter)->current >= base_start - 1 && (iter)->current <= base_end) {
+      debug0("ITER_CASE_1");
+      iter->current = next ? next->bytes : base_end;
+      if (next && next->len == 0) continue;
+      goto end;
+    }
+
+    if (next && (iter)->current >= next->bytes - 1 && (iter)->current <= (next->bytes + next->len)) {
+      debug0("ITER_CASE_2");
+      struct splice *nnext = next->next;
+      iter->current = iter->str->bytes + (next->start + next->deleted);
+      iter->next = &next->next;
+      if (nnext && (iter->current == iter->str->bytes + nnext->start)) {
+        debug0("if (nnext && (iter->current == iter->str->bytes + nnext->start)) {");
+        continue;
+      }
+      goto end;
+    }
+
+    ITER_ABSURD(iter);
+  }
+
+ end:
+  debug0("ENDED");
 }
 
-void _buff_string_iter_right_2(struct buff_string_iter *iter) {
-  DESTRUCT_ITER(iter);
-  struct splice *nnext = next->next;
-  iter->current = iter->str->bytes + (next->start + next->deleted);
-  iter->next = &next->next;
-  if (nnext && (iter->current == iter->str->bytes + nnext->start)) {
-    iter->current = nnext->bytes;
-  }
-}
+int _buff_string_iter_left(struct buff_string_iter *iter) {
+  int i = 0;
+  while(1) {
+    assert0(i++ < 100);
 
-int _buff_string_iter_left_1(struct buff_string_iter *iter) {
-  DESTRUCT_ITER(iter);
-  if (prev) {
-    iter->current = prev->bytes + prev->len - 1;
-    iter->next = prev->prev ? &prev->prev->next : &iter->str->first;
-    return 1;
-  } else {
-    iter->current = iter->str->bytes;
-    return 0;
-  }
-}
+    DESTRUCT_ITER(iter);
+    if (iter->current == iter->str->bytes - 1) {
+      buff_string_begin(iter, iter->str);
+      return 0;
+    }
 
-int _buff_string_iter_left_2(struct buff_string_iter *iter) {
-  DESTRUCT_ITER(iter);
-  if (base_end == iter->str->bytes) {
-    buff_string_begin(iter, iter->str);
-    return 0;
-  } else {
-    iter->current = base_end - 1;
+    if ((iter)->current >= base_start - 1 && (iter)->current < base_end) {
+      if (prev) {
+        iter->next = prev->prev ? &prev->prev->next : &iter->str->first;
+        iter->current = prev->bytes + prev->len - 1;
+        if (prev->len == 0) continue;
+        return 1;
+      } else {
+        iter->current = iter->str->bytes;
+        return 0;
+      }
+    }
+
+    if (next && (iter)->current >= next->bytes - 1 && (iter)->current < (next->bytes + next->len)) {
+      if (base_end == iter->str->bytes) {
+        buff_string_begin(iter, iter->str);
+        return 0;
+      } else {
+        iter->current = base_end - 1;
+      }
+      if (prev && iter->str->bytes + (prev->start + prev->deleted) == base_end) {
+        continue;
+      }
+      return 1;
+    }
+
+    ITER_ABSURD(iter);
   }
-  if (prev && iter->str->bytes + (prev->start + prev->deleted) == base_end) {
-    iter->next = prev->prev ? &prev->prev->next : &iter->str->first;
-    iter->current = prev->bytes + prev->len - 1;
-  }
-  return 1;
 }
 
 bool buff_string_move(struct buff_string_iter *iter, int dx) {
@@ -376,14 +412,14 @@ int buff_string_offset(struct buff_string_iter *iter) {
     ITER_CASE_1(&iter0) {
       // iter0.current points to string between prev and next
       offset += iter0.current - base_start;
-      offset += _buff_string_iter_left_1(&iter0);
+      offset += _buff_string_iter_left(&iter0);
       continue;
     }
 
     ITER_CASE_2(&iter0) {
       // iter0.current points to string inside next
       offset += iter0.current - next->bytes;
-      offset += _buff_string_iter_left_2(&iter0);
+      offset += _buff_string_iter_left(&iter0);
       continue;
     }
 
@@ -396,6 +432,22 @@ void buff_string_insert(struct buff_string_iter *iter, char *str, int deleted, .
 
   ITER_CASE_1(iter) {
     // iter->current points to string between prev and next
+    if (prev && iter->str->bytes + prev->start + prev->deleted == iter->current) {
+      int insert_offset = prev->len;
+      int insert_len = strlen(str);
+      int new_len = prev->len + insert_len - deleted;
+      int move_len = prev->len - insert_offset - deleted;
+      inspect(%d, insert_offset);
+      inspect(%d, prev->len);
+      inspect(%d, move_len);
+      if (prev->len != new_len) prev->bytes = realloc(prev->bytes, new_len);
+      if (insert_len > 0) memcpy(prev->bytes + insert_offset, str, insert_len);
+      prev->len = new_len;
+      prev->deleted += deleted;
+      iter->current = iter->str->bytes + prev->start + prev->deleted;
+      goto end;
+    }
+
     struct splice *splice = new_splice_str(str);
     splice->deleted = deleted;
     splice->start = iter->current - iter->str->bytes;
@@ -415,7 +467,19 @@ void buff_string_insert(struct buff_string_iter *iter, char *str, int deleted, .
 
   ITER_CASE_2(iter) {
     // iter->current points to string inside next
-    int tail_len = next->len - (iter->current - next->bytes);
+    int insert_offset = iter->current - next->bytes;
+    int insert_len = strlen(str);
+    int new_len = next->len + insert_len - deleted;
+    int move_len = next->len - insert_offset - deleted;
+    inspect(%d, insert_offset);
+    inspect(%d, next->len);
+    inspect(%d, move_len);
+    if (next->len != new_len) next->bytes = realloc(next->bytes, new_len);
+    if (move_len > 0) memmove(next->bytes + insert_offset + insert_len + deleted, next->bytes + insert_offset + deleted, move_len);
+    if (insert_len > 0) memcpy(next->bytes + insert_offset, str, insert_len);
+    iter->current = next->bytes + insert_offset + insert_len;
+    next->len = new_len;
+    next->deleted += deleted;
     goto end;
   }
 
@@ -456,46 +520,33 @@ void _buff_string_insert_after_cursor(struct buff_string_iter *iter, struct spli
 
   if (anchor == prev) {
     printf("if (anchor == prev)\n");
-    char *next_start = iter->str->bytes + new->start;
-    char *next_end = iter->str->bytes + iter->str->len;
-    if (iter->current >= next_start && iter->current < next_end) {
-      debug0("if (iter->current >= next_start && iter->current < next_end) {");
-      iter->current = iter->str->bytes + new->start + new->deleted;
-      iter->next = &new->next;
+    char *new_start = iter->str->bytes + new->start;
+    char *new_end = iter->str->bytes + iter->str->len;
+    if (iter->current >= new_start && iter->current < new_end) {
+      debug0("if (iter->current >= new_start && iter->current < new_end) {");
+      iter->current = new->bytes - 1;
+      debug0("_buff_string_iter_righ");
+      _buff_string_iter_right(iter);
     }
   }
+  CHECK_ITER(iter);
 }
 
 void _buff_string_insert_after_iter(struct buff_string_iter *iter, struct splice *anchor, struct splice *new) {
   DESTRUCT_ITER(iter);
-  char *next_start = iter->str->bytes + new->start;
-  char *next_end = iter->str->bytes + iter->str->len;
+  char *new_start = iter->str->bytes + new->start;
+  char *new_end = iter->str->bytes + iter->str->len;
 
   if (anchor == prev) {
     printf("if (anchor == prev)\n");
 
-    if (iter->current >= next_start && iter->current < next_end) {
-      debug0("if (iter->current >= next_start && iter->current < next_end) {");
-      iter->current = new->bytes;
+    if (iter->current >= new_start && iter->current < new_end) {
+      debug0("if (iter->current >= new_start && iter->current < new_end) {");
+      iter->current = new->bytes - 1;
       iter->next = new->prev ? &new->prev->next : &iter->str->first;
+      _buff_string_iter_left(iter);
     }
   }
-  inspect(%lu, base_end - base_start);
-  inspect(%lu, base_start);
-  inspect(%lu, base_end);
-  inspect(%lu, iter->current);
-  inspect(%lu, next);
-  if (next) inspect(%d, next->start);
-  if (next) inspect(%lu, next->bytes);
-  if (next) inspect(%lu, next->len);
-  inspect(%lu, new);
-  inspect(%d, new->start);
-  inspect(%lu, new->bytes);
-  inspect(%lu, new->len);
-
-  inspect(%lu, next_start);
-  inspect(%lu, next_end);
-  inspect(%lu, next_end - next_start);
   CHECK_ITER(iter);
 }
 

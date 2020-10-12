@@ -13,8 +13,7 @@ struct splice {
   int start;
   int deleted;
   int len; // Length of bytes field
-  int alloc_len; // Allocated length of bytes
-  char bytes[0];
+  char *bytes;
 };
 
 struct buff_string {

@@ -232,6 +232,19 @@ int main(int argc, char **argv) {
         render();
         continue;
       }
+      if (e.key.keysym.scancode == SDL_SCANCODE_D && (e.key.keysym.mod == 0)) {
+        buff_string_insert(&(cur.pos), "D", 0, &(scrollY.pos), NULL);
+        render();
+        continue;
+      }
+      if (e.key.keysym.scancode == SDL_SCANCODE_BACKSPACE && (e.key.keysym.mod == 0)) {
+        struct buff_string_iter cursor_prev = cur.pos;
+        if (buff_string_is_begin(&cursor_prev)) continue;
+        buff_string_move(&cursor_prev, -1);
+        buff_string_insert(&cursor_prev, "", 1, &(cur.pos), &(scrollY.pos), NULL);
+        render();
+        continue;
+      }
     }
   }
 
