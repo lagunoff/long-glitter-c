@@ -7,6 +7,11 @@ typedef enum {
   MB_MORE
 } maybe_bool;
 
+typedef enum {
+  INSERT_RIGHT,
+  INSERT_LEFT,
+} insert_dir;
+
 struct splice {
   struct splice *next;
   struct splice *prev;
@@ -39,7 +44,7 @@ bool buff_string_find(struct buff_string_iter *iter, bool (*p)(char));
 bool buff_string_find_back(struct buff_string_iter *iter, bool (*p)(char));
 bool buff_string_move(struct buff_string_iter *iter, int dx);
 int buff_string_offset(struct buff_string_iter *iter);
-void buff_string_insert(struct buff_string_iter *iter, char *str, int deleted, ...);
+void buff_string_insert(struct buff_string_iter *iter, insert_dir dir, char *str, int deleted, ...);
 bool buff_string_is_begin(struct buff_string_iter *iter);
 bool buff_string_is_end(struct buff_string_iter *iter);
 void inspect_splices_deep (struct buff_string *str);

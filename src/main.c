@@ -42,7 +42,10 @@ int main(int argc, char **argv) {
   struct stat st;
   int fd = open(argv[1], O_RDONLY);
   fstat(fd, &st);
-  char *contents = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED,fd, 0);
+  char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED,fd, 0);
+  char *contents = malloc(st.st_size);
+  memcpy(contents, mmaped, st.st_size);
+  munmap(mmaped, st.st_size);
 
   struct buff_string buf = {contents, st.st_size, NULL, NULL};
   struct cursor cur = {x0: 0, pos: {0}};
@@ -228,20 +231,22 @@ int main(int argc, char **argv) {
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_A && (e.key.keysym.mod == 0)) {
-        buff_string_insert(&(cur.pos), "A", 0, &(scrollY.pos), NULL);
+        buff_string_insert(&(cur.pos), INSERT_LEFT, "A", 0, &(scrollY.pos), NULL);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_D && (e.key.keysym.mod == 0)) {
-        buff_string_insert(&(cur.pos), "D", 0, &(scrollY.pos), NULL);
+        buff_string_insert(&(cur.pos), INSERT_LEFT, "D", 0, &(scrollY.pos), NULL);
+        render();
+        continue;
+      }
+      if (e.key.keysym.scancode == SDL_SCANCODE_DELETE && (e.key.keysym.mod == 0)) {
+        buff_string_insert(&(cur.pos), INSERT_RIGHT, "", 1, &(scrollY.pos), NULL);
         render();
         continue;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_BACKSPACE && (e.key.keysym.mod == 0)) {
-        struct buff_string_iter cursor_prev = cur.pos;
-        if (buff_string_is_begin(&cursor_prev)) continue;
-        buff_string_move(&cursor_prev, -1);
-        buff_string_insert(&cursor_prev, "", 1, &(cur.pos), &(scrollY.pos), NULL);
+        buff_string_insert(&(cur.pos), INSERT_LEFT, "", 1, &(scrollY.pos), NULL);
         render();
         continue;
       }
