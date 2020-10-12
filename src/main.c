@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "buff-string.h"
 #include "cursor.h"
@@ -40,7 +41,7 @@ int main(int argc, char **argv) {
   }
 
   struct stat st;
-  int fd = open(argv[1], O_RDONLY);
+  int fd = open(argv[1], O_RDWR);
   fstat(fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED,fd, 0);
   char *contents = malloc(st.st_size);
@@ -117,6 +118,12 @@ int main(int argc, char **argv) {
 
   SDL_Event e;
 
+  SDL_StartTextInput();
+  bool is_command = false;
+
+  SDL_Keysym prev_zero = {0};
+  SDL_Keysym prev = {0};
+
   while (SDL_WaitEvent(&e) == 1) {
     if (e.type == SDL_QUIT) {
       break;
@@ -136,122 +143,180 @@ int main(int argc, char **argv) {
     }
 
     if (e.type == SDL_KEYDOWN) {
+      if (e.key.keysym.scancode == SDL_SCANCODE_X && (e.key.keysym.mod & KMOD_CTRL)) {
+        debug0("prev = e.key");
+        prev = e.key.keysym;
+        goto continue_dont_clear_prev;
+      }
+
+      if (e.key.keysym.scancode == SDL_SCANCODE_S && (e.key.keysym.mod & KMOD_CTRL)
+          && prev.scancode == SDL_SCANCODE_X && (prev.mod & KMOD_CTRL)) {
+        debug0("SAVING");
+        write (fd, buf.bytes, buf.len);
+        goto continue_command;
+      }
+
       if ( e.key.keysym.scancode == SDL_SCANCODE_LEFT
         || e.key.keysym.scancode == SDL_SCANCODE_B && (e.key.keysym.mod & KMOD_CTRL)
       ) {
         MODIFY_CURSOR(cursor_left, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_RIGHT
         || e.key.keysym.scancode == SDL_SCANCODE_F && (e.key.keysym.mod & KMOD_CTRL)
       ) {
         MODIFY_CURSOR(cursor_right, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_DOWN && e.key.keysym.mod == 0
         || e.key.keysym.scancode == SDL_SCANCODE_N && (e.key.keysym.mod & KMOD_CTRL)
       ) {
         MODIFY_CURSOR(cursor_down, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_UP && e.key.keysym.mod == 0
         || e.key.keysym.scancode == SDL_SCANCODE_P && (e.key.keysym.mod & KMOD_CTRL)
       ) {
         MODIFY_CURSOR(cursor_up, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_F && (e.key.keysym.mod & KMOD_ALT)) {
         MODIFY_CURSOR(cursor_forward_word, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_B && (e.key.keysym.mod & KMOD_ALT)) {
         MODIFY_CURSOR(cursor_backward_word, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_E && (e.key.keysym.mod & KMOD_CTRL)) {
         MODIFY_CURSOR(cursor_eol, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_A && (e.key.keysym.mod & KMOD_CTRL)) {
         MODIFY_CURSOR(cursor_bol, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_V && (e.key.keysym.mod & KMOD_CTRL)
         || e.key.keysym.scancode == SDL_SCANCODE_PAGEDOWN && (e.key.keysym.mod==0)
       ) {
         scroll_page(&scrollY, &cur, &lf, height, 1);
-        render();
-        continue;
+        goto continue_command;
+      }
+      if (e.key.keysym.scancode == SDL_SCANCODE_Y && (e.key.keysym.mod & KMOD_CTRL)) {
+        char *clipboard = SDL_GetClipboardText();
+        if (clipboard) {
+          buff_string_insert(&(cur.pos), INSERT_LEFT, clipboard, 0, &(scrollY.pos), NULL);
+        }
+        goto continue_command;
+      }
+      if (e.key.keysym.scancode == SDL_SCANCODE_K && (e.key.keysym.mod & KMOD_CTRL)) {
+        struct buff_string_iter iter = cur.pos;
+        buff_string_find(&iter, lambda(bool _(char c) { return c == '\n'; }));
+        int curr_offset = buff_string_offset(&cur.pos);
+        int iter_offset = buff_string_offset(&iter);
+        buff_string_insert(&(cur.pos), INSERT_RIGHT, "", MAX(iter_offset - curr_offset, 1), &(scrollY.pos), NULL);
+        goto continue_command;
+      }
+      if (e.key.keysym.scancode == SDL_SCANCODE_BACKSPACE && (e.key.keysym.mod & KMOD_ALT)) {
+        struct buff_string_iter iter = cur.pos;
+        buff_string_backward_word(&iter);
+
+        int curr_offset = buff_string_offset(&cur.pos);
+        int iter_offset = buff_string_offset(&iter);
+        buff_string_insert(&(cur.pos), INSERT_LEFT, "", abs(curr_offset - iter_offset), &(scrollY.pos), NULL);
+        goto continue_command;
+      }
+      if (e.key.keysym.scancode == SDL_SCANCODE_D && (e.key.keysym.mod & KMOD_ALT)) {
+        struct buff_string_iter iter = cur.pos;
+        buff_string_forward_word(&iter);
+
+        int curr_offset = buff_string_offset(&cur.pos);
+        int iter_offset = buff_string_offset(&iter);
+        buff_string_insert(&(cur.pos), INSERT_RIGHT, "", abs(curr_offset - iter_offset), &(scrollY.pos), NULL);
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_V && (e.key.keysym.mod & KMOD_ALT)
         || e.key.keysym.scancode == SDL_SCANCODE_PAGEUP && (e.key.keysym.mod==0)
       ) {
         scroll_page(&scrollY, &cur, &lf, height, -1);
-        render();
-        continue;
+        goto continue_command;
       }
-      if (e.key.keysym.scancode == SDL_SCANCODE_LEFTBRACKET && (e.key.keysym.mod & (KMOD_ALT | KMOD_SHIFT))) {
+      if (e.key.keysym.scancode == SDL_SCANCODE_LEFTBRACKET && (e.key.keysym.mod & KMOD_ALT && e.key.keysym.mod & KMOD_SHIFT)) {
         MODIFY_CURSOR(backward_paragraph, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
-      if (e.key.keysym.scancode == SDL_SCANCODE_RIGHTBRACKET && (e.key.keysym.mod & (KMOD_ALT | KMOD_SHIFT))) {
+      if (e.key.keysym.scancode == SDL_SCANCODE_RIGHTBRACKET && (e.key.keysym.mod & KMOD_ALT && e.key.keysym.mod & KMOD_SHIFT)) {
         MODIFY_CURSOR(forward_paragraph, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_EQUALS  && (e.key.keysym.mod & KMOD_CTRL)) {
         TTF_CloseFont(lf.font);
         init_font(&lf, lf.font_size + 1);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_MINUS && (e.key.keysym.mod & KMOD_CTRL)) {
         TTF_CloseFont(lf.font);
         init_font(&lf, lf.font_size - 1);
-        render();
-        continue;
+        goto continue_command;
       }
-      if (e.key.keysym.scancode == SDL_SCANCODE_PERIOD && (e.key.keysym.mod  & (KMOD_ALT | KMOD_SHIFT))) {
+      if (e.key.keysym.scancode == SDL_SCANCODE_PERIOD && (e.key.keysym.mod & KMOD_ALT && e.key.keysym.mod & KMOD_SHIFT)) {
         MODIFY_CURSOR(cursor_end, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
-      if (e.key.keysym.scancode == SDL_SCANCODE_COMMA && (e.key.keysym.mod  & (KMOD_ALT | KMOD_SHIFT))) {
+      if (e.key.keysym.scancode == SDL_SCANCODE_COMMA && (e.key.keysym.mod & KMOD_ALT && e.key.keysym.mod & KMOD_SHIFT)) {
         MODIFY_CURSOR(cursor_begin, &cur);
-        render();
-        continue;
+        goto continue_command;
       }
-      if (e.key.keysym.scancode == SDL_SCANCODE_A && (e.key.keysym.mod == 0)) {
-        buff_string_insert(&(cur.pos), INSERT_LEFT, "A", 0, &(scrollY.pos), NULL);
-        render();
-        continue;
-      }
-      if (e.key.keysym.scancode == SDL_SCANCODE_D && (e.key.keysym.mod == 0)) {
-        buff_string_insert(&(cur.pos), INSERT_LEFT, "D", 0, &(scrollY.pos), NULL);
-        render();
-        continue;
-      }
-      if (e.key.keysym.scancode == SDL_SCANCODE_DELETE && (e.key.keysym.mod == 0)) {
+      if (e.key.keysym.scancode == SDL_SCANCODE_DELETE && (e.key.keysym.mod == 0)
+          || e.key.keysym.scancode == SDL_SCANCODE_D && (e.key.keysym.mod & KMOD_CTRL)
+          ) {
         buff_string_insert(&(cur.pos), INSERT_RIGHT, "", 1, &(scrollY.pos), NULL);
-        render();
-        continue;
+        goto continue_command;
       }
       if (e.key.keysym.scancode == SDL_SCANCODE_BACKSPACE && (e.key.keysym.mod == 0)) {
         buff_string_insert(&(cur.pos), INSERT_LEFT, "", 1, &(scrollY.pos), NULL);
-        render();
-        continue;
+        goto continue_command;
       }
+      if (e.key.keysym.scancode == SDL_SCANCODE_RETURN) {
+        debug0("SDL_SCANCODE_RETURN");
+        buff_string_insert(&(cur.pos), INSERT_LEFT, "\n", 0, &(scrollY.pos), NULL);
+        goto continue_no_command;
+      }
+      is_command = false;
+      continue;
+
+      continue_no_command:
+        render();
+        is_command = false;
+        prev = prev_zero;
+        continue;
+
+      continue_command:
+        render();
+        is_command = true;
+        prev = prev_zero;
+        continue;
+
+      continue_dont_clear_prev:
+        render();
+        is_command = false;
+        continue;
+
+      continue_dont_render:
+        is_command = false;
+        continue;
+    }
+
+    if (e.type == SDL_TEXTINPUT) {
+      if (!is_command) {
+        buff_string_insert(&(cur.pos), INSERT_LEFT, e.text.text, 0, &(scrollY.pos), NULL);
+        render();
+      }
+      continue;
     }
   }
+  close(fd);
+  SDL_StopTextInput();
 
   TTF_CloseFont(lf.font);
   TTF_Quit();

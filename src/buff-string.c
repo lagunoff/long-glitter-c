@@ -130,17 +130,18 @@ int buff_string_offset(struct buff_string_iter *iter) {
 
 void buff_string_insert(struct buff_string_iter *iter, insert_dir dir, char *str, int deleted, ...) {
   inspect(%d, iter->current - iter->str->bytes);
+  inspect(%s, str);
   int insert_offset = iter->current - iter->str->bytes + (dir == INSERT_LEFT ? -deleted : 0);
   int insert_len = strlen(str);
   int new_len = iter->str->len + insert_len - deleted;
-  int move_len = iter->str->len - insert_offset + -deleted;
+  int move_len = iter->str->len - insert_offset - deleted;
   char *new_bytes = iter->str->bytes;
 
   if (iter->str->len != new_len) {
     new_bytes = realloc(iter->str->bytes, new_len);
   }
 
-  iter->current = new_bytes + (iter->current - iter->str->bytes + insert_len) + (dir == INSERT_LEFT ? -deleted : 0);
+  iter->current = new_bytes + insert_offset + (dir == INSERT_LEFT ? insert_len : 0);
 
   va_list iters;
   va_start(iters, deleted);
@@ -151,22 +152,31 @@ void buff_string_insert(struct buff_string_iter *iter, insert_dir dir, char *str
   }
   va_end(iters);
 
+  char *move_dest = new_bytes + insert_offset + insert_len ;
+  char *move_src = new_bytes + insert_offset + deleted;
+
   inspect(%d, insert_offset);
   inspect(%d, insert_len);
   inspect(%d, deleted);
   inspect(%d, move_len);
-
-  char *move_dest = new_bytes + insert_offset + insert_len ;
-  char *move_src = new_bytes + insert_offset + deleted;
-
   inspect(%lu, new_bytes);
   inspect(%lu, move_dest);
   inspect(%lu, move_src);
 
   if (move_src != move_dest) memmove(move_dest, move_src, move_len);
-  if (insert_len > 0) (move_dest - insert_len, str, insert_len);
+  if (insert_len > 0) memcpy(move_dest - insert_len, str, insert_len);
   iter->str->len = new_len;
   iter->str->bytes = new_bytes;
+}
+
+void buff_string_forward_word(struct buff_string_iter *iter) {
+  buff_string_find(iter, lambda(bool _(char c) { return isalnum(c); }));
+  buff_string_find(iter, lambda(bool _(char c) { return !isalnum(c); }));
+}
+
+void buff_string_backward_word(struct buff_string_iter *iter) {
+  buff_string_find_back(iter, lambda(bool _(char c) { return isalnum(c); }));
+  buff_string_find_back(iter, lambda(bool _(char c) { return !isalnum(c); }));
 }
 
 void buff_string_unittest() {

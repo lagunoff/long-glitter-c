@@ -89,24 +89,12 @@ void cursor_eol(struct cursor *c) {
 }
 
 void cursor_backward_word(struct cursor *c) {
-  buff_string_find_back(&(c->pos), lambda(bool _(char c) {
-    return isalnum(c);
-  }));
-  buff_string_find_back(&(c->pos), lambda(bool _(char c) {
-    return !isalnum(c);
-  }));
+  buff_string_backward_word(&c->pos);
   cursor_fixup_x0(c);
 }
 
 void cursor_forward_word(struct cursor *c) {
-  buff_string_find(&(c->pos), lambda(bool _(char c) {
-    return isalnum(c);
-  }));
-
-  buff_string_find(&(c->pos), lambda(bool _(char c) {
-    return !isalnum(c);
-  }));
-
+  buff_string_forward_word(&c->pos);
   cursor_fixup_x0(c);
 }
 

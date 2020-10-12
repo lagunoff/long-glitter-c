@@ -47,8 +47,8 @@ int buff_string_offset(struct buff_string_iter *iter);
 void buff_string_insert(struct buff_string_iter *iter, insert_dir dir, char *str, int deleted, ...);
 bool buff_string_is_begin(struct buff_string_iter *iter);
 bool buff_string_is_end(struct buff_string_iter *iter);
-void inspect_splices_deep (struct buff_string *str);
-void inspect_splices_deep_2 (struct buff_string_iter *iter);
+void buff_string_forward_word(struct buff_string_iter *iter);
+void buff_string_backward_word(struct buff_string_iter *iter);
 
 // Deallocate memory with `free`
 struct splice *new_splice(int len);
