@@ -23,7 +23,8 @@ static void buffer_draw_text(
   int x, int y,
   char *text,
   SDL_Texture **out_texture,
-  SDL_Rect *out_rect
+  SDL_Rect *out_rect,
+  SDL_Color bg
 );
 
 static void cursor_modified (
@@ -45,9 +46,14 @@ void buffer_init(struct buffer *out, SDL_Point *size, char *path) {
   out->contents.len = st.st_size;
   out->contents.first = NULL;
   out->contents.last = NULL;
+  out->selection.active = false;
+  buff_string_index(&out->contents, &out->selection.mark1, 10);
+  buff_string_index(&out->contents, &out->selection.mark2, 20);
+
   out->size = *size;
   buff_string_begin(&out->scroll.pos, &out->contents);
   buff_string_begin(&out->cursor.pos, &out->contents);
+  out->cursor.x0 = 0;
   buffer_init_font(&out->font, 18);
   out->_last_command = false;
   out->_prev_keysym = zero_keysym;
@@ -241,36 +247,85 @@ void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
   struct buff_string_iter iter = self->scroll.pos;
   int y=0;
   int cursor_offset = buff_string_offset(&self->cursor.pos);
+  int mark1_offset = self->selection.active ? buff_string_offset(&self->selection.mark1) : -1;
+  int mark2_offset = self->selection.active ? buff_string_offset(&self->selection.mark2) : -1;
+  SDL_Color white = {255,255,255,0};
+  SDL_Color black = {0,0,0,0};
+  SDL_Color selection_bg = {210,210,255,0};
+
+  SDL_Color bg = white;
+  SDL_Color fg = black;
 
   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
   SDL_RenderClear(renderer);
 
   for(;;) {
+    SDL_SetRenderDrawColor(renderer, fg.r, fg.g, fg.b, fg.a);
     int offset0 = buff_string_offset(&iter);
 
     buff_string_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
+    int iter_offset = buff_string_offset(&iter);
+
+    if (mark2_offset >= offset0 && mark2_offset <= iter_offset) {
+      bg = white;
+    }
 
     if (*temp != '\0' && *temp != '\n') {
-      buffer_draw_text(self->font.font, renderer, 0, y, temp, &texture1, &rect);
+      buffer_draw_text(self->font.font, renderer, 0, y, temp, &texture1, &rect, bg);
       SDL_RenderCopy(renderer, texture1, NULL, &rect);
       SDL_DestroyTexture(texture1);
     }
 
-    int iter_offset = buff_string_offset(&iter);
+
+    if (mark1_offset >= offset0 && mark1_offset <= iter_offset) {
+      int w,h;
+      bg = selection_bg;
+      int len1 = mark1_offset - offset0;
+      int len2 = iter_offset - mark1_offset;
+      char temp1[len1 + 1];
+      char temp2[len2 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      strcpy(temp2, temp + len1);
+      TTF_SizeText(self->font.font,temp1,&w,&h);
+      buffer_draw_text(self->font.font, renderer, w, y, temp2, &texture1, &rect, bg);
+      SDL_RenderCopy(renderer, texture1, NULL, &rect);
+      SDL_DestroyTexture(texture1);
+    }
+
+    if (mark2_offset >= offset0 && mark2_offset <= iter_offset) {
+      int len1 = mark2_offset - offset0;
+      char temp1[len1 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      buffer_draw_text(self->font.font, renderer, 0, y, temp1, &texture1, &rect, selection_bg);
+      SDL_RenderCopy(renderer, texture1, NULL, &rect);
+      SDL_DestroyTexture(texture1);
+    }
 
     if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
       int w,h;
       int cur_x_offset = cursor_offset - offset0;
+      int cursor_char = temp[cur_x_offset];
       temp[cur_x_offset]='\0';
       TTF_SizeText(self->font.font,temp,&w,&h);
       if (cur_x_offset == 0) w=0;
       SDL_Rect cursor_rect = {x:w,y:y,w:self->font.X_width,h:self->font.X_height};
       SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
       SDL_RenderFillRect(renderer, &cursor_rect);
+      if (cursor_char != '\0' && cursor_char != '\n') {
+        temp[0]=cursor_char;
+        temp[1]='\0';
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
+        buffer_draw_text(self->font.font, renderer, w, y, temp, &texture1, &rect, black);
+        SDL_RenderCopy(renderer, texture1, NULL, &rect);
+        SDL_DestroyTexture(texture1);
+      }
     }
 
     y += self->font.X_height;
-    if (y > self->size.x) break;
+    if (y > self->size.y) break;
+    // Skip newline symbol
     buff_string_move(&iter, 1);
   }
 
@@ -337,12 +392,13 @@ void buffer_draw_text(
   int x, int y,
   char *text,
   SDL_Texture **out_texture,
-  SDL_Rect *out_rect
+  SDL_Rect *out_rect,
+  SDL_Color bg
 ) {
   int text_width;
   int text_height;
-  SDL_Color fg = {0, 0, 0, 0.87};
-  SDL_Color bg = {255, 255, 255, 0};
+  SDL_Color fg;
+  SDL_GetRenderDrawColor(renderer, &fg.r, &fg.g, &fg.b, &fg.a);
   SDL_Surface *surface = TTF_RenderText_Shaded(font, text, fg, bg);
   *out_texture = SDL_CreateTextureFromSurface(renderer, surface);
   text_width = surface->w;

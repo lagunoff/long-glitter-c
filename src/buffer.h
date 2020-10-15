@@ -15,11 +15,18 @@ struct loaded_font {
   int X_height;
 };
 
+struct selection {
+  bool active;
+  struct buff_string_iter mark1;
+  struct buff_string_iter mark2;
+};
+
 struct buffer {
   struct buff_string contents;
   struct scroll scroll;
   struct cursor cursor;
   struct loaded_font font;
+  struct selection selection;
   SDL_Point size;
   int fd;
   bool _last_command;
