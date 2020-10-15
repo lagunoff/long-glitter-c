@@ -2,8 +2,7 @@
 #include "cursor.h"
 #include "main.h"
 #include "buff-string.h"
-
-#define SCROLL_JUMP 8
+#include "buffer.h"
 
 static void cursor_fixup_x0(struct cursor *cur) {
   struct buff_string_iter iter = cur->pos;
@@ -133,53 +132,6 @@ void scroll_lines(struct scroll *s, int n) {
       return c=='\n';
     }));
     if (found) buff_string_move(&(s->pos), 1);
-  }
-}
-
-void cursor_modified (
-  struct scroll *s,
-  struct cursor *prev,
-  struct cursor *next,
-  struct loaded_font *lf,
-  int height
-) {
-  int next_offset = buff_string_offset(&(next->pos));
-  int prev_offset = buff_string_offset(&(prev->pos));
-  int scroll_offset = buff_string_offset(&(s->pos));
-  int diff = next_offset - prev_offset;
-  int screen_lines = div(height, lf->X_height).quot;
-
-  int count_lines() {
-    struct buff_string_iter iter = next->pos;
-    int lines=0;
-    int i = next_offset;
-    if (next_offset > scroll_offset) {
-      buff_string_find_back(&iter, lambda(bool _(char c) {
-        if (c=='\n') lines++;
-        i--;
-        if (i==scroll_offset) return true;
-        return false;
-      }));
-    } else {
-      buff_string_find(&iter, lambda(bool _(char c) {
-        if (c=='\n') lines--;
-        i++;
-        if (i==scroll_offset) return true;
-        return false;
-      }));
-    }
-    return lines;
-  }
-  int lines = count_lines();
-
-  if (diff > 0) {
-    if (lines > screen_lines) {
-      scroll_lines(s, lines - screen_lines + SCROLL_JUMP);
-    }
-  } else {
-    if (lines < 0) {
-      scroll_lines(s, lines - SCROLL_JUMP - 1);
-    }
   }
 }
 

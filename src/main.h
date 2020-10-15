@@ -13,20 +13,6 @@
 
 #define lambda(c_) ({ c_ _;})
 
-struct loaded_font {
-  TTF_Font *font;
-  int font_size;
-  int X_width;
-  int X_height;
-};
-
-void get_text_and_rect(
-  SDL_Renderer *renderer, int x, int y, char *text,
-  TTF_Font *font, SDL_Texture **texture, SDL_Rect *rect
-);
-
-void init_font(struct loaded_font *lf, int font_size);
-
 char* str_takewhile(char *out, char* src, bool (*p)(char *));
 
 #define absurd(format, args...) ({ fprintf(stderr, "%s %s:%d | " format "\n", __FUNCTION__, __FILE__, __LINE__, args); exit(1); })

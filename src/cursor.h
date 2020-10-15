@@ -34,11 +34,3 @@ void scroll_page(
   int height,
   int n
 );
-
-void cursor_modified (
-  struct scroll *s,
-  struct cursor *prev,
-  struct cursor *next,
-  struct loaded_font *lf,
-  int height
-);

@@ -9,6 +9,7 @@ let
     buildInputs = [
       nixpkgs.SDL2
       nixpkgs.SDL2_ttf
+      nixpkgs.lightning
     ];
   };
 in { shell = long-glitter-cpp; }
