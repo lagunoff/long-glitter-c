@@ -18,11 +18,7 @@ int main(int argc, char **argv) {
   SDL_Renderer *renderer;
   SDL_Window *window;
   int fridge = 8;
-
-  if (argc < 2) {
-    fputs("Need at least one argument\n", stderr);
-    return EXIT_FAILURE;
-  }
+  char *path = argc < 2 ? "/home/vlad/job/long-glitter-c/test/01.lisp" : argv[1];
 
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
@@ -41,7 +37,7 @@ int main(int argc, char **argv) {
 
   SDL_Point size = {WINDOW_WIDTH - fridge, WINDOW_HEIGHT};
   struct buffer buf;
-  buffer_init(&buf, &size, argv[1]);
+  buffer_init(&buf, &size, path);
   buffer_view(&buf, renderer);
 
   SDL_Event e;

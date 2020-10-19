@@ -6,6 +6,9 @@ let
 
   long-glitter-cpp = nixpkgs.stdenv.mkDerivation {
     name = "long-glitter-cpp";
+    nativeBuildInputs = [
+      nixpkgs.gdb
+    ];
     buildInputs = [
       nixpkgs.SDL2
       nixpkgs.SDL2_ttf

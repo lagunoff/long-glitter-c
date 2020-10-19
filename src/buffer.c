@@ -39,13 +39,11 @@ void buffer_init(struct buffer *out, SDL_Point *size, char *path) {
   out->fd = open(path, O_RDWR);
   fstat(out->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, out->fd, 0);
-  char *contents = malloc(st.st_size);
-  memcpy(contents, mmaped, st.st_size);
-  munmap(mmaped, st.st_size);
-  out->contents.bytes = contents;
+  out->contents.bytes = mmaped;
   out->contents.len = st.st_size;
   out->contents.first = NULL;
   out->contents.last = NULL;
+
   out->selection.active = false;
   buff_string_index(&out->contents, &out->selection.mark1, 10);
   buff_string_index(&out->contents, &out->selection.mark2, 20);
@@ -61,6 +59,7 @@ void buffer_init(struct buffer *out, SDL_Point *size, char *path) {
 
 void buffer_destroy(struct buffer *self) {
   TTF_CloseFont(self->font.font);
+  munmap(self->contents.bytes, self->contents.len);
 }
 
 bool buffer_update(struct buffer *self, SDL_Event *e) {
@@ -128,6 +127,10 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
         || e->key.keysym.scancode == SDL_SCANCODE_PAGEDOWN && (e->key.keysym.mod==0)
         ) {
       scroll_page(&self->scroll, &self->cursor, &self->font, self->size.y, 1);
+      goto continue_command;
+    }
+    if (e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_CTRL)) {
+      printf("debuggggggg");
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_Y && (e->key.keysym.mod & KMOD_CTRL)) {
@@ -259,6 +262,9 @@ void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
   SDL_RenderClear(renderer);
 
+  inspect(%d,cursor_offset);
+  inspect_iter(&self->cursor.pos);
+
   for(;;) {
     SDL_SetRenderDrawColor(renderer, fg.r, fg.g, fg.b, fg.a);
     int offset0 = buff_string_offset(&iter);
@@ -275,7 +281,6 @@ void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
       SDL_RenderCopy(renderer, texture1, NULL, &rect);
       SDL_DestroyTexture(texture1);
     }
-
 
     if (mark1_offset >= offset0 && mark1_offset <= iter_offset) {
       int w,h;
@@ -326,7 +331,13 @@ void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
     y += self->font.X_height;
     if (y > self->size.y) break;
     // Skip newline symbol
-    buff_string_move(&iter, 1);
+    if (!buff_string_is_end(&iter)) {
+      buff_string_move(&iter, 1);
+      if (buff_string_is_end(&iter)) break;
+      continue;
+    } else {
+      break;
+    }
   }
 
   SDL_RenderPresent(renderer);

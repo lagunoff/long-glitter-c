@@ -1,6 +1,11 @@
 #pragma once
 #include <stdbool.h>
 
+/// Invariants
+/// ==========
+///
+/// 1. buff_string_iter->current points either to str->bytes
+
 typedef enum {
   MB_FALSE,
   MB_TRUE,
@@ -22,16 +27,16 @@ struct splice {
 };
 
 struct buff_string {
-  char *bytes;
-  int len;
   struct splice *first;
   struct splice *last;
+  char *bytes;
+  int len;
 };
 
 struct buff_string_iter {
-  char *current; // Possibly NULL
-  struct buff_string *str;
   struct splice **next;
+  char *current;
+  struct buff_string *str;
 };
 
 void free_buff_string(struct buff_string *str);
