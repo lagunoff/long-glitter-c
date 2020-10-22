@@ -62,9 +62,6 @@ void cursor_bol(struct cursor *c) {
   bool eof = buff_string_iterate(&(c->pos), BSD_LEFT, BSLIP_DONT, lambda(bool _(char c) {
     return c=='\n';
   }));
-  if (!eof) {
-    buff_string_move(&(c->pos), 1);
-  }
   cursor_fixup_x0(c);
 }
 
@@ -126,11 +123,11 @@ void scroll_lines(struct scroll *s, int n) {
 void scroll_page(
   struct scroll *s,
   struct cursor *c,
-  struct loaded_font *lf,
+  cairo_font_extents_t *fe,
   int height,
   int n
 ) {
-  int screen_lines = div(height, lf->X_height).quot;
+  int screen_lines = div(height, fe->height).quot;
   if (n > 0) {
     scroll_lines(s, screen_lines);
   } else {

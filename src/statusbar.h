@@ -8,7 +8,6 @@
 #include "cursor.h"
 
 typedef struct {
-  struct loaded_font *font;
   struct cursor *cursor;
 } statusbar_t;
 

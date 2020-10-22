@@ -5,4 +5,4 @@ EXTRA_ARGS="-j -outputdir=$DIR/../out"
 make --silent -f $DIR/envrc.mk $DIR/../.envrc || exit 1;
 source $DIR/../.envrc
 
-$CC $(pkg-config --cflags cairo sdl2 SDL2_ttf lightning) $(pkg-config --libs cairo sdl2 SDL2_ttf lightning) -Wno-format -Wno-format-security -g -O0 -Wno-cpp "$@"
+$CC $(pkg-config --cflags cairo sdl2 lightning) $(pkg-config --libs cairo sdl2 lightning) -Wno-format -Wno-format-security -g -O0 -Wno-cpp "$@"

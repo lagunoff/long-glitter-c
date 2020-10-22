@@ -1,20 +1,12 @@
 #pragma once
 
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
 #include <stdbool.h>
 #include <cairo.h>
 
 #include "buff-string.h"
 #include "cursor.h"
 #include "cursor.h"
-
-struct loaded_font {
-  TTF_Font *font;
-  int font_size;
-  int X_width;
-  int X_height;
-};
 
 struct selection {
   bool active;
@@ -26,10 +18,12 @@ struct buffer {
   struct buff_string contents;
   struct scroll scroll;
   struct cursor cursor;
-  struct loaded_font font;
   struct selection selection;
   SDL_Point size;
+  cairo_font_extents_t fe;
+  bool fe_initialized;
   int fd;
+  int font_size;
   bool _last_command;
   SDL_Keysym _prev_keysym;
 };

@@ -12,7 +12,6 @@ let
     ];
     buildInputs = [
       nixpkgs.SDL2
-      nixpkgs.SDL2_ttf
       nixpkgs.lightning
       nixpkgs.cairo
     ];

@@ -1,7 +1,6 @@
 #include <stdlib.h>
 
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -31,11 +30,6 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  if (TTF_Init() != 0) {
-    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
-  }
-
   SDL_Point size = {WINDOW_WIDTH - fridge, WINDOW_HEIGHT};
   struct buffer buf;
   buffer_init(&buf, &size, path);
@@ -61,6 +55,7 @@ int main(int argc, char **argv) {
   SDL_UnlockTexture(texture);
   SDL_RenderCopy(renderer, texture, NULL, NULL);
   SDL_RenderPresent(renderer);
+  cairo_surface_finish(cairo_surface);
   cairo_destroy (cr);
 
   SDL_Event e;
@@ -108,7 +103,6 @@ int main(int argc, char **argv) {
       void *pixels;
       int pitch;
       SDL_LockTexture(texture, NULL, &pixels, &pitch);
-
       cairo_surface_t *cairo_surface = cairo_image_surface_create_for_data(
         pixels,
         CAIRO_FORMAT_ARGB32,
@@ -116,20 +110,23 @@ int main(int argc, char **argv) {
       );
       cairo_t *cr = cairo_create(cairo_surface);
       cairo_set_source_rgb (cr, 1, 1, 1);
+      cairo_matrix_t matrix;
+      cairo_get_matrix(cr, &matrix);
+      cairo_translate(cr, fridge, 0);
       cairo_paint (cr);
       buffer_view(&buf, cr);
+      cairo_set_matrix(cr, &matrix);
       SDL_UnlockTexture(texture);
       SDL_RenderCopy(renderer, texture, NULL, NULL);
       SDL_RenderPresent(renderer);
-      cairo_destroy (cr);
+      cairo_surface_finish(cairo_surface);
+      cairo_destroy(cr);
       continue;
     }
   }
 
   buffer_destroy(&buf);
   SDL_StopTextInput();
-
-  TTF_Quit();
 
   SDL_DestroyTexture(texture);
   SDL_DestroyRenderer(renderer);

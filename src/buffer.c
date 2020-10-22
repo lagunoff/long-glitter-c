@@ -14,7 +14,7 @@
 #define MODIFY_CURSOR(f) {                                        \
   struct cursor old_cursor = self->cursor;                        \
   f(&self->cursor);                                               \
-  cursor_modified(self, &old_cursor);                             \
+  if (self->fe_initialized) cursor_modified(self, &old_cursor);                        \
 }
 
 static void buffer_init_font(struct loaded_font *out, int font_size);
@@ -44,13 +44,13 @@ void buffer_init(struct buffer *out, SDL_Point *size, char *path) {
   buff_string_begin(&out->scroll.pos, &out->contents);
   buff_string_begin(&out->cursor.pos, &out->contents);
   out->cursor.x0 = 0;
-  buffer_init_font(&out->font, 18);
+  out->font_size = 18;
   out->_last_command = false;
   out->_prev_keysym = zero_keysym;
+  out->fe_initialized = false;
 }
 
 void buffer_destroy(struct buffer *self) {
-  TTF_CloseFont(self->font.font);
   munmap(self->contents.bytes, self->contents.len);
 }
 
@@ -118,7 +118,7 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_V && (e->key.keysym.mod & KMOD_CTRL)
         || e->key.keysym.scancode == SDL_SCANCODE_PAGEDOWN && (e->key.keysym.mod==0)
         ) {
-      scroll_page(&self->scroll, &self->cursor, &self->font, self->size.y, 1);
+      if (self->fe_initialized) scroll_page(&self->scroll, &self->cursor, &self->fe, self->size.y, 1);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_LGUI)) {
@@ -181,7 +181,7 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_V && (e->key.keysym.mod & KMOD_ALT)
         || e->key.keysym.scancode == SDL_SCANCODE_PAGEUP && (e->key.keysym.mod==0)
         ) {
-      scroll_page(&self->scroll, &self->cursor, &self->font, self->size.y, -1);
+      if (self->fe_initialized) scroll_page(&self->scroll, &self->cursor, &self->fe, self->size.y, -1);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_LEFTBRACKET && (e->key.keysym.mod & KMOD_ALT && e->key.keysym.mod & KMOD_SHIFT)) {
@@ -193,13 +193,11 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_EQUALS  && (e->key.keysym.mod & KMOD_CTRL)) {
-      TTF_CloseFont(self->font.font);
-      buffer_init_font(&self->font, self->font.font_size + 1);
+      self->font_size += 1;
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_MINUS && (e->key.keysym.mod & KMOD_CTRL)) {
-      TTF_CloseFont(self->font.font);
-      buffer_init_font(&self->font, self->font.font_size - 1);
+      self->font_size -= 1;
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_PERIOD && (e->key.keysym.mod & KMOD_ALT && e->key.keysym.mod & KMOD_SHIFT)) {
@@ -262,13 +260,16 @@ void buffer_view(struct buffer *self, cairo_t *cr) {
   int cursor_offset = buff_string_offset(&self->cursor.pos);
   int mark1_offset = self->selection.active ? buff_string_offset(&self->selection.mark1) : -1;
   int mark2_offset = self->selection.active ? buff_string_offset(&self->selection.mark2) : -1;
-  const int statusbar_height = 32;
-  const int textarea_height = self->size.y - statusbar_height;
-
   cairo_select_font_face (cr, "Hack", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-  cairo_set_font_size (cr, 18);
+  cairo_set_font_size (cr, self->font_size);
+
   cairo_font_extents_t fe;
+  self->fe_initialized = true;
+  self->fe = fe;
   cairo_font_extents (cr, &fe);
+
+  const int statusbar_height = fe.height + 8;
+  const int textarea_height = self->size.y - statusbar_height;
 
   for(;;) {
     cairo_set_source_rgba (cr, 0, 0, 0, 0.87);
@@ -314,7 +315,7 @@ void buffer_view(struct buffer *self, cairo_t *cr) {
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr, 0, self->size.y - statusbar_height);
-  statusbar_t statusbar = {&self->font, &self->cursor};
+  statusbar_t statusbar = {&self->cursor};
   statusbar_view(&statusbar, cr);
   cairo_set_matrix(cr, &matrix);
 }
@@ -327,7 +328,7 @@ void cursor_modified (
   int prev_offset = buff_string_offset(&prev->pos);
   int scroll_offset = buff_string_offset(&self->scroll.pos);
   int diff = next_offset - prev_offset;
-  int screen_lines = div(self->size.y, self->font.X_height).quot;
+  int screen_lines = div(self->size.y, self->fe.height).quot;
 
   int count_lines() {
     struct buff_string_iter iter = self->cursor.pos;
@@ -363,15 +364,6 @@ void cursor_modified (
   }
 }
 
-void buffer_init_font(struct loaded_font *out, int font_size) {
-  out->font_size = font_size;
-  out->font = TTF_OpenFont("/home/vlad/downloads/ttf/Hack-Regular.ttf", font_size);
-  TTF_SizeText(out->font, "X", &out->X_width, &out->X_height);
-  if (out->font == NULL) {
-    fprintf(stderr, "error: font not found\n");
-    exit(EXIT_FAILURE);
-  }
-}
 
 int buffer_unittest() {
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cairo.h>
 #include "buff-string.h"
 
 struct loaded_font;
@@ -30,7 +31,7 @@ void forward_paragraph(struct cursor *c);
 void scroll_page(
   struct scroll *s,
   struct cursor *c,
-  struct loaded_font *lf,
+  cairo_font_extents_t *fe,
   int height,
   int n
 );
