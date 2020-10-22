@@ -16,10 +16,11 @@ int dlist_unittest() {
 
   for (int i = 0; i < 10; i++) {
     items[i].value = i;
-    dlist_insert_before(&list, &items[i], NULL);
+    struct dlist_node *it = (struct dlist_node *) &items[i];
+    dlist_insert_before(&list, it, NULL);
   }
 
-  struct int_list *iter = list.first;
+  struct int_list *iter = (struct int_list *) list.first;
 
   for (;iter; iter = iter->next) {
     inspect(%d, iter->value);
@@ -27,7 +28,7 @@ int dlist_unittest() {
 
   fputs("-------------\n", stderr);
 
-  iter = list.last;
+  iter = (struct int_list *) list.last;
   for (;iter; iter = iter->prev) {
     inspect(%d, iter->value);
   }

@@ -136,7 +136,7 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_Y && (e->key.keysym.mod & KMOD_CTRL)) {
       char *clipboard = SDL_GetClipboardText();
       if (clipboard) {
-        buff_string_insert(&self->cursor.pos, INSERT_LEFT, clipboard, 0, &self->scroll.pos, NULL);
+        buff_string_insert(&self->cursor.pos, BSD_LEFT, clipboard, 0, &self->scroll.pos, NULL);
       }
       goto continue_command;
     }
@@ -145,7 +145,7 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
       buff_string_find(&iter, lambda(bool _(char c) { return c == '\n'; }));
       int curr_offset = buff_string_offset(&self->cursor.pos);
       int iter_offset = buff_string_offset(&iter);
-      buff_string_insert(&self->cursor.pos, INSERT_RIGHT, "", MAX(iter_offset - curr_offset, 1), &self->scroll.pos, NULL);
+      buff_string_insert(&self->cursor.pos, BSD_RIGHT, "", MAX(iter_offset - curr_offset, 1), &self->scroll.pos, NULL);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_BACKSPACE && (e->key.keysym.mod & KMOD_ALT)) {
@@ -154,7 +154,7 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
 
       int curr_offset = buff_string_offset(&self->cursor.pos);
       int iter_offset = buff_string_offset(&iter);
-      buff_string_insert(&self->cursor.pos, INSERT_LEFT, "", abs(curr_offset - iter_offset), &self->scroll.pos, NULL);
+      buff_string_insert(&self->cursor.pos, BSD_LEFT, "", abs(curr_offset - iter_offset), &self->scroll.pos, NULL);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_ALT)) {
@@ -163,7 +163,7 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
 
       int curr_offset = buff_string_offset(&self->cursor.pos);
       int iter_offset = buff_string_offset(&iter);
-      buff_string_insert(&self->cursor.pos, INSERT_RIGHT, "", abs(curr_offset - iter_offset), &self->scroll.pos, NULL);
+      buff_string_insert(&self->cursor.pos, BSD_RIGHT, "", abs(curr_offset - iter_offset), &self->scroll.pos, NULL);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_V && (e->key.keysym.mod & KMOD_ALT)
@@ -201,15 +201,15 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_DELETE && (e->key.keysym.mod == 0)
         || e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_CTRL)
         ) {
-      buff_string_insert(&self->cursor.pos, INSERT_RIGHT, "", 1, &self->scroll.pos, NULL);
+      buff_string_insert(&self->cursor.pos, BSD_RIGHT, "", 1, &self->scroll.pos, NULL);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_BACKSPACE && (e->key.keysym.mod == 0)) {
-      buff_string_insert(&self->cursor.pos, INSERT_LEFT, "", 1, &self->scroll.pos, NULL);
+      buff_string_insert(&self->cursor.pos, BSD_LEFT, "", 1, &self->scroll.pos, NULL);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_RETURN) {
-      buff_string_insert(&self->cursor.pos, INSERT_LEFT, "\n", 0, &self->scroll.pos, NULL);
+      buff_string_insert(&self->cursor.pos, BSD_LEFT, "\n", 0, &self->scroll.pos, NULL);
       goto continue_no_command;
     }
     self->_last_command = false;
@@ -236,7 +236,7 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
 
   if (e->type == SDL_TEXTINPUT) {
     if (!self->_last_command) {
-      buff_string_insert(&self->cursor.pos, INSERT_LEFT, e->text.text, 0, &self->scroll.pos, NULL);
+      buff_string_insert(&self->cursor.pos, BSD_LEFT, e->text.text, 0, &self->scroll.pos, NULL);
       return true;
     }
   }
@@ -263,7 +263,6 @@ void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
   SDL_RenderClear(renderer);
 
   inspect(%d,cursor_offset);
-  inspect_iter(&self->cursor.pos);
 
   for(;;) {
     SDL_SetRenderDrawColor(renderer, fg.r, fg.g, fg.b, fg.a);
@@ -331,13 +330,8 @@ void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
     y += self->font.X_height;
     if (y > self->size.y) break;
     // Skip newline symbol
-    if (!buff_string_is_end(&iter)) {
-      buff_string_move(&iter, 1);
-      if (buff_string_is_end(&iter)) break;
-      continue;
-    } else {
-      break;
-    }
+    bool eof = buff_string_move(&iter, 1);
+    if (eof) break;
   }
 
   SDL_RenderPresent(renderer);

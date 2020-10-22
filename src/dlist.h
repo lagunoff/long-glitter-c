@@ -12,7 +12,7 @@ struct dlist_head {
 };
 
 struct dlist_iter {
-  struct dlist_node **next;
+  struct dlist_node *next;
 };
 
 static inline void
@@ -47,19 +47,10 @@ dlist_delete(
 }
 
 static inline void
-dlist_insert_before_iter_fixup(
-  struct dlist_iter *iter,
-  struct dlist_node *new,
-  struct dlist_node *anchor
-) {
-  if (*iter->next == anchor) iter->next = &new->next;
-}
-
-static inline void
 dlist_delete_iter_fixup(
   struct dlist_iter *iter,
   struct dlist_head *head,
   struct dlist_node *deleted
 ) {
-  if (iter->next == deleted) iter->next = deleted->prev ? &deleted->prev->next : &head->first;
+  if (iter->next == deleted) iter->next = deleted->prev ? deleted->prev : head->first;
 }
