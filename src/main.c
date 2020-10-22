@@ -78,6 +78,7 @@ int main(int argc, char **argv) {
     SDL_RenderSetViewport(renderer, &viewport);
     buffer_view(&buf, renderer);
     SDL_RenderSetViewport(renderer, NULL);
+    SDL_RenderPresent(renderer);
     continue;
   }
 

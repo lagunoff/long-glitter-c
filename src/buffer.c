@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "buffer.h"
+#include "statusbar.h"
 #include "main.h"
 
 #define SCROLL_JUMP 8
@@ -16,16 +17,6 @@
 }
 
 static void buffer_init_font(struct loaded_font *out, int font_size);
-
-static void buffer_draw_text(
-  TTF_Font *font,
-  SDL_Renderer *renderer,
-  int x, int y,
-  char *text,
-  SDL_Texture **out_texture,
-  SDL_Rect *out_rect,
-  SDL_Color bg
-);
 
 static void cursor_modified (
   struct buffer *self,
@@ -252,6 +243,8 @@ void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
   int cursor_offset = buff_string_offset(&self->cursor.pos);
   int mark1_offset = self->selection.active ? buff_string_offset(&self->selection.mark1) : -1;
   int mark2_offset = self->selection.active ? buff_string_offset(&self->selection.mark2) : -1;
+  const int statusbar_height = 32;
+  const int textarea_height = self->size.y - statusbar_height;
   SDL_Color white = {255,255,255,0};
   SDL_Color black = {0,0,0,0};
   SDL_Color selection_bg = {210,210,255,0};
@@ -334,7 +327,18 @@ void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
     if (eof) break;
   }
 
-  SDL_RenderPresent(renderer);
+  SDL_Rect prev_viewport;
+  SDL_RenderGetViewport(renderer, &prev_viewport);
+  SDL_Rect statusbar_viewport = {
+    prev_viewport.x,
+    prev_viewport.y + (self->size.y - statusbar_height),
+    prev_viewport.w,
+    statusbar_height
+  };
+  statusbar_t statusbar = {&self->font, &self->cursor};
+  SDL_RenderSetViewport(renderer, &statusbar_viewport);
+  statusbar_view(&statusbar, renderer);
+  SDL_RenderSetViewport(renderer, &prev_viewport);
 }
 
 void cursor_modified (
