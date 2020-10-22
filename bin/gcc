@@ -5,11 +5,4 @@ EXTRA_ARGS="-j -outputdir=$DIR/../out"
 make --silent -f $DIR/envrc.mk $DIR/../.envrc || exit 1;
 source $DIR/../.envrc
 
-CFLAGS=$(echo $NIX_CFLAGS_COMPILE |
-              sed 's/SDL2_ttf-2.0.15\/include/SDL2_ttf-2.0.15\/include\/SDL2/g' |
-              sed 's/SDL2-2.0.12-dev\/include/SDL2-2.0.12-dev\/include\/SDL2/g' )
-
-LDLAGS=$(echo $NIX_LDFLAGS |
-  sed 's/-rpath \//-Wl,-rpath,/g' )
-
-$CC $CFLAGS $LDLAGS -lSDL2 -lSDL2_ttf -lm -Wno-format -Wno-format-security -llightning -g -O0 -Wno-cpp "$@"
+$CC $(pkg-config --cflags cairo sdl2 SDL2_ttf lightning) $(pkg-config --libs cairo sdl2 SDL2_ttf lightning) -Wno-format -Wno-format-security -g -O0 -Wno-cpp "$@"

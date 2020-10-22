@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <cairo.h>
 
 #include "buffer.h"
 #include "statusbar.h"
@@ -120,8 +121,28 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
       scroll_page(&self->scroll, &self->cursor, &self->font, self->size.y, 1);
       goto continue_command;
     }
-    if (e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_CTRL)) {
-      printf("debuggggggg");
+    if (e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_LGUI)) {
+      debug0("debuggggggg");
+      goto continue_command;
+    }
+    if (e->key.keysym.scancode == SDL_SCANCODE_W && (e->key.keysym.mod & KMOD_LGUI)) {
+      SDL_Renderer *renderer;
+      SDL_Window *tooltip;
+      debug0("Creating a window!");
+
+      if (SDL_CreateWindowAndRenderer(240, 360, SDL_WINDOW_TOOLTIP, &tooltip, &renderer) != 0) {
+        fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
+        exit (EXIT_FAILURE);
+      }
+      debug0("Creating a window!");
+      SDL_ShowWindow(tooltip);
+      // SDL_RaiseWindow(window);
+      SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
+      SDL_RenderClear(renderer);
+      //      SDL_Rect bg = {x:w,y:y,w:self->font.X_width,h:self->font.X_height};
+
+      SDL_RenderPresent(renderer);
+
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_Y && (e->key.keysym.mod & KMOD_CTRL)) {
@@ -234,9 +255,7 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
   return false;
 }
 
-void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
-  SDL_Rect rect;
-  SDL_Texture *texture1;
+void buffer_view(struct buffer *self, cairo_t *cr) {
   char temp[1024 * 16]; // Maximum line length — 16kb
   struct buff_string_iter iter = self->scroll.pos;
   int y=0;
@@ -245,59 +264,22 @@ void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
   int mark2_offset = self->selection.active ? buff_string_offset(&self->selection.mark2) : -1;
   const int statusbar_height = 32;
   const int textarea_height = self->size.y - statusbar_height;
-  SDL_Color white = {255,255,255,0};
-  SDL_Color black = {0,0,0,0};
-  SDL_Color selection_bg = {210,210,255,0};
 
-  SDL_Color bg = white;
-  SDL_Color fg = black;
-
-  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
-  SDL_RenderClear(renderer);
-
-  inspect(%d,cursor_offset);
+  cairo_select_font_face (cr, "Hack", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+  cairo_set_font_size (cr, 18);
+  cairo_font_extents_t fe;
+  cairo_font_extents (cr, &fe);
 
   for(;;) {
-    SDL_SetRenderDrawColor(renderer, fg.r, fg.g, fg.b, fg.a);
+    cairo_set_source_rgba (cr, 0, 0, 0, 0.87);
     int offset0 = buff_string_offset(&iter);
 
     buff_string_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
     int iter_offset = buff_string_offset(&iter);
 
-    if (mark2_offset >= offset0 && mark2_offset <= iter_offset) {
-      bg = white;
-    }
-
     if (*temp != '\0' && *temp != '\n') {
-      buffer_draw_text(self->font.font, renderer, 0, y, temp, &texture1, &rect, bg);
-      SDL_RenderCopy(renderer, texture1, NULL, &rect);
-      SDL_DestroyTexture(texture1);
-    }
-
-    if (mark1_offset >= offset0 && mark1_offset <= iter_offset) {
-      int w,h;
-      bg = selection_bg;
-      int len1 = mark1_offset - offset0;
-      int len2 = iter_offset - mark1_offset;
-      char temp1[len1 + 1];
-      char temp2[len2 + 1];
-      strncpy(temp1, temp, len1);
-      temp1[len1]='\0';
-      strcpy(temp2, temp + len1);
-      TTF_SizeText(self->font.font,temp1,&w,&h);
-      buffer_draw_text(self->font.font, renderer, w, y, temp2, &texture1, &rect, bg);
-      SDL_RenderCopy(renderer, texture1, NULL, &rect);
-      SDL_DestroyTexture(texture1);
-    }
-
-    if (mark2_offset >= offset0 && mark2_offset <= iter_offset) {
-      int len1 = mark2_offset - offset0;
-      char temp1[len1 + 1];
-      strncpy(temp1, temp, len1);
-      temp1[len1]='\0';
-      buffer_draw_text(self->font.font, renderer, 0, y, temp1, &texture1, &rect, selection_bg);
-      SDL_RenderCopy(renderer, texture1, NULL, &rect);
-      SDL_DestroyTexture(texture1);
+      cairo_move_to (cr, 0, y + fe.ascent);
+      cairo_show_text (cr, temp);
     }
 
     if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
@@ -305,40 +287,36 @@ void buffer_view(struct buffer *self, SDL_Renderer *renderer) {
       int cur_x_offset = cursor_offset - offset0;
       int cursor_char = temp[cur_x_offset];
       temp[cur_x_offset]='\0';
-      TTF_SizeText(self->font.font,temp,&w,&h);
+      cairo_text_extents_t te;
+      cairo_text_extents (cr, temp, &te);
+      w = te.x_advance;
       if (cur_x_offset == 0) w=0;
-      SDL_Rect cursor_rect = {x:w,y:y,w:self->font.X_width,h:self->font.X_height};
-      SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-      SDL_RenderFillRect(renderer, &cursor_rect);
+
+      cairo_rectangle(cr, w, y, fe.max_x_advance, fe.height);
+      cairo_fill(cr);
+
       if (cursor_char != '\0' && cursor_char != '\n') {
         temp[0]=cursor_char;
         temp[1]='\0';
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
-        buffer_draw_text(self->font.font, renderer, w, y, temp, &texture1, &rect, black);
-        SDL_RenderCopy(renderer, texture1, NULL, &rect);
-        SDL_DestroyTexture(texture1);
+        cairo_set_source_rgb (cr, 1, 1, 1);
+        cairo_move_to (cr, w, y + fe.ascent);
+        cairo_show_text (cr, temp);
       }
     }
 
-    y += self->font.X_height;
+    y += fe.height;
     if (y > self->size.y) break;
     // Skip newline symbol
     bool eof = buff_string_move(&iter, 1);
     if (eof) break;
   }
 
-  SDL_Rect prev_viewport;
-  SDL_RenderGetViewport(renderer, &prev_viewport);
-  SDL_Rect statusbar_viewport = {
-    prev_viewport.x,
-    prev_viewport.y + (self->size.y - statusbar_height),
-    prev_viewport.w,
-    statusbar_height
-  };
+  cairo_matrix_t matrix;
+  cairo_get_matrix(cr, &matrix);
+  cairo_translate(cr, 0, self->size.y - statusbar_height);
   statusbar_t statusbar = {&self->font, &self->cursor};
-  SDL_RenderSetViewport(renderer, &statusbar_viewport);
-  statusbar_view(&statusbar, renderer);
-  SDL_RenderSetViewport(renderer, &prev_viewport);
+  statusbar_view(&statusbar, cr);
+  cairo_set_matrix(cr, &matrix);
 }
 
 void cursor_modified (
@@ -393,30 +371,6 @@ void buffer_init_font(struct loaded_font *out, int font_size) {
     fprintf(stderr, "error: font not found\n");
     exit(EXIT_FAILURE);
   }
-}
-
-void buffer_draw_text(
-  TTF_Font *font,
-  SDL_Renderer *renderer,
-  int x, int y,
-  char *text,
-  SDL_Texture **out_texture,
-  SDL_Rect *out_rect,
-  SDL_Color bg
-) {
-  int text_width;
-  int text_height;
-  SDL_Color fg;
-  SDL_GetRenderDrawColor(renderer, &fg.r, &fg.g, &fg.b, &fg.a);
-  SDL_Surface *surface = TTF_RenderText_Shaded(font, text, fg, bg);
-  *out_texture = SDL_CreateTextureFromSurface(renderer, surface);
-  text_width = surface->w;
-  text_height = surface->h;
-  SDL_FreeSurface(surface);
-  out_rect->x = x;
-  out_rect->y = y;
-  out_rect->w = text_width;
-  out_rect->h = text_height;
 }
 
 int buffer_unittest() {

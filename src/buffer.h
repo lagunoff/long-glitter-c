@@ -3,6 +3,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <stdbool.h>
+#include <cairo.h>
 
 #include "buff-string.h"
 #include "cursor.h"
@@ -36,14 +37,4 @@ struct buffer {
 void buffer_init(struct buffer *out, SDL_Point *size, char *path);
 void buffer_destroy(struct buffer *self);
 bool buffer_update(struct buffer *self, SDL_Event *e);
-void buffer_view(struct buffer *self, SDL_Renderer *renderer);
-
-void buffer_draw_text(
-  TTF_Font *font,
-  SDL_Renderer *renderer,
-  int x, int y,
-  char *text,
-  SDL_Texture **out_texture,
-  SDL_Rect *out_rect,
-  SDL_Color bg
-);
+void buffer_view(struct buffer *self, cairo_t *cr);

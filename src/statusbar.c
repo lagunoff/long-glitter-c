@@ -10,20 +10,16 @@
 bool statusbar_update(statusbar_t *self, SDL_Event *e) {
 }
 
-void statusbar_view(statusbar_t *self, SDL_Renderer *renderer) {
-  SDL_Rect rect;
-  SDL_Texture *texture1;
-  SDL_Color white = {255,255,255,0};
-  SDL_Color black = {0,0,0,0};
-  SDL_Color bg = white;
-  SDL_Color fg = black;
+void statusbar_view(statusbar_t *self, cairo_t *cr) {
   int cursor_offset = buff_string_offset(&self->cursor->pos);
   char temp[128];
   sprintf(temp, "Cursor: %d, %d", cursor_offset, self->cursor->x0);
+  cairo_set_source_rgba (cr, 0, 0, 0, 0.87);
+  cairo_font_extents_t fe;
+  cairo_font_extents (cr, &fe);
 
-  buffer_draw_text(self->font->font, renderer, 0, 0, temp, &texture1, &rect, bg);
-  SDL_RenderCopy(renderer, texture1, NULL, &rect);
-  SDL_DestroyTexture(texture1);
+  cairo_move_to (cr, 0, fe.ascent);
+  cairo_show_text (cr, temp);
 }
 
 int statusbar_unittest() {

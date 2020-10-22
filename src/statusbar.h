@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SDL2/SDL.h>
+#include <cairo.h>
 
 #include "buffer.h"
 #include "cursor.h"
@@ -12,4 +13,4 @@ typedef struct {
 } statusbar_t;
 
 bool statusbar_update(statusbar_t *self, SDL_Event *e);
-void statusbar_view(statusbar_t *self, SDL_Renderer *renderer);
+void statusbar_view(statusbar_t *self, cairo_t *cr);
