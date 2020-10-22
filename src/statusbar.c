@@ -19,7 +19,7 @@ void statusbar_view(statusbar_t *self, SDL_Renderer *renderer) {
   SDL_Color fg = black;
   int cursor_offset = buff_string_offset(&self->cursor->pos);
   char temp[128];
-  sprintf(temp, "Cursor: %d:%p, %d", cursor_offset, self->cursor->pos.current, self->cursor->x0);
+  sprintf(temp, "Cursor: %d, %d", cursor_offset, self->cursor->x0);
 
   buffer_draw_text(self->font->font, renderer, 0, 0, temp, &texture1, &rect, bg);
   SDL_RenderCopy(renderer, texture1, NULL, &rect);

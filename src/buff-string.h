@@ -35,8 +35,9 @@ struct buff_string {
 };
 
 struct buff_string_iter {
-  struct splice *splice;
-  char *current;
+  struct splice *next;
+  unsigned int offset;
+  bool in_splice;
   struct buff_string *str;
 };
 

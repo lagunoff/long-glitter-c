@@ -23,7 +23,7 @@ void cursor_up(struct cursor *c) {
 
   struct buff_string_iter i1 = i0;
   int line_len = 0;
-  bool eof = buff_string_iterate(&i1, BSD_LEFT, BSLIP_DONT, lambda(bool _(char c) {
+  buff_string_iterate(&i1, BSD_LEFT, BSLIP_DONT, lambda(bool _(char c) {
     if (c!='\n') line_len++;
     return c=='\n';
   }));
@@ -33,20 +33,18 @@ void cursor_up(struct cursor *c) {
 
 void cursor_down(struct cursor *c) {
   struct buff_string_iter i0 = c->pos;
-  if (*(c->pos.current)!='\n') buff_string_move(&i0, 1);
-  bool eof0 = buff_string_find(&i0, lambda(bool _(char c) {
+  bool eof0 = buff_string_iterate(&i0, BSD_RIGHT, BSLIP_DO, lambda(bool _(char c) {
     return c=='\n';
   }));
   if (eof0) return;
 
   struct buff_string_iter i1 = i0;
   int line_len = 0;
-  buff_string_move(&i1, 1);
-  buff_string_find(&i1, lambda(bool _(char c) {
+  buff_string_iterate(&i1, BSD_RIGHT, BSLIP_DONT, lambda(bool _(char c) {
     if (c!='\n') line_len++;
     return c=='\n';
   }));
-  buff_string_move(&i0, MIN(line_len + 1, c->x0 + 1));
+  buff_string_move(&i0, MIN(line_len, c->x0));
   c->pos = i0;
 }
 
@@ -61,10 +59,7 @@ void cursor_right(struct cursor *c) {
 }
 
 void cursor_bol(struct cursor *c) {
-  if (*(c->pos.current)=='\n') {
-    buff_string_move(&(c->pos), -1);
-  }
-  bool eof = buff_string_find_back(&(c->pos), lambda(bool _(char c) {
+  bool eof = buff_string_iterate(&(c->pos), BSD_LEFT, BSLIP_DONT, lambda(bool _(char c) {
     return c=='\n';
   }));
   if (!eof) {

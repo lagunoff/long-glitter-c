@@ -29,22 +29,24 @@ void buff_string_index(struct buff_string *str, struct buff_string_iter *iter, i
   int k = 0; // Base index
   buff_string_begin(iter, str);
   while(1) {
-    struct splice *next = iter->splice;
+    struct splice *next = iter->next;
     if (!next || next->start > (k + (i - j))) {
       // Required index is before iter->next
-      iter->current = iter->str->bytes + (k + (i - j));
+      iter->offset = (k + (i - j));
+      iter->in_splice = false;
       break;
     }
 
     if ((k + (i - j)) < next->start + next->len) {
       // Required index is inside next
       int offset = (k + (i - j)) - next->start;
-      iter->current = next->bytes + offset;
+      iter->offset = offset;
+      iter->in_splice = true;
       break;
     } else {
       j = j + (next->start - k) + next->len;
       k = next->start + next->deleted;
-      iter->splice = next->next;
+      iter->next = next->next;
     }
   }
 }
@@ -85,75 +87,90 @@ bool buff_string_iterate(
     switch(state) {
     case BSI_STATE_ONE: {
       // Finding splice next to 'current'
-      struct splice *it = iter->splice;
-      if (it && it->prev && iter->current < iter->str->bytes + it->prev->start + it->prev->deleted) {
-        iter->splice = it->prev;
+      struct splice *it = iter->next;
+      if (it && it->prev && iter->offset < it->prev->start + it->prev->deleted) {
+        iter->next = it->prev;
         continue;
       } else {
          if (dir == BSD_RIGHT) {
-          if (iter->current >= iter->str->bytes + iter->str->len) goto eof;
-          bool is_stop = p(*iter->current);
-          if (is_stop && last_inc == BSLIP_DO) iter->current++;
-          if (is_stop) goto stopped;
-          iter->current++;
-        } else if (dir == BSD_LEFT) {
-          if (iter->current <= iter->str->bytes) goto eof;
-          bool is_stop = p(*(iter->current - 1));
-          if (is_stop && last_inc == BSLIP_DO) iter->current--;
-          if (is_stop) goto stopped;
-          iter->current--;
-        }
-        continue;
+           if (it && iter->offset == iter->next->start) {
+             iter->offset = 0;
+             iter->in_splice = true;
+             continue;
+           }
+           if (iter->offset >= iter->str->len) goto eof;
+           bool is_stop = p(iter->str->bytes[iter->offset]);
+           if (is_stop && last_inc == BSLIP_DONT) goto stopped;
+           iter->offset++;
+           if (is_stop) goto stopped;
+         } else if (dir == BSD_LEFT) {
+           if (it && iter->offset == it->start + it->deleted) {
+             iter->offset = it->len;
+             iter->in_splice = true;
+             continue;
+           }
+           if (iter->offset <= 0) goto eof;
+           bool is_stop = p(iter->str->bytes[iter->offset - 1]);
+           if (is_stop && last_inc == BSLIP_DO) iter->offset--;
+           if (is_stop) goto stopped;
+           iter->offset--;
+         }
+         continue;
       }
       break;
     }
     case BSI_STATE_TWO: {
       // Finding splice next to 'current'
-      struct splice *it = iter->splice;
-      if (it && it->next && iter->current >= iter->str->bytes + it->next->start) {
-        iter->splice = it->next;
+      struct splice *it = iter->next;
+      if (it && it->next && iter->offset >= it->next->start) {
+        iter->next = it->next;
         continue;
       } else {
         if (dir == BSD_RIGHT) {
-          if (iter->current >= iter->str->bytes + iter->str->len) goto eof;
-          bool is_stop = p(*iter->current);
-          if (is_stop && last_inc == BSLIP_DO) iter->current++;
+          if (iter->offset >= iter->str->len) goto eof;
+          bool is_stop = p(iter->str->bytes[iter->offset]);
+          if (is_stop && last_inc == BSLIP_DO) iter->offset++;
           if (is_stop) goto stopped;
-          iter->current++;
+          iter->offset++;
         } else if (dir == BSD_LEFT) {
-          bool is_stop = p(*(iter->current - 1));
-          if (is_stop && last_inc == BSLIP_DO) iter->current--;
+          bool is_stop = p(iter->str->bytes[iter->offset - 1]);
+          if (is_stop && last_inc == BSLIP_DO) iter->offset--;
           if (is_stop) goto stopped;
-          iter->current--;
+          iter->offset--;
         }
         continue;
       }
       break;
     }
     case BSI_STATE_THREE: {
-      int start_offset = (iter->current - iter->str->bytes) - iter->splice->start;
-      iter->current = iter->splice->bytes + MIN(start_offset, iter->splice->len);
+      int start_offset = iter->offset - iter->next->start;
+      iter->in_splice = true;
+      iter->offset = MIN(start_offset, iter->next->len);
       continue;
     }
     case BSI_STATE_FOUR:
       if (dir == BSD_RIGHT) {
-        if (iter->current >= iter->splice->bytes + iter->splice->len) {
-          iter->current = iter->str->bytes + iter->splice->start + iter->splice->deleted;
+        if (iter->offset >= iter->next->len) {
+          iter->in_splice = false;
+          iter->offset = iter->next->start + iter->next->deleted;
+          iter->next = iter->next->next;
           continue;
         }
-        bool is_stop = p(*iter->current);
-        if (is_stop && last_inc == BSLIP_DO) iter->current++;
+        bool is_stop = p(iter->next->bytes[iter->offset]);
+        if (is_stop && last_inc == BSLIP_DO) iter->offset++;
         if (is_stop) goto stopped;
-        iter->current++;
+        iter->offset++;
       } else if (dir == BSD_LEFT) {
-        if (iter->current <= iter->splice->bytes) {
-          iter->current = iter->str->bytes + iter->splice->start;
+        if (iter->offset <= 0) {
+          iter->in_splice = false;
+          iter->offset = iter->next->start - 1;
+          iter->next = iter->next->prev;
           continue;
         }
-        bool is_stop = p(*iter->current);
-        if (is_stop && last_inc == BSLIP_DO) iter->current--;
+        bool is_stop = p(iter->next->bytes[iter->offset - 1]);
+        if (is_stop && last_inc == BSLIP_DO) iter->offset--;
         if (is_stop) goto stopped;
-        iter->current--;
+        iter->offset--;
       }
       continue;
     }
@@ -187,14 +204,16 @@ bool buff_string_takewhile(struct buff_string_iter *iter, char *dest, bool (*p)(
 
 void buff_string_begin(struct buff_string_iter *iter, struct buff_string *str) {
   iter->str=str;
-  iter->current = str->first && str->first->start==0 ? str->first->bytes : str->bytes;
-  iter->splice = str->first;
+  iter->in_splice = str->first && str->first->start == 0 ? true : false;
+  iter->offset = 0;
+  iter->next = str->first;
 }
 
 void buff_string_end(struct buff_string_iter *iter, struct buff_string *str) {
   iter->str=str;
-  iter->current = str->bytes + str->len;
-  iter->splice = str->last;
+  iter->in_splice=false;
+  iter->offset = str->len;
+  iter->next = str->last;
 }
 
 bool buff_string_move(struct buff_string_iter *iter, int dx) {
@@ -219,35 +238,41 @@ int buff_string_offset(struct buff_string_iter *iter1) {
     switch(state) {
     case BSI_STATE_ONE: {
       // Finding splice next to 'current'
-      struct splice *it = iter->splice;
-      if (it && it->prev && iter->current < iter->str->bytes + it->prev->start + it->prev->deleted) {
-        iter->splice = it->prev;
+      struct splice *prev = iter->next ? iter->next->prev : iter->str->last;
+      if (prev) {
+        iter->next = prev;
+        iter->in_splice = true;
+        offset += iter->offset - (prev->start + prev->deleted);
         continue;
       } else {
-        offset += iter->current - iter->str->bytes;
+        offset += iter->offset;
         return offset;
       }
     }
     case BSI_STATE_TWO: {
       // Finding splice next to 'current'
-      struct splice *it = iter->splice;
-      if (it && it->next && iter->current >= iter->str->bytes + it->next->start) {
-        iter->splice = it->next;
+      struct splice *it = iter->next;
+      if (it && it->next && iter->offset >= it->next->start) {
+        iter->next = it->next;
         continue;
       } else {
-        offset += (iter->current - iter->str->bytes) - iter->splice->start + iter->splice->deleted;
-        iter->current = iter->splice->bytes + iter->splice->len;
+        offset += iter->offset - iter->next->start + iter->next->deleted;
+        iter->in_splice=true;
+        iter->offset = iter->next->len;
         continue;
       }
     }
     case BSI_STATE_THREE: {
-      int start_offset = (iter->current - iter->str->bytes) - iter->splice->start;
-      iter->current = iter->splice->bytes + MIN(start_offset, iter->splice->len);
+      int start_offset = iter->offset - iter->next->start;
+      iter->offset = MIN(start_offset, iter->next->len);
+      iter->in_splice = true;
       continue;
     }
     case BSI_STATE_FOUR: {
-      offset += iter->current - iter->splice->bytes;
-      iter->current = iter->str->bytes + iter->splice->start;
+      offset += iter->offset;
+      iter->offset = iter->next->start;
+      iter->in_splice = false;
+      iter->next = iter->next->prev;
       continue;
     }
     }
@@ -298,19 +323,28 @@ void _buff_string_check_iter(struct buff_string_iter *iter) {
 
 }
 
+char _buff_string_read_next(struct buff_string_iter *iter, buff_string_dir dir) {
+  char ch;
+  buff_string_iterate(iter, dir, BSLIP_DONT, lambda(bool _(char c) {ch = c; return true;}));
+  return ch;
+}
+
+char _buff_string_current(struct buff_string_iter *iter) {
+  _buff_string_read_next(iter, BSD_RIGHT);
+}
+
 buff_string_iter_state _buff_string_get_iter_state(struct buff_string_iter *iter) {
-  struct splice *s = iter->splice;
-  if (s && iter->current >= s->bytes && iter->current <= s->bytes + s->len) {
+  if (iter->in_splice) {
     return BSI_STATE_FOUR;
   }
-  if (iter->current >= iter->str->bytes && iter->current <= iter->str->bytes + (s ? s->start : iter->str->len)) {
+  if (!iter->in_splice && iter->next && iter->offset >= iter->next->start && iter->offset < iter->next->start + iter->next->deleted) {
+    return BSI_STATE_THREE;
+  }
+  if (!iter->in_splice && iter->offset <= (iter->next ? iter->next->start : iter->str->len)) {
     return BSI_STATE_ONE;
   }
-  if (s && iter->current >= iter->str->bytes + (s->start + s-> deleted) && iter->current <= iter->str->bytes + iter->str->len) {
+  if (!iter->in_splice && iter->offset >= (iter->next->start + iter->next->deleted)) {
     return BSI_STATE_TWO;
-  }
-  if (s && iter->current >= iter->str->bytes + s->start && iter->current < iter->str->bytes + s->start + s->deleted) {
-    return BSI_STATE_THREE;
   }
   assert(false);
 }
@@ -325,13 +359,13 @@ void buff_string_unittest() {
   bool eof = buff_string_find(&iter, lambda(bool _(char c) {return c=='z';}));
 
   assert(!eof);
-  assert(*(iter.current) == 'z');
+  assert(_buff_string_current(&iter) == 'z');
 
   buff_string_end(&iter, &str01);
   eof = buff_string_find_back(&iter, lambda(bool _(char c) {return c=='z';}));
 
   assert(!eof);
-  assert(*(iter.current) == 'z');
+  assert(_buff_string_current(&iter) == 'z');
 
   buff_string_begin(&iter, &str01);
   buff_string_takewhile(&iter, temp, lambda(bool _(char c) {
@@ -357,10 +391,10 @@ void buff_string_unittest() {
   assert(strcmp(temp, "00000000001234567890abcdefjhijklmnopqrstuvwxyz1234567890")==0);
 
   buff_string_index(&str02, &iter, 22);
-  printf("iter->splice=%p\n", iter.splice);
-  printf("iter->current=%c\n", *(iter.current));
+  printf("iter->next=%p\n", iter.next);
+  printf("iter->offset=%c\n", _buff_string_current(&iter));
 
-  assert(*(iter.current) == 'c');
+  assert(_buff_string_current(&iter) == 'c');
 
   buff_string_begin(&iter, &str02);
   buff_string_find(&iter, lambda(bool _(char c) {
