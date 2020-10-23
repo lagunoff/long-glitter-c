@@ -8,14 +8,18 @@
 #include "buff-string.h"
 #include "main.h"
 
-buff_string_iter_state _buff_string_get_iter_state(struct buff_string_iter *iter);
-void _buff_string_check_iter(struct buff_string_iter *iter);
-void _buff_string_iter_right(struct buff_string_iter *iter);
-int _buff_string_iter_left(struct buff_string_iter *iter);
-void buff_string_insert_inside_splice(char *iter, struct splice *splice, buff_string_dir dir, char *str, int deleted);
+bs_iter_state_t _bs_get_iter_state(buff_string_iter_t *iter, bs_direction_t dir);
+void _bs_check_iter(buff_string_iter_t *iter);
+void _bs_iter_right(buff_string_iter_t *iter);
+int _bs_iter_left(buff_string_iter_t *iter);
+void bs_insert_inside_splice(char *iter, bs_splice_t *splice, bs_direction_t dir, char *str, int deleted);
+void _bs_insert_after_1(buff_string_t *str, bs_splice_t *anchor, bs_splice_t *new);
+void _bs_insert_after_cursor(buff_string_iter_t *iter, bs_splice_t *anchor, bs_splice_t *new);
+void _bs_insert_after_iter(buff_string_iter_t *iter, bs_splice_t *anchor, bs_splice_t *new);
+void bs_splice_overlap(int offset, bs_splice_t *dest, bs_splice_t *splice, bs_direction_t dir);
 
-int buff_string_length(struct buff_string *str) {
-  struct splice *iter = str->first;
+int bs_length(buff_string_t *str) {
+  bs_splice_t *iter = str->first;
   int i=str->len;
   for(;iter;iter=iter->next) {
     i+=iter->len;
@@ -24,12 +28,12 @@ int buff_string_length(struct buff_string *str) {
   return i;
 }
 
-void buff_string_index(struct buff_string *str, struct buff_string_iter *iter, int i) {
+void bs_index(buff_string_t *str, buff_string_iter_t *iter, int i) {
   int j = 0; // Real index
   int k = 0; // Base index
-  buff_string_begin(iter, str);
+  bs_begin(iter, str);
   while(1) {
-    struct splice *next = iter->next;
+    bs_splice_t *next = iter->next;
     if (!next || next->start > (k + (i - j))) {
       // Required index is before iter->next
       iter->offset = (k + (i - j));
@@ -51,49 +55,49 @@ void buff_string_index(struct buff_string *str, struct buff_string_iter *iter, i
   }
 }
 
-struct splice *new_splice(int len) {
-  struct splice *s = malloc(sizeof(struct splice));
-  memset(s, 0, sizeof(struct splice));
+bs_splice_t *new_splice(int len) {
+  bs_splice_t *s = malloc(sizeof(bs_splice_t));
+  memset(s, 0, sizeof(bs_splice_t));
   s->bytes = malloc(MAX(len, 1));
   memset(s->bytes, 0, len);
   s->len = len;
   return s;
 }
 
-struct splice *new_splice_str(char *str) {
+bs_splice_t *new_splice_str(char *str) {
   int len = strlen(str);
-  struct splice *result = new_splice(len);
+  bs_splice_t *result = new_splice(len);
   memcpy(result->bytes, str, MAX(len, 1));
   return result;
 }
 
-void free_buff_string(struct buff_string *str) {
-  struct splice *iter = str->first;
+void free_buff_string(buff_string_t *str) {
+  bs_splice_t *iter = str->first;
   for(;iter;) {
-    struct splice *temp = iter;
+    bs_splice_t *temp = iter;
     iter=iter->next;
     free(temp);
   }
 }
 
-bool buff_string_iterate(
-  struct buff_string_iter *iter,
-  buff_string_dir dir,
-  buff_string_last_increment_policy last_inc,
-  bool (*p)(char)
+bool bs_iterate(
+  buff_string_iter_t        *iter,
+  bs_direction_t             dir,
+  bs_last_increment_policy_t last_inc,
+  bool                       (*p)(char)
 ) {
   while(1) {
-    buff_string_iter_state state = _buff_string_get_iter_state(iter);
-    struct splice *next = iter->next;
-    struct splice *prev = (next == iter->str->first) ? NULL : next ? next->prev : iter->str->last;
+    bs_iter_state_t state = _bs_get_iter_state(iter, dir);
+    bs_splice_t *next = iter->next;
+    bs_splice_t *prev = (next == iter->str->first) ? NULL : next ? next->prev : iter->str->last;
     switch(state) {
-    case BSI_STATE_ONE: {
+    case BS_STATE_1: {
       // Finding splice next to 'current'
       if (prev && iter->offset < prev->start + prev->deleted) {
         iter->next = prev;
         continue;
       } else {
-         if (dir == BSD_RIGHT) {
+         if (dir == BS_RIGHT) {
            if (next && iter->offset == next->start) {
              iter->offset = 0;
              iter->in_splice = true;
@@ -101,11 +105,11 @@ bool buff_string_iterate(
            }
            if (iter->offset >= iter->str->len) goto eof;
            bool is_stop = p(iter->str->bytes[iter->offset]);
-           if (is_stop && last_inc == BSLIP_DONT) goto stopped;
+           if (is_stop && last_inc == BS_DONT_INCREMENT) goto stopped;
            iter->offset++;
            if (is_stop) goto stopped;
-         } else if (dir == BSD_LEFT) {
-           if (prev && iter->offset == prev->start + next->deleted) {
+         } else if (dir == BS_LEFT) {
+           if (prev && iter->offset == prev->start + prev->deleted) {
              iter->offset = prev->len;
              iter->in_splice = true;
              iter->next = prev;
@@ -113,7 +117,7 @@ bool buff_string_iterate(
            }
            if (iter->offset <= 0) goto eof;
            bool is_stop = p(iter->str->bytes[iter->offset - 1]);
-           if (is_stop && last_inc == BSLIP_DO) iter->offset--;
+           if (is_stop && last_inc == BS_DO_INCREMENT) iter->offset--;
            if (is_stop) goto stopped;
            iter->offset--;
          }
@@ -121,19 +125,19 @@ bool buff_string_iterate(
       }
       break;
     }
-    case BSI_STATE_TWO: {
+    case BS_PROBLEM_2: {
       // Finding splice next to 'current'
       iter->next = next->next;
       continue;
     }
-    case BSI_STATE_THREE: {
+    case BS_PROBLEM_3: {
       int start_offset = iter->offset - iter->next->start;
       iter->in_splice = true;
       iter->offset = MIN(start_offset, iter->next->len);
       continue;
     }
-    case BSI_STATE_FOUR: {
-      if (dir == BSD_RIGHT) {
+    case BS_STATE_3: {
+      if (dir == BS_RIGHT) {
         if (iter->offset >= next->len) {
           iter->in_splice = false;
           iter->offset = next->start + next->deleted;
@@ -141,18 +145,18 @@ bool buff_string_iterate(
           continue;
         }
         bool is_stop = p(next->bytes[iter->offset]);
-        if (is_stop && last_inc == BSLIP_DO) iter->offset++;
+        if (is_stop && last_inc == BS_DO_INCREMENT) iter->offset++;
         if (is_stop) goto stopped;
         iter->offset++;
-      } else if (dir == BSD_LEFT) {
+      } else if (dir == BS_LEFT) {
         if (iter->offset <= 0) {
           iter->in_splice = false;
-          iter->offset = next->start - 1;
+          iter->offset = next->start;
           iter->next = next->prev;
           continue;
         }
         bool is_stop = p(next->bytes[iter->offset - 1]);
-        if (is_stop && last_inc == BSLIP_DO) iter->offset--;
+        if (is_stop && last_inc == BS_DO_INCREMENT) iter->offset--;
         if (is_stop) goto stopped;
         iter->offset--;
       }
@@ -168,17 +172,17 @@ bool buff_string_iterate(
   return true;
 }
 
-bool buff_string_find(struct buff_string_iter *iter, bool (*p)(char)) {
-  return buff_string_iterate(iter, BSD_RIGHT, BSLIP_DONT, p);
+bool bs_find(buff_string_iter_t *iter, bool (*p)(char)) {
+  return bs_iterate(iter, BS_RIGHT, BS_DONT_INCREMENT, p);
 }
 
-bool buff_string_find_back(struct buff_string_iter *iter, bool (*p)(char)) {
-  return buff_string_iterate(iter, BSD_LEFT, BSLIP_DO, p);
+bool bs_find_back(buff_string_iter_t *iter, bool (*p)(char)) {
+  return bs_iterate(iter, BS_LEFT, BS_DO_INCREMENT, p);
 }
 
-bool buff_string_takewhile(struct buff_string_iter *iter, char *dest, bool (*p)(char)) {
+bool bs_takewhile(buff_string_iter_t *iter, char *dest, bool (*p)(char)) {
   int j = 0;
-  bool eof = buff_string_find(iter, lambda(bool _(char c) {
+  bool eof = bs_find(iter, lambda(bool _(char c) {
     bool is_ok = p(c);
     if (is_ok) dest[j++] = c;
     return !is_ok;
@@ -187,43 +191,43 @@ bool buff_string_takewhile(struct buff_string_iter *iter, char *dest, bool (*p)(
   return eof;
 }
 
-void buff_string_begin(struct buff_string_iter *iter, struct buff_string *str) {
+void bs_begin(buff_string_iter_t *iter, buff_string_t *str) {
   iter->str=str;
   iter->in_splice = str->first && str->first->start == 0 ? true : false;
   iter->offset = 0;
   iter->next = str->first;
 }
 
-void buff_string_end(struct buff_string_iter *iter, struct buff_string *str) {
+void bs_end(buff_string_iter_t *iter, buff_string_t *str) {
   iter->str=str;
   iter->in_splice=false;
   iter->offset = str->len;
   iter->next = str->last;
 }
 
-bool buff_string_move(struct buff_string_iter *iter, int dx) {
+bool bs_move(buff_string_iter_t *iter, int dx) {
   if (dx > 0) {
     int i = 0;
-    return buff_string_iterate(iter, BSD_RIGHT, BSLIP_DONT, lambda(bool _(char c) {return !(i++ < dx);}));
+    return bs_iterate(iter, BS_RIGHT, BS_DONT_INCREMENT, lambda(bool _(char c) {return !(i++ < dx);}));
   }
   if (dx < 0) {
     int i = 0;
-    return buff_string_iterate(iter, BSD_LEFT, BSLIP_DONT, lambda(bool _(char c) {return !(i++ < abs(dx));}));
+    return bs_iterate(iter, BS_LEFT, BS_DONT_INCREMENT, lambda(bool _(char c) {return !(i++ < abs(dx));}));
   }
   return true;
 }
 
-int buff_string_offset(struct buff_string_iter *iter1) {
-  struct buff_string_iter iter0 = *iter1;
-  struct buff_string_iter *iter = &iter0;
+int bs_offset(buff_string_iter_t *iter1) {
+  buff_string_iter_t iter0 = *iter1;
+  buff_string_iter_t *iter = &iter0;
 
   int offset = 0;
   while(1) {
-    buff_string_iter_state state = _buff_string_get_iter_state(iter);
-    struct splice *next = iter->next;
-    struct splice *prev = (next == iter->str->first) ? NULL : (next ? next->prev : iter->str->last);
+    bs_iter_state_t state = _bs_get_iter_state(iter, BS_LEFT);
+    bs_splice_t *next = iter->next;
+    bs_splice_t *prev = (next == iter->str->first) ? NULL : (next ? next->prev : iter->str->last);
     switch(state) {
-    case BSI_STATE_ONE: {
+    case BS_STATE_1: {
       // Finding splice next to 'current'
       if (prev && iter->offset < prev->start + prev->deleted) {
         iter->next = prev;
@@ -240,20 +244,20 @@ int buff_string_offset(struct buff_string_iter *iter1) {
         return offset;
       }
     }
-    case BSI_STATE_TWO: {
+    case BS_PROBLEM_2: {
       // Finding splice next to 'current'
       iter->next = next->next;
       continue;
     }
-    case BSI_STATE_THREE: {
+    case BS_PROBLEM_3: {
       int start_offset = iter->offset - iter->next->start;
       iter->offset = MIN(start_offset, iter->next->len);
       iter->in_splice = true;
       continue;
     }
-    case BSI_STATE_FOUR: {
+    case BS_STATE_3: {
       offset += iter->offset;
-      iter->offset = iter->next->start;
+      iter->offset = next->start;
       iter->in_splice = false;
       if (prev) iter->next = prev;
       continue;
@@ -264,131 +268,245 @@ int buff_string_offset(struct buff_string_iter *iter1) {
   return offset;
 }
 
-void buff_string_insert(struct buff_string_iter *iter, buff_string_dir dir, char *str, int deleted, ...) {
-}
+void bs_insert(buff_string_iter_t *iter, bs_direction_t dir, char *str, int deleted, ...) {
+  bs_splice_t new_splice = {NULL, NULL, 0, deleted, strlen(str), str};
+  while(1) {
+    bs_iter_state_t state = _bs_get_iter_state(iter, dir);
+    bs_splice_t *next = iter->next;
+    bs_splice_t *prev = (next == iter->str->first) ? NULL : (next ? next->prev : iter->str->last);
+    switch(state) {
+    case BS_STATE_1: {
+      // Finding splice next to 'current'
+      if (prev && iter->offset < prev->start + prev->deleted) {
+        iter->next = prev;
+        continue;
+      }
+      if (dir == BS_LEFT && prev && prev->start + prev->deleted == iter->offset) {
+        bs_splice_overlap(prev->len, prev, &new_splice, dir);
+        goto end;
+      }
+      if (dir == BS_RIGHT && next && iter->offset == next->start) {
+        bs_splice_overlap(0, next, &new_splice, dir);
+        goto end;
+      }
 
+      bs_splice_t *splice = new_splice_str(str);
+      splice->deleted = deleted;
+      splice->start = dir == BS_RIGHT ? iter->offset : iter->offset - splice->deleted;
 
-/** Assuming that iter points inside splice->bytes */
-void buff_string_insert_inside_splice(char *iter, struct splice *splice, buff_string_dir dir, char *str, int deleted) {
-  int insert_offset = iter - splice->bytes + (dir == BSD_LEFT ? -deleted : 0);
-  int insert_len = strlen(str);
-  int new_len = splice->len + insert_len - deleted;
-  int move_len = splice->len - insert_offset - deleted;
-  char *new_bytes = splice->bytes;
+      _bs_insert_after_1(iter->str, prev, splice);
+      //    _bs_insert_after_cursor(iter, prev, splice);
 
-  if (dir == BSD_LEFT && insert_offset < 0) return;
-
-  if (splice->len != new_len) {
-    new_bytes = realloc(splice->bytes, MAX(new_len, 1));
+      va_list iters;
+      va_start(iters, deleted);
+      while(1) {
+        buff_string_iter_t *it = va_arg(iters, buff_string_iter_t *);
+        if (it == NULL) break;
+      }
+      va_end(iters);
+      goto end;
+    }
+    case BS_PROBLEM_2: {
+      // Finding splice next to 'current'
+      iter->next = next->next;
+      continue;
+    }
+    case BS_PROBLEM_3: {
+      int start_offset = iter->offset - iter->next->start;
+      iter->offset = MIN(start_offset, iter->next->len);
+      iter->in_splice = true;
+      continue;
+    }
+    case BS_STATE_3: {
+      // iter->current points to string inside next
+      bs_splice_overlap(iter->offset, next, &new_splice, dir);
+      goto end;
+    }
+    }
   }
 
-  char *move_dest = new_bytes + insert_offset + insert_len ;
-  char *move_src = new_bytes + insert_offset + deleted;
-
-  if (move_src != move_dest && move_len > 0) memmove(move_dest, move_src, move_len);
-  if (insert_len > 0) memcpy(move_dest - insert_len, str, insert_len);
-  splice->len = MAX(new_len, 0);
-  splice->deleted += MAX(-new_len, 0);
-  splice->bytes = new_bytes;
+  end:
+  _bs_check_iter(iter);
 }
 
-void buff_string_forward_word(struct buff_string_iter *iter) {
-  buff_string_find(iter, lambda(bool _(char c) { return isalnum(c); }));
-  buff_string_find(iter, lambda(bool _(char c) { return !isalnum(c); }));
+void _bs_insert_after_1(buff_string_t *str, bs_splice_t *anchor, bs_splice_t *new) {
+  if (anchor == NULL) {
+    new->next = str->first;
+    if (str->first) {
+      str->first->prev = new;
+    } else {
+      str->last = new;
+    }
+    str->first = new;
+    return;
+  }
+  bs_splice_t *iter = str->first;
+  for (;iter;iter=iter->next) {
+    if (iter == anchor) {
+      new->next = iter->next;
+      new->prev = iter;
+      if (iter->next) {
+        iter->next->prev = new;
+      } else {
+        str->last = new;
+      }
+      iter->next = new;
+    }
+  }
 }
 
-void buff_string_backward_word(struct buff_string_iter *iter) {
-  buff_string_find_back(iter, lambda(bool _(char c) { return isalnum(c); }));
-  buff_string_find_back(iter, lambda(bool _(char c) { return !isalnum(c); }));
+void bs_splice_overlap(int offset, bs_splice_t *dest, bs_splice_t *splice, bs_direction_t dir) {
+  if (dir == BS_LEFT) {
+    int delta_start = offset - splice->deleted;
+    if (delta_start < 0) {
+      int new_len = dest->len + splice->len - offset;
+      char *new_bytes = new_len != dest->len ? realloc(dest->bytes, MAX(new_len, 1)) : dest->bytes;
+      char *move_dest = new_bytes + splice->len;
+      char *move_src = new_bytes + offset;
+      int move_len = dest->len - offset;
+      if (move_src != move_dest && move_len > 0) memmove(move_dest, move_src, move_len);
+      memcpy(new_bytes, splice->bytes, splice->len);
+      dest->len = new_len;
+      dest->deleted = dest->deleted - delta_start;
+      dest->bytes = new_bytes;
+      dest->start += delta_start;
+    } else {
+      int new_len = dest->len + splice->len - splice->deleted;
+      char *new_bytes = new_len != dest->len ? realloc(dest->bytes, MAX(new_len, 1)) : dest->bytes;
+      char *move_dest = new_bytes + offset - splice->deleted + splice->len;
+      char *move_src = new_bytes + offset;
+      char *cpy_dest = new_bytes + (offset - splice->deleted);
+      int move_len = new_len - (offset - splice->deleted + splice->len);
+      if (move_src != move_dest && move_len > 0) memmove(move_dest, move_src, move_len);
+      memcpy(cpy_dest, splice->bytes, splice->len);
+      dest->len = new_len;
+      dest->bytes = new_bytes;
+    }
+  } else { // (dir == BS_RIGHT) {
+    int delta_start = splice->deleted - (dest->len - offset);
+    if (delta_start >= 0) {
+      int new_len = splice->len + offset;
+      char *new_bytes = new_len != dest->len ? realloc(dest->bytes, MAX(new_len, 1)) : dest->bytes;
+      char *cpy_dest = new_bytes + offset;
+      memcpy(cpy_dest, splice->bytes, splice->len);
+      dest->len = new_len;
+      dest->deleted = dest->deleted + delta_start;
+      dest->bytes = new_bytes;
+    } else {
+      int new_len = dest->len + splice->len - splice->deleted;
+      char *new_bytes = new_len != dest->len ? realloc(dest->bytes, MAX(new_len, 1)) : dest->bytes;
+      char *move_dest = new_bytes + offset + splice->len;
+      char *move_src = new_bytes + offset + splice->deleted;
+      int move_len = new_len - (offset + splice->len);
+      char *cpy_dest = new_bytes + offset;
+      if (move_src != move_dest && move_len > 0) memmove(move_dest, move_src, move_len);
+      memcpy(cpy_dest, splice->bytes, splice->len);
+      dest->len = new_len;
+      dest->bytes = new_bytes;
+    }
+  }
 }
 
-void _buff_string_check_iter(struct buff_string_iter *iter) {
+void bs_forward_word(buff_string_iter_t *iter) {
+  bs_find(iter, lambda(bool _(char c) { return isalnum(c); }));
+  bs_find(iter, lambda(bool _(char c) { return !isalnum(c); }));
+}
+
+void bs_backward_word(buff_string_iter_t *iter) {
+  bs_find_back(iter, lambda(bool _(char c) { return isalnum(c); }));
+  bs_find_back(iter, lambda(bool _(char c) { return !isalnum(c); }));
+}
+
+void _bs_check_iter(buff_string_iter_t *iter) {
 
 }
 
-char _buff_string_read_next(struct buff_string_iter *iter, buff_string_dir dir) {
+char _bs_read_next(buff_string_iter_t *iter, bs_direction_t dir) {
   char ch;
-  buff_string_iterate(iter, dir, BSLIP_DONT, lambda(bool _(char c) {ch = c; return true;}));
+  bs_iterate(iter, dir, BS_DONT_INCREMENT, lambda(bool _(char c) {ch = c; return true;}));
   return ch;
 }
 
-char _buff_string_current(struct buff_string_iter *iter) {
-  _buff_string_read_next(iter, BSD_RIGHT);
+char _bs_current(buff_string_iter_t *iter) {
+  _bs_read_next(iter, BS_RIGHT);
 }
 
-buff_string_iter_state _buff_string_get_iter_state(struct buff_string_iter *iter) {
-  struct splice *next = iter->next;
+bs_iter_state_t _bs_get_iter_state(buff_string_iter_t *iter, bs_direction_t dir) {
+  bs_splice_t *next = iter->next;
 
   if (iter->in_splice) {
-    return BSI_STATE_FOUR;
+    return BS_STATE_3;
   }
-  if (!iter->in_splice && next && iter->offset >= next->start && iter->offset < next->start + next->deleted) {
-    return BSI_STATE_THREE;
+  if (!iter->in_splice && next) {
+    if (dir == BS_RIGHT && iter->offset >= next->start && iter->offset < next->start + next->deleted) return BS_PROBLEM_3;
+    if (dir == BS_LEFT && iter->offset > next->start && iter->offset <= next->start + next->deleted) return BS_PROBLEM_3;
   }
-  if (!iter->in_splice && iter->offset <= (next ? next->start : iter->str->len)) {
-    return BSI_STATE_ONE;
+  if (!iter->in_splice) {
+    if (dir == BS_RIGHT && (next ? iter->offset < next->start : iter->offset <= iter->str->len)) return BS_STATE_1;
+    if (dir == BS_LEFT && (next ? iter->offset <= next->start : iter->offset <= iter->str->len)) return BS_STATE_1;
   }
-  if (!iter->in_splice && iter->offset >= (next->start + next->deleted)) {
-    return BSI_STATE_TWO;
+  if (!iter->in_splice && next) {
+    if (dir == BS_RIGHT && iter->offset >= (next->start + next->deleted)) return BS_PROBLEM_2;
+    if (dir == BS_LEFT && iter->offset > (next->start + next->deleted)) return BS_PROBLEM_2;
   }
   assert(false);
 }
 
-void buff_string_unittest() {
+void bs_unittest() {
   char *s01 = "1234567890abcdefjhijklmnopqrstuvwxyz1234567890";
   char temp[512];
-  struct buff_string str01 = {NULL, NULL, s01, strlen(s01)};
-  struct buff_string_iter iter;
-  buff_string_begin(&iter, &str01);
+  buff_string_t str01 = {NULL, NULL, s01, strlen(s01)};
+  buff_string_iter_t iter;
+  bs_begin(&iter, &str01);
 
-  bool eof = buff_string_find(&iter, lambda(bool _(char c) {return c=='z';}));
-
-  assert(!eof);
-  assert(_buff_string_current(&iter) == 'z');
-
-  buff_string_end(&iter, &str01);
-  eof = buff_string_find_back(&iter, lambda(bool _(char c) {return c=='z';}));
+  bool eof = bs_find(&iter, lambda(bool _(char c) {return c=='z';}));
 
   assert(!eof);
-  assert(_buff_string_current(&iter) == 'z');
+  assert(_bs_current(&iter) == 'z');
 
-  buff_string_begin(&iter, &str01);
-  buff_string_takewhile(&iter, temp, lambda(bool _(char c) {
+  bs_end(&iter, &str01);
+  eof = bs_find_back(&iter, lambda(bool _(char c) {return c=='z';}));
+
+  assert(!eof);
+  assert(_bs_current(&iter) == 'z');
+
+  bs_begin(&iter, &str01);
+  bs_takewhile(&iter, temp, lambda(bool _(char c) {
     return isdigit(c);
   }));
   assert(strcmp(temp, "1234567890")==0);
 
-  struct splice *splice02 = new_splice_str("0000000000");
+  bs_splice_t *splice02 = new_splice_str("0000000000");
   splice02->start=0;
-  struct buff_string str02 = {splice02, splice02, s01, strlen(s01)};
+  buff_string_t str02 = {splice02, splice02, s01, strlen(s01)};
 
-  buff_string_begin(&iter, &str02);
+  bs_begin(&iter, &str02);
 
-  buff_string_takewhile(&iter, temp, lambda(bool _(char c) {return isdigit(c);}));
+  bs_takewhile(&iter, temp, lambda(bool _(char c) {return isdigit(c);}));
 
   printf("temp=%s\n", temp);
   assert(strcmp(temp, "00000000001234567890")==0);
-  buff_string_begin(&iter, &str02);
-  buff_string_takewhile(&iter, temp, lambda(bool _(char c) {
+  bs_begin(&iter, &str02);
+  bs_takewhile(&iter, temp, lambda(bool _(char c) {
     return true;
   }));
   printf("temp=%s\n", temp);
   assert(strcmp(temp, "00000000001234567890abcdefjhijklmnopqrstuvwxyz1234567890")==0);
 
-  buff_string_index(&str02, &iter, 22);
+  bs_index(&str02, &iter, 22);
   printf("iter->next=%p\n", iter.next);
-  printf("iter->offset=%c\n", _buff_string_current(&iter));
+  printf("iter->offset=%c\n", _bs_current(&iter));
 
-  assert(_buff_string_current(&iter) == 'c');
+  assert(_bs_current(&iter) == 'c');
 
-  buff_string_begin(&iter, &str02);
-  buff_string_find(&iter, lambda(bool _(char c) {
+  bs_begin(&iter, &str02);
+  bs_find(&iter, lambda(bool _(char c) {
     return c=='k';
   }));
 
   inspect("%p", str02.first);
   inspect("%p", str02.last);
-  int offset = buff_string_offset(&iter);
+  int offset = bs_offset(&iter);
   printf("offset=%d\n", offset);
   assert(offset==30);
 

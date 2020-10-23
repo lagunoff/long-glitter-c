@@ -2,66 +2,68 @@
 #include <stdbool.h>
 
 typedef enum {
-  BSD_RIGHT,
-  BSD_LEFT,
-} buff_string_dir;
+  BS_RIGHT,
+  BS_LEFT,
+} bs_direction_t;
 
 typedef enum {
-  BSI_STATE_ONE,
-  BSI_STATE_TWO,
-  BSI_STATE_THREE,
-  BSI_STATE_FOUR,
-} buff_string_iter_state;
+  BS_STATE_1,
+  BS_STATE_2,
+  BS_STATE_3,
+  BS_PROBLEM_1,
+  BS_PROBLEM_2,
+  BS_PROBLEM_3,
+} bs_iter_state_t;
 
 typedef enum {
-  BSLIP_DO,
-  BSLIP_DONT,
-} buff_string_last_increment_policy;
+  BS_DO_INCREMENT,
+  BS_DONT_INCREMENT,
+} bs_last_increment_policy_t;
 
-struct splice {
-  struct splice *next;
-  struct splice *prev;
-  int start;
-  int deleted;
-  int len; // Length of bytes field
-  char *bytes;
-};
+typedef struct bs_splice_t {
+  struct bs_splice_t *next;
+  struct bs_splice_t *prev;
+  int                start;
+  int                deleted;
+  int                len; // Length of bytes field
+  char              *bytes;
+} bs_splice_t;
 
-struct buff_string {
-  struct splice *first;
-  struct splice *last;
-  char *bytes;
-  int len;
-};
+typedef struct {
+  bs_splice_t *first;
+  bs_splice_t *last;
+  char        *bytes;
+  int          len;
+} buff_string_t;
 
-struct buff_string_iter {
-  struct splice *next;
-  unsigned int offset;
-  bool in_splice;
-  struct buff_string *str;
-};
+typedef struct {
+  bs_splice_t   *next;
+  unsigned int   offset;
+  bool           in_splice;
+  buff_string_t *str;
+} buff_string_iter_t;
 
-void free_buff_string(struct buff_string *str);
-int buff_string_length(struct buff_string *str);
-bool buff_string_takewhile(struct buff_string_iter *iter, char *out, bool (*p)(char));
-void buff_string_index(struct buff_string *str, struct buff_string_iter *iter, int i);
-void buff_string_begin(struct buff_string_iter *iter, struct buff_string *str);
-void buff_string_end(struct buff_string_iter *iter, struct buff_string *str);
-bool buff_string_find(struct buff_string_iter *iter, bool (*p)(char));
-bool buff_string_find_back(struct buff_string_iter *iter, bool (*p)(char));
-bool buff_string_move(struct buff_string_iter *iter, int dx);
-int buff_string_offset(struct buff_string_iter *iter);
-void buff_string_insert(struct buff_string_iter *iter, buff_string_dir dir, char *str, int deleted, ...);
-void buff_string_forward_word(struct buff_string_iter *iter);
-void buff_string_backward_word(struct buff_string_iter *iter);
+void free_buff_string(buff_string_t *str);
+int bs_length(buff_string_t *str);
+bool bs_takewhile(buff_string_iter_t *iter, char *out, bool (*p)(char));
+void bs_index(buff_string_t *str, buff_string_iter_t *iter, int i);
+void bs_begin(buff_string_iter_t *iter, buff_string_t *str);
+void bs_end(buff_string_iter_t *iter, buff_string_t *str);
+bool bs_find(buff_string_iter_t *iter, bool (*p)(char));
+bool bs_find_back(buff_string_iter_t *iter, bool (*p)(char));
+bool bs_move(buff_string_iter_t *iter, int dx);
+int bs_offset(buff_string_iter_t *iter);
+void bs_insert(buff_string_iter_t *iter, bs_direction_t dir, char *str, int deleted, ...);
+void bs_forward_word(buff_string_iter_t *iter);
+void bs_backward_word(buff_string_iter_t *iter);
 
-bool buff_string_iterate(
-  struct buff_string_iter *iter,
-  buff_string_dir dir,
-  buff_string_last_increment_policy last_inc,
-  bool (*p)(char)
+bool bs_iterate(
+  buff_string_iter_t        *iter,
+  bs_direction_t             dir,
+  bs_last_increment_policy_t last_inc,
+  bool                       (*p)(char)
 );
 
 // Deallocate memory with `free`
-struct splice *new_splice(int len);
-struct splice *new_splice_str(char *str);
+bs_splice_t *new_splice(int len);
+bs_splice_t *new_splice_str(char *str);
