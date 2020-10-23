@@ -92,73 +92,59 @@ bool bs_iterate(
     bs_splice_t *prev = (next == iter->str->first) ? NULL : next ? next->prev : iter->str->last;
     switch(state) {
     case BS_STATE_1: {
-      // Finding splice next to 'current'
-      if (prev && iter->offset < prev->start + prev->deleted) {
-        iter->next = prev;
-        continue;
-      } else {
-         if (dir == BS_RIGHT) {
-           if (next && iter->offset == next->start) {
-             iter->offset = 0;
-             iter->in_splice = true;
-             continue;
-           }
-           if (iter->offset >= iter->str->len) goto eof;
-           bool is_stop = p(iter->str->bytes[iter->offset]);
-           if (is_stop && last_inc == BS_DONT_INCREMENT) goto stopped;
-           iter->offset++;
-           if (is_stop) goto stopped;
-         } else if (dir == BS_LEFT) {
-           if (prev && iter->offset == prev->start + prev->deleted) {
-             iter->offset = prev->len;
-             iter->in_splice = true;
-             iter->next = prev;
-             continue;
-           }
-           if (iter->offset <= 0) goto eof;
-           bool is_stop = p(iter->str->bytes[iter->offset - 1]);
-           if (is_stop && last_inc == BS_DO_INCREMENT) iter->offset--;
-           if (is_stop) goto stopped;
-           iter->offset--;
-         }
-         continue;
-      }
-      break;
-    }
-    case BS_PROBLEM_2: {
-      // Finding splice next to 'current'
-      iter->next = next->next;
-      continue;
-    }
-    case BS_PROBLEM_3: {
-      int start_offset = iter->offset - iter->next->start;
-      iter->in_splice = true;
-      iter->offset = MIN(start_offset, iter->next->len);
-      continue;
-    }
-    case BS_STATE_3: {
       if (dir == BS_RIGHT) {
-        if (iter->offset >= next->len) {
-          iter->in_splice = false;
-          iter->offset = next->start + next->deleted;
-          iter->next = next->next;
-          continue;
-        }
+        if (iter->offset >= iter->str->len) goto eof;
+        bool is_stop = p(iter->str->bytes[iter->offset]);
+        if (is_stop && last_inc == BS_DONT_INCREMENT) goto stopped;
+        iter->offset++;
+        if (is_stop) goto stopped;
+      } else {
+        if (iter->offset <= 0) goto eof;
+        bool is_stop = p(iter->str->bytes[iter->offset - 1]);
+        if (is_stop && last_inc == BS_DO_INCREMENT) iter->offset--;
+        if (is_stop) goto stopped;
+        iter->offset--;
+      }
+      continue;
+    }
+    case BS_STATE_2: {
+      if (dir == BS_RIGHT) {
         bool is_stop = p(next->bytes[iter->offset]);
         if (is_stop && last_inc == BS_DO_INCREMENT) iter->offset++;
         if (is_stop) goto stopped;
         iter->offset++;
       } else if (dir == BS_LEFT) {
-        if (iter->offset <= 0) {
-          iter->in_splice = false;
-          iter->offset = next->start;
-          iter->next = next->prev;
-          continue;
-        }
         bool is_stop = p(next->bytes[iter->offset - 1]);
         if (is_stop && last_inc == BS_DO_INCREMENT) iter->offset--;
         if (is_stop) goto stopped;
         iter->offset--;
+      }
+      continue;
+    }
+    case BS_PROBLEM_1: {
+      iter->next = prev;
+      continue;
+    }
+    case BS_PROBLEM_2: {
+      iter->next = next->next;
+      continue;
+    }
+    case BS_PROBLEM_3: {
+      bs_splice_t *splice = dir == BS_RIGHT ? iter->next : prev;
+      int start_offset = iter->offset - iter->next->start;
+      iter->offset = MIN(start_offset, iter->next->len);
+      iter->next = splice;
+      iter->in_splice = true;
+      continue;
+    }
+    case BS_PROBLEM_4: {
+      if (dir == BS_RIGHT) {
+        iter->offset = next->start + next->deleted + (iter->offset - next->len);
+        iter->in_splice = false;
+        iter->next = next->next;
+      } else {
+        iter->offset = next->start;
+        iter->in_splice = false;
       }
       continue;
     }
@@ -228,11 +214,6 @@ int bs_offset(buff_string_iter_t *iter1) {
     bs_splice_t *prev = (next == iter->str->first) ? NULL : (next ? next->prev : iter->str->last);
     switch(state) {
     case BS_STATE_1: {
-      // Finding splice next to 'current'
-      if (prev && iter->offset < prev->start + prev->deleted) {
-        iter->next = prev;
-        continue;
-      }
       if (prev) {
         offset += iter->offset - (prev->start + prev->deleted);
         iter->next = prev;
@@ -244,22 +225,32 @@ int bs_offset(buff_string_iter_t *iter1) {
         return offset;
       }
     }
-    case BS_PROBLEM_2: {
-      // Finding splice next to 'current'
-      iter->next = next->next;
-      continue;
-    }
-    case BS_PROBLEM_3: {
-      int start_offset = iter->offset - iter->next->start;
-      iter->offset = MIN(start_offset, iter->next->len);
-      iter->in_splice = true;
-      continue;
-    }
-    case BS_STATE_3: {
+    case BS_STATE_2: {
       offset += iter->offset;
       iter->offset = next->start;
       iter->in_splice = false;
       if (prev) iter->next = prev;
+      continue;
+    }
+    case BS_PROBLEM_1: {
+      iter->next = prev;
+      continue;
+    }
+    case BS_PROBLEM_2: {
+      iter->next = next->next;
+      continue;
+    }
+    case BS_PROBLEM_3: {
+      bs_splice_t *splice = prev;
+      int start_offset = iter->offset - iter->next->start;
+      iter->offset = MIN(start_offset, iter->next->len);
+      iter->next = splice;
+      iter->in_splice = true;
+      continue;
+    }
+    case BS_PROBLEM_4: {
+      iter->offset = next->start;
+      iter->in_splice = false;
       continue;
     }
     }
@@ -306,21 +297,37 @@ void bs_insert(buff_string_iter_t *iter, bs_direction_t dir, char *str, int dele
       va_end(iters);
       goto end;
     }
+    case BS_STATE_2: {
+      // iter->current points to string inside next
+      bs_splice_overlap(iter->offset, next, &new_splice, dir);
+      goto end;
+    }
+    case BS_PROBLEM_1: {
+      iter->next = prev;
+      continue;
+    }
     case BS_PROBLEM_2: {
-      // Finding splice next to 'current'
       iter->next = next->next;
       continue;
     }
     case BS_PROBLEM_3: {
+      bs_splice_t *splice = dir == BS_RIGHT ? iter->next : prev;
       int start_offset = iter->offset - iter->next->start;
       iter->offset = MIN(start_offset, iter->next->len);
+      iter->next = splice;
       iter->in_splice = true;
       continue;
     }
-    case BS_STATE_3: {
-      // iter->current points to string inside next
-      bs_splice_overlap(iter->offset, next, &new_splice, dir);
-      goto end;
+    case BS_PROBLEM_4: {
+      if (dir == BS_RIGHT) {
+        iter->offset = next->start + next->deleted + (iter->offset - next->len);
+        iter->in_splice = false;
+        iter->next = next->next;
+      } else {
+        iter->offset = next->start;
+        iter->in_splice = false;
+      }
+      continue;
     }
     }
   }
@@ -433,21 +440,43 @@ char _bs_current(buff_string_iter_t *iter) {
 
 bs_iter_state_t _bs_get_iter_state(buff_string_iter_t *iter, bs_direction_t dir) {
   bs_splice_t *next = iter->next;
+  bs_splice_t *prev = (next == iter->str->first) ? NULL : (next ? next->prev : iter->str->last);
 
   if (iter->in_splice) {
-    return BS_STATE_3;
+    return BS_STATE_2;
   }
-  if (!iter->in_splice && next) {
-    if (dir == BS_RIGHT && iter->offset >= next->start && iter->offset < next->start + next->deleted) return BS_PROBLEM_3;
-    if (dir == BS_LEFT && iter->offset > next->start && iter->offset <= next->start + next->deleted) return BS_PROBLEM_3;
+  if (iter->in_splice && dir == BS_RIGHT && iter->offset >= next->len) {
+    return BS_PROBLEM_4;
   }
-  if (!iter->in_splice) {
-    if (dir == BS_RIGHT && (next ? iter->offset < next->start : iter->offset <= iter->str->len)) return BS_STATE_1;
-    if (dir == BS_LEFT && (next ? iter->offset <= next->start : iter->offset <= iter->str->len)) return BS_STATE_1;
+  if (iter->in_splice && dir == BS_LEFT && iter->offset <= 0) {
+    return BS_PROBLEM_4;
   }
-  if (!iter->in_splice && next) {
-    if (dir == BS_RIGHT && iter->offset >= (next->start + next->deleted)) return BS_PROBLEM_2;
-    if (dir == BS_LEFT && iter->offset > (next->start + next->deleted)) return BS_PROBLEM_2;
+  if (!iter->in_splice && next && dir == BS_RIGHT && iter->offset >= next->start) {
+    return BS_PROBLEM_3;
+  }
+  if (!iter->in_splice && next && dir == BS_LEFT && iter->offset <= next->start + next->deleted) {
+    return BS_PROBLEM_3;
+  }
+  if (!iter->in_splice && prev && dir == BS_LEFT && iter->offset <= prev->start + prev->deleted) {
+    return BS_PROBLEM_1;
+  }
+  if (!iter->in_splice && prev && dir == BS_RIGHT && iter->offset < prev->start + prev->deleted) {
+    return BS_PROBLEM_1;
+  }
+  if (!iter->in_splice && !next) {
+    return BS_STATE_1;
+  }
+  if (!iter->in_splice && next && dir == BS_RIGHT && iter->offset < next->start) {
+    return BS_STATE_1;
+  }
+  if (!iter->in_splice && next && dir == BS_LEFT && iter->offset <= next->start) {
+    return BS_STATE_1;
+  }
+  if (!iter->in_splice && next && dir == BS_RIGHT && iter->offset >= (next->start + next->deleted)) {
+    return BS_PROBLEM_2;
+  }
+  if (!iter->in_splice && next && dir == BS_LEFT && iter->offset > (next->start + next->deleted)) {
+    return BS_PROBLEM_2;
   }
   assert(false);
 }

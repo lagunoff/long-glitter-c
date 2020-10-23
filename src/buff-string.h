@@ -9,10 +9,10 @@ typedef enum {
 typedef enum {
   BS_STATE_1,
   BS_STATE_2,
-  BS_STATE_3,
   BS_PROBLEM_1,
   BS_PROBLEM_2,
   BS_PROBLEM_3,
+  BS_PROBLEM_4,
 } bs_iter_state_t;
 
 typedef enum {
