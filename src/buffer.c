@@ -37,12 +37,12 @@ void buffer_init(struct buffer *out, SDL_Point *size, char *path) {
   out->contents.last = NULL;
 
   out->selection.active = false;
-  buff_string_index(&out->contents, &out->selection.mark1, 10);
-  buff_string_index(&out->contents, &out->selection.mark2, 20);
+  bs_index(&out->contents, &out->selection.mark1, 10);
+  bs_index(&out->contents, &out->selection.mark2, 20);
 
   out->size = *size;
-  buff_string_begin(&out->scroll.pos, &out->contents);
-  buff_string_begin(&out->cursor.pos, &out->contents);
+  bs_begin(&out->scroll.pos, &out->contents);
+  bs_begin(&out->cursor.pos, &out->contents);
   out->cursor.x0 = 0;
   out->font_size = 18;
   out->_last_command = false;
@@ -148,34 +148,34 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_Y && (e->key.keysym.mod & KMOD_CTRL)) {
       char *clipboard = SDL_GetClipboardText();
       if (clipboard) {
-        buff_string_insert(&self->cursor.pos, BSD_LEFT, clipboard, 0, &self->scroll.pos, NULL);
+        bs_insert(&self->cursor.pos, BS_LEFT, clipboard, 0, &self->scroll.pos, NULL);
       }
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_K && (e->key.keysym.mod & KMOD_CTRL)) {
-      struct buff_string_iter iter = self->cursor.pos;
-      buff_string_find(&iter, lambda(bool _(char c) { return c == '\n'; }));
-      int curr_offset = buff_string_offset(&self->cursor.pos);
-      int iter_offset = buff_string_offset(&iter);
-      buff_string_insert(&self->cursor.pos, BSD_RIGHT, "", MAX(iter_offset - curr_offset, 1), &self->scroll.pos, NULL);
+      buff_string_iter_t iter = self->cursor.pos;
+      bs_find(&iter, lambda(bool _(char c) { return c == '\n'; }));
+      int curr_offset = bs_offset(&self->cursor.pos);
+      int iter_offset = bs_offset(&iter);
+      bs_insert(&self->cursor.pos, BS_RIGHT, "", MAX(iter_offset - curr_offset, 1), &self->scroll.pos, NULL);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_BACKSPACE && (e->key.keysym.mod & KMOD_ALT)) {
-      struct buff_string_iter iter = self->cursor.pos;
-      buff_string_backward_word(&iter);
+      buff_string_iter_t iter = self->cursor.pos;
+      bs_backward_word(&iter);
 
-      int curr_offset = buff_string_offset(&self->cursor.pos);
-      int iter_offset = buff_string_offset(&iter);
-      buff_string_insert(&self->cursor.pos, BSD_LEFT, "", abs(curr_offset - iter_offset), &self->scroll.pos, NULL);
+      int curr_offset = bs_offset(&self->cursor.pos);
+      int iter_offset = bs_offset(&iter);
+      bs_insert(&self->cursor.pos, BS_LEFT, "", abs(curr_offset - iter_offset), &self->scroll.pos, NULL);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_ALT)) {
-      struct buff_string_iter iter = self->cursor.pos;
-      buff_string_forward_word(&iter);
+      buff_string_iter_t iter = self->cursor.pos;
+      bs_forward_word(&iter);
 
-      int curr_offset = buff_string_offset(&self->cursor.pos);
-      int iter_offset = buff_string_offset(&iter);
-      buff_string_insert(&self->cursor.pos, BSD_RIGHT, "", abs(curr_offset - iter_offset), &self->scroll.pos, NULL);
+      int curr_offset = bs_offset(&self->cursor.pos);
+      int iter_offset = bs_offset(&iter);
+      bs_insert(&self->cursor.pos, BS_RIGHT, "", abs(curr_offset - iter_offset), &self->scroll.pos, NULL);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_V && (e->key.keysym.mod & KMOD_ALT)
@@ -211,15 +211,15 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_DELETE && (e->key.keysym.mod == 0)
         || e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_CTRL)
         ) {
-      buff_string_insert(&self->cursor.pos, BSD_RIGHT, "", 1, &self->scroll.pos, NULL);
+      bs_insert(&self->cursor.pos, BS_RIGHT, "", 1, &self->scroll.pos, NULL);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_BACKSPACE && (e->key.keysym.mod == 0)) {
-      buff_string_insert(&self->cursor.pos, BSD_LEFT, "", 1, &self->scroll.pos, NULL);
+      bs_insert(&self->cursor.pos, BS_LEFT, "", 1, &self->scroll.pos, NULL);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_RETURN) {
-      buff_string_insert(&self->cursor.pos, BSD_LEFT, "\n", 0, &self->scroll.pos, NULL);
+      bs_insert(&self->cursor.pos, BS_LEFT, "\n", 0, &self->scroll.pos, NULL);
       goto continue_no_command;
     }
     self->_last_command = false;
@@ -246,7 +246,7 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
 
   if (e->type == SDL_TEXTINPUT) {
     if (!self->_last_command) {
-      buff_string_insert(&self->cursor.pos, BSD_LEFT, e->text.text, 0, &self->scroll.pos, NULL);
+      bs_insert(&self->cursor.pos, BS_LEFT, e->text.text, 0, &self->scroll.pos, NULL);
       return true;
     }
   }
@@ -255,11 +255,11 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
 
 void buffer_view(struct buffer *self, cairo_t *cr) {
   char temp[1024 * 16]; // Maximum line length — 16kb
-  struct buff_string_iter iter = self->scroll.pos;
+  buff_string_iter_t iter = self->scroll.pos;
   int y=0;
-  int cursor_offset = buff_string_offset(&self->cursor.pos);
-  int mark1_offset = self->selection.active ? buff_string_offset(&self->selection.mark1) : -1;
-  int mark2_offset = self->selection.active ? buff_string_offset(&self->selection.mark2) : -1;
+  int cursor_offset = bs_offset(&self->cursor.pos);
+  int mark1_offset = self->selection.active ? bs_offset(&self->selection.mark1) : -1;
+  int mark2_offset = self->selection.active ? bs_offset(&self->selection.mark2) : -1;
   cairo_select_font_face (cr, "Hack", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
   cairo_set_font_size (cr, self->font_size);
 
@@ -273,10 +273,10 @@ void buffer_view(struct buffer *self, cairo_t *cr) {
 
   for(;;) {
     cairo_set_source_rgba (cr, 0, 0, 0, 0.87);
-    int offset0 = buff_string_offset(&iter);
+    int offset0 = bs_offset(&iter);
 
-    buff_string_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
-    int iter_offset = buff_string_offset(&iter);
+    bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
+    int iter_offset = bs_offset(&iter);
 
     if (*temp != '\0' && *temp != '\n') {
       cairo_move_to (cr, 0, y + fe.ascent);
@@ -308,7 +308,7 @@ void buffer_view(struct buffer *self, cairo_t *cr) {
     y += fe.height;
     if (y > self->size.y) break;
     // Skip newline symbol
-    bool eof = buff_string_move(&iter, 1);
+    bool eof = bs_move(&iter, 1);
     if (eof) break;
   }
 
@@ -324,25 +324,25 @@ void cursor_modified (
   struct buffer *self,
   struct cursor *prev
 ) {
-  int next_offset = buff_string_offset(&self->cursor.pos);
-  int prev_offset = buff_string_offset(&prev->pos);
-  int scroll_offset = buff_string_offset(&self->scroll.pos);
+  int next_offset = bs_offset(&self->cursor.pos);
+  int prev_offset = bs_offset(&prev->pos);
+  int scroll_offset = bs_offset(&self->scroll.pos);
   int diff = next_offset - prev_offset;
   int screen_lines = div(self->size.y, self->fe.height).quot;
 
   int count_lines() {
-    struct buff_string_iter iter = self->cursor.pos;
+    buff_string_iter_t iter = self->cursor.pos;
     int lines=0;
     int i = next_offset;
     if (next_offset > scroll_offset) {
-      buff_string_find_back(&iter, lambda(bool _(char c) {
+      bs_find_back(&iter, lambda(bool _(char c) {
         if (c=='\n') lines++;
         i--;
         if (i==scroll_offset) return true;
         return false;
       }));
     } else {
-      buff_string_find(&iter, lambda(bool _(char c) {
+      bs_find(&iter, lambda(bool _(char c) {
         if (c=='\n') lines--;
         i++;
         if (i==scroll_offset) return true;

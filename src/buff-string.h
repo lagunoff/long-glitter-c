@@ -7,12 +7,26 @@ typedef enum {
 } bs_direction_t;
 
 typedef enum {
+  // ==^=====
+  //     [n]
   BS_STATE_1,
+  // ========
+  //     [^n]
   BS_STATE_2,
+  // ===^=======
+  //   [p]  [n]
   BS_PROBLEM_1,
+  // =======^
+  //   [n]
   BS_PROBLEM_2,
+  // ===^====
+  //   [n]
   BS_PROBLEM_3,
+  // ========
+  //   [n]^
   BS_PROBLEM_4,
+  // ^== or ==^
+  BS_EOF,
 } bs_iter_state_t;
 
 typedef enum {

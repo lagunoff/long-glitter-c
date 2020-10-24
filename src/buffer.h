@@ -10,12 +10,12 @@
 
 struct selection {
   bool active;
-  struct buff_string_iter mark1;
-  struct buff_string_iter mark2;
+  buff_string_iter_t mark1;
+  buff_string_iter_t mark2;
 };
 
 struct buffer {
-  struct buff_string contents;
+  buff_string_t contents;
   struct scroll scroll;
   struct cursor cursor;
   struct selection selection;

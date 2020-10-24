@@ -6,12 +6,12 @@
 struct loaded_font;
 
 struct cursor {
-  struct buff_string_iter pos;
+  buff_string_iter_t pos;
   int x0;
 };
 
 struct scroll {
-  struct buff_string_iter pos;
+  buff_string_iter_t pos;
 };
 
 void cursor_up(struct cursor *c);
