@@ -4,7 +4,7 @@
 #include "buff-string.h"
 #include "buffer.h"
 
-static void cursor_fixup_x0(struct cursor *cur) {
+static void cursor_fixup_x0(cursor_t *cur) {
   buff_string_iter_t iter = cur->pos;
   cur->x0 = 0;
   bs_find_back(&iter, lambda(bool _(char c) {
@@ -13,7 +13,7 @@ static void cursor_fixup_x0(struct cursor *cur) {
   }));
 }
 
-void cursor_up(struct cursor *c) {
+void cursor_up(cursor_t *c) {
   buff_string_iter_t i0 = c->pos;
   bool eof0 = bs_iterate(&i0, BS_LEFT, BS_DO_INCREMENT, lambda(bool _(char c) {
     return c=='\n';
@@ -31,7 +31,7 @@ void cursor_up(struct cursor *c) {
   c->pos = i1;
 }
 
-void cursor_down(struct cursor *c) {
+void cursor_down(cursor_t *c) {
   buff_string_iter_t i0 = c->pos;
   bool eof0 = bs_iterate(&i0, BS_RIGHT, BS_DO_INCREMENT, lambda(bool _(char c) {
     return c=='\n';
@@ -48,51 +48,51 @@ void cursor_down(struct cursor *c) {
   c->pos = i0;
 }
 
-void cursor_left(struct cursor *c) {
+void cursor_left(cursor_t *c) {
   bs_move(&(c->pos), -1);
   cursor_fixup_x0(c);
 }
 
-void cursor_right(struct cursor *c) {
+void cursor_right(cursor_t *c) {
   bs_move(&(c->pos), 1);
   cursor_fixup_x0(c);
 }
 
-void cursor_bol(struct cursor *c) {
+void cursor_bol(cursor_t *c) {
   bool eof = bs_iterate(&(c->pos), BS_LEFT, BS_DONT_INCREMENT, lambda(bool _(char c) {
     return c=='\n';
   }));
   cursor_fixup_x0(c);
 }
 
-void cursor_eol(struct cursor *c) {
+void cursor_eol(cursor_t *c) {
   bs_find(&(c->pos), lambda(bool _(char c) {
     return c=='\n';
   }));
   cursor_fixup_x0(c);
 }
 
-void cursor_backward_word(struct cursor *c) {
+void cursor_backward_word(cursor_t *c) {
   bs_backward_word(&c->pos);
   cursor_fixup_x0(c);
 }
 
-void cursor_forward_word(struct cursor *c) {
+void cursor_forward_word(cursor_t *c) {
   bs_forward_word(&c->pos);
   cursor_fixup_x0(c);
 }
 
-void cursor_end(struct cursor *c) {
+void cursor_end(cursor_t *c) {
   bs_end(&(c->pos), c->pos.str);
   cursor_fixup_x0(c);
 }
 
-void cursor_begin(struct cursor *c) {
+void cursor_begin(cursor_t *c) {
   bs_begin(&(c->pos), c->pos.str);
   cursor_fixup_x0(c);
 }
 
-void scroll_lines(struct scroll *s, int n) {
+void scroll_lines(scroll_t *s, int n) {
   if (n > 0) {
     int newlines = 0;
     bs_find(&(s->pos), lambda(bool _(char c) {
@@ -121,8 +121,8 @@ void scroll_lines(struct scroll *s, int n) {
 }
 
 void scroll_page(
-  struct scroll *s,
-  struct cursor *c,
+  scroll_t *s,
+  cursor_t *c,
   cairo_font_extents_t *fe,
   int height,
   int n
@@ -137,7 +137,7 @@ void scroll_page(
   cursor_fixup_x0(c);
 }
 
-void backward_paragraph(struct cursor *cur) {
+void backward_paragraph(cursor_t *cur) {
   int is_nl = false;
   buff_string_iter_t i0 = cur->pos;
   bs_find_back(&i0, lambda(bool _(char c) {
@@ -161,7 +161,7 @@ void backward_paragraph(struct cursor *cur) {
   cursor_fixup_x0(cur);
 }
 
-void forward_paragraph(struct cursor *cur) {
+void forward_paragraph(cursor_t *cur) {
   int is_nl = false;
   buff_string_iter_t i0 = cur->pos;
   bool eof = bs_find(&i0, lambda(bool _(char c) {

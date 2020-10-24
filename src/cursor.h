@@ -3,35 +3,33 @@
 #include <cairo.h>
 #include "buff-string.h"
 
-struct loaded_font;
-
-struct cursor {
+typedef struct {
   buff_string_iter_t pos;
-  int x0;
-};
+  int                x0;
+} cursor_t;
 
-struct scroll {
+typedef struct {
   buff_string_iter_t pos;
-};
+} scroll_t;
 
-void cursor_up(struct cursor *c);
-void cursor_down(struct cursor *c);
-void cursor_left(struct cursor *c);
-void cursor_right(struct cursor *c);
-void cursor_bol(struct cursor *c);
-void cursor_eol(struct cursor *c);
-void cursor_end(struct cursor *c);
-void cursor_begin(struct cursor *c);
-void cursor_backward_word(struct cursor *c);
-void cursor_forward_word(struct cursor *c);
-void scroll_lines(struct scroll *s, int n);
-void backward_paragraph(struct cursor *c);
-void forward_paragraph(struct cursor *c);
+void cursor_up(cursor_t *c);
+void cursor_down(cursor_t *c);
+void cursor_left(cursor_t *c);
+void cursor_right(cursor_t *c);
+void cursor_bol(cursor_t *c);
+void cursor_eol(cursor_t *c);
+void cursor_end(cursor_t *c);
+void cursor_begin(cursor_t *c);
+void cursor_backward_word(cursor_t *c);
+void cursor_forward_word(cursor_t *c);
+void scroll_lines(scroll_t *s, int n);
+void backward_paragraph(cursor_t *c);
+void forward_paragraph(cursor_t *c);
 
 void scroll_page(
-  struct scroll *s,
-  struct cursor *c,
+  scroll_t             *s,
+  cursor_t             *c,
   cairo_font_extents_t *fe,
-  int height,
-  int n
+  int                   height,
+  int                   n
 );

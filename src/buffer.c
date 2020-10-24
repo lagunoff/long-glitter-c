@@ -12,21 +12,19 @@
 #define SCROLL_JUMP 8
 
 #define MODIFY_CURSOR(f) {                                        \
-  struct cursor old_cursor = self->cursor;                        \
+  cursor_t old_cursor = self->cursor;                        \
   f(&self->cursor);                                               \
   if (self->fe_initialized) cursor_modified(self, &old_cursor);                        \
 }
 
-static void buffer_init_font(struct loaded_font *out, int font_size);
-
 static void cursor_modified (
-  struct buffer *self,
-  struct cursor *prev
+  buffer_t *self,
+  cursor_t *prev
 );
 
 static SDL_Keysym zero_keysym = {0};
 
-void buffer_init(struct buffer *out, SDL_Point *size, char *path) {
+void buffer_init(buffer_t *out, SDL_Point *size, char *path) {
   struct stat st;
   out->fd = open(path, O_RDWR);
   fstat(out->fd, &st);
@@ -50,11 +48,11 @@ void buffer_init(struct buffer *out, SDL_Point *size, char *path) {
   out->fe_initialized = false;
 }
 
-void buffer_destroy(struct buffer *self) {
+void buffer_destroy(buffer_t *self) {
   munmap(self->contents.bytes, self->contents.len);
 }
 
-bool buffer_update(struct buffer *self, SDL_Event *e) {
+bool buffer_update(buffer_t *self, SDL_Event *e) {
   if (e->type == SDL_KEYDOWN) {
     if (e->key.keysym.scancode == SDL_SCANCODE_X && (e->key.keysym.mod & KMOD_CTRL)) {
       debug0("prev = e->key");
@@ -253,7 +251,7 @@ bool buffer_update(struct buffer *self, SDL_Event *e) {
   return false;
 }
 
-void buffer_view(struct buffer *self, cairo_t *cr) {
+void buffer_view(buffer_t *self, cairo_t *cr) {
   char temp[1024 * 16]; // Maximum line length — 16kb
   buff_string_iter_t iter = self->scroll.pos;
   int y=0;
@@ -321,8 +319,8 @@ void buffer_view(struct buffer *self, cairo_t *cr) {
 }
 
 void cursor_modified (
-  struct buffer *self,
-  struct cursor *prev
+  buffer_t *self,
+  cursor_t *prev
 ) {
   int next_offset = bs_offset(&self->cursor.pos);
   int prev_offset = bs_offset(&prev->pos);
@@ -363,7 +361,6 @@ void cursor_modified (
     }
   }
 }
-
 
 int buffer_unittest() {
 }

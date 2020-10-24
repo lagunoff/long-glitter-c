@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
   }
 
   SDL_Point size = {WINDOW_WIDTH - fridge, WINDOW_HEIGHT};
-  struct buffer buf;
+  buffer_t buf;
   buffer_init(&buf, &size, path);
   SDL_Texture *texture = SDL_CreateTexture(
     renderer,

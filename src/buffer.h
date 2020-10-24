@@ -8,27 +8,27 @@
 #include "cursor.h"
 #include "cursor.h"
 
-struct selection {
-  bool active;
+typedef struct {
+  bool               active;
   buff_string_iter_t mark1;
   buff_string_iter_t mark2;
-};
+} selection_t;
 
-struct buffer {
+typedef struct {
   buff_string_t contents;
-  struct scroll scroll;
-  struct cursor cursor;
-  struct selection selection;
-  SDL_Point size;
+  scroll_t      scroll;
+  cursor_t      cursor;
+  selection_t   selection;
+  SDL_Point     size;
   cairo_font_extents_t fe;
-  bool fe_initialized;
-  int fd;
-  int font_size;
-  bool _last_command;
-  SDL_Keysym _prev_keysym;
-};
+  bool          fe_initialized;
+  int           fd;
+  int           font_size;
+  bool          _last_command;
+  SDL_Keysym    _prev_keysym;
+} buffer_t;
 
-void buffer_init(struct buffer *out, SDL_Point *size, char *path);
-void buffer_destroy(struct buffer *self);
-bool buffer_update(struct buffer *self, SDL_Event *e);
-void buffer_view(struct buffer *self, cairo_t *cr);
+void buffer_init(buffer_t *out, SDL_Point *size, char *path);
+void buffer_destroy(buffer_t *self);
+bool buffer_update(buffer_t *self, SDL_Event *e);
+void buffer_view(buffer_t *self, cairo_t *cr);
