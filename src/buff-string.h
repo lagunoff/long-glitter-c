@@ -7,67 +7,63 @@ typedef enum {
 } bs_direction_t;
 
 typedef enum {
-  // ==^=====
-  //     [n]
-  BS_STATE_1,
-  // ========
-  //     [^n]
-  BS_STATE_2,
-  // ===^=======
-  //   [p]  [n]
-  BS_PROBLEM_1,
-  // =======^
-  //   [n]
-  BS_PROBLEM_2,
-  // ===^====
-  //   [n]
-  BS_PROBLEM_3,
-  // ========
-  //   [n]^
-  BS_PROBLEM_4,
-  // ^== or ==^
-  BS_EOF,
-} bs_iter_state_t;
-
-typedef enum {
   BS_DO_INCREMENT,
   BS_DONT_INCREMENT,
 } bs_last_increment_policy_t;
 
-typedef struct bs_splice_t {
-  struct bs_splice_t *next;
-  struct bs_splice_t *prev;
-  int                start;
-  int                deleted;
-  int                len; // Length of bytes field
-  char              *bytes;
+union buff_string_t;
+
+typedef struct {
+  int                  index;
+  union buff_string_t *value;
+} bs_index_pair_t;
+
+typedef enum {
+  BS_SPLICE,
+  BS_BYTES,
+} buff_string_tag_t;
+
+typedef struct {
+  buff_string_tag_t    tag;
+  union buff_string_t *base;
+  int   start;
+  int   deleted;
+  int   len;
+  char *bytes;
 } bs_splice_t;
 
 typedef struct {
-  bs_splice_t *first;
-  bs_splice_t *last;
-  char        *bytes;
-  int          len;
-} buff_string_t;
+  buff_string_tag_t tag;
+  char *bytes;
+  int   len;
+} bs_bytes_t;
+
+union buff_string_t {
+  buff_string_tag_t tag;
+  bs_splice_t       splice;
+  bs_bytes_t        bytes;
+};
+typedef union buff_string_t buff_string_t;
 
 typedef struct {
-  bs_splice_t   *next;
-  unsigned int   offset;
-  bool           in_splice;
-  buff_string_t *str;
+  buff_string_t **str;
+  int   local_index;
+  int   global_index;
+  char *bytes;
+  int   begin;
+  int   end;
 } buff_string_iter_t;
 
-void free_buff_string(buff_string_t *str);
-int bs_length(buff_string_t *str);
 bool bs_takewhile(buff_string_iter_t *iter, char *out, bool (*p)(char));
-void bs_index(buff_string_t *str, buff_string_iter_t *iter, int i);
-void bs_begin(buff_string_iter_t *iter, buff_string_t *str);
-void bs_end(buff_string_iter_t *iter, buff_string_t *str);
+void bs_index(buff_string_t **str, buff_string_iter_t *iter, int i);
+void bs_begin(buff_string_iter_t *iter, buff_string_t **str);
+void bs_end(buff_string_iter_t *iter, buff_string_t **str);
 bool bs_find(buff_string_iter_t *iter, bool (*p)(char));
 bool bs_find_back(buff_string_iter_t *iter, bool (*p)(char));
 bool bs_move(buff_string_iter_t *iter, int dx);
 int bs_offset(buff_string_iter_t *iter);
-void bs_insert(buff_string_iter_t *iter, bs_direction_t dir, char *str, int deleted, ...);
+buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted, bs_direction_t dir, ...);
+buff_string_t *bs_insert_undo(buff_string_t *base, ...);
 void bs_forward_word(buff_string_iter_t *iter);
 void bs_backward_word(buff_string_iter_t *iter);
 
@@ -78,6 +74,7 @@ bool bs_iterate(
   bool                       (*p)(char)
 );
 
-// Deallocate memory with `free`
-bs_splice_t *new_splice(int len);
-bs_splice_t *new_splice_str(char *str);
+void bs_free(buff_string_t *str);
+buff_string_t *new_bytes(char *str, int len);
+buff_string_t *new_splice(int start, int len, int deleted, buff_string_t *base);
+buff_string_t *new_splice_str(char *str, int start, int deleted, buff_string_t *base);

@@ -29,10 +29,7 @@ void buffer_init(buffer_t *out, SDL_Point *size, char *path) {
   out->fd = open(path, O_RDONLY);
   fstat(out->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, out->fd, 0);
-  out->contents.bytes = mmaped;
-  out->contents.len = st.st_size;
-  out->contents.first = NULL;
-  out->contents.last = NULL;
+  out->contents = (buff_string_t *)new_bytes(mmaped, st.st_size);
 
   out->selection.active = false;
   bs_index(&out->contents, &out->selection.mark1, 10);
@@ -49,7 +46,7 @@ void buffer_init(buffer_t *out, SDL_Point *size, char *path) {
 }
 
 void buffer_destroy(buffer_t *self) {
-  munmap(self->contents.bytes, self->contents.len);
+  munmap(self->contents->bytes.bytes, self->contents->bytes.len);
 }
 
 bool buffer_update(buffer_t *self, SDL_Event *e) {
@@ -62,14 +59,14 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
 
     if (e->key.keysym.scancode == SDL_SCANCODE_S && (e->key.keysym.mod & KMOD_CTRL)
         && self->_prev_keysym.scancode == SDL_SCANCODE_X && (self->_prev_keysym.mod & KMOD_CTRL)) {
-      int written = 0;
-      for (;;) {
-        int w = write (self->fd, self->contents.bytes + written, self->contents.len - written);
-        // TODO: handle write error
-        if (w == -1) goto continue_command;
-        written += w;
-        if (written >= self->contents.len) break;
-      }
+      /* int written = 0; */
+      /* for (;;) { */
+      /*   int w = write (self->fd, self->contents->bytes + written, self->contents->len - written); */
+      /*   // TODO: handle write error */
+      /*   if (w == -1) goto continue_command; */
+      /*   written += w; */
+      /*   if (written >= self->contents->len) break; */
+      /* } */
       goto continue_command;
     }
 
@@ -146,7 +143,13 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_Y && (e->key.keysym.mod & KMOD_CTRL)) {
       char *clipboard = SDL_GetClipboardText();
       if (clipboard) {
-        bs_insert(&self->cursor.pos, BS_LEFT, clipboard, 0, &self->scroll.pos, NULL);
+        self->contents = bs_insert(
+          self->contents,
+          self->cursor.pos.global_index,
+          clipboard, 0, BS_LEFT,
+          &self->cursor.pos,
+          &self->scroll.pos, NULL
+        );
       }
       goto continue_command;
     }
@@ -155,7 +158,14 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       bs_find(&iter, lambda(bool _(char c) { return c == '\n'; }));
       int curr_offset = bs_offset(&self->cursor.pos);
       int iter_offset = bs_offset(&iter);
-      bs_insert(&self->cursor.pos, BS_RIGHT, "", MAX(iter_offset - curr_offset, 1), &self->scroll.pos, NULL);
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "", MAX(iter_offset - curr_offset, 1),
+        BS_RIGHT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_BACKSPACE && (e->key.keysym.mod & KMOD_ALT)) {
@@ -164,7 +174,14 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
 
       int curr_offset = bs_offset(&self->cursor.pos);
       int iter_offset = bs_offset(&iter);
-      bs_insert(&self->cursor.pos, BS_LEFT, "", abs(curr_offset - iter_offset), &self->scroll.pos, NULL);
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "", MAX(curr_offset - iter_offset, 1),
+        BS_LEFT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_ALT)) {
@@ -173,7 +190,14 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
 
       int curr_offset = bs_offset(&self->cursor.pos);
       int iter_offset = bs_offset(&iter);
-      bs_insert(&self->cursor.pos, BS_RIGHT, "", abs(curr_offset - iter_offset), &self->scroll.pos, NULL);
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "", MAX(iter_offset - curr_offset, 1),
+        BS_RIGHT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_V && (e->key.keysym.mod & KMOD_ALT)
@@ -209,16 +233,41 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_DELETE && (e->key.keysym.mod == 0)
         || e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_CTRL)
         ) {
-      bs_insert(&self->cursor.pos, BS_RIGHT, "", 1, &self->scroll.pos, NULL);
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "", 1,
+        BS_RIGHT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_BACKSPACE && (e->key.keysym.mod == 0)) {
-      bs_insert(&self->cursor.pos, BS_LEFT, "", 1, &self->scroll.pos, NULL);
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "", 1,
+        BS_LEFT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_RETURN) {
-      bs_insert(&self->cursor.pos, BS_LEFT, "\n", 0, &self->scroll.pos, NULL);
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "\n", 0,
+        BS_LEFT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
       goto continue_no_command;
+    }
+    if (e->key.keysym.scancode == SDL_SCANCODE_SLASH && (e->key.keysym.mod & KMOD_CTRL)) {
+      self->contents = bs_insert_undo(self->contents, &self->cursor.pos, &self->scroll.pos, NULL);
+      goto continue_command;
     }
     self->_last_command = false;
     return false;
@@ -244,7 +293,14 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
 
   if (e->type == SDL_TEXTINPUT) {
     if (!self->_last_command) {
-      bs_insert(&self->cursor.pos, BS_LEFT, e->text.text, 0, &self->scroll.pos, NULL);
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        e->text.text, 0,
+        BS_LEFT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
       return true;
     }
   }

@@ -15,17 +15,17 @@ typedef struct {
 } selection_t;
 
 typedef struct {
-  buff_string_t contents;
-  scroll_t      scroll;
-  cursor_t      cursor;
-  selection_t   selection;
-  SDL_Point     size;
+  buff_string_t *contents;
+  scroll_t       scroll;
+  cursor_t       cursor;
+  selection_t    selection;
+  SDL_Point      size;
   cairo_font_extents_t fe;
-  bool          fe_initialized;
-  int           fd;
-  int           font_size;
-  bool          _last_command;
-  SDL_Keysym    _prev_keysym;
+  bool           fe_initialized;
+  int            fd;
+  int            font_size;
+  bool           _last_command;
+  SDL_Keysym     _prev_keysym;
 } buffer_t;
 
 void buffer_init(buffer_t *out, SDL_Point *size, char *path);

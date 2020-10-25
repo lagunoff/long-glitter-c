@@ -13,7 +13,7 @@ bool statusbar_update(statusbar_t *self, SDL_Event *e) {
 void statusbar_view(statusbar_t *self, cairo_t *cr) {
   int cursor_offset = bs_offset(&self->cursor->pos);
   char temp[128];
-  sprintf(temp, "cursor_offset:%d, x0:%d, pos.offset:%d, in_splice:%s, next:%p", cursor_offset, self->cursor->x0, self->cursor->pos.offset, self->cursor->pos.in_splice ? "true" : "false", self->cursor->pos.next);
+  sprintf(temp, "cursor_offset:%d, x0:%d", cursor_offset, self->cursor->x0);
   cairo_font_extents_t fe;
   cairo_font_extents (cr, &fe);
   double x1, x2, y1, y2;
