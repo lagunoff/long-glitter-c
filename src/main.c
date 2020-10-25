@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  if (SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE|SDL_WINDOW_MAXIMIZED, &window, &renderer) != 0) {
+  if (SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE, &window, &renderer) != 0) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
@@ -56,7 +56,8 @@ int main(int argc, char **argv) {
   SDL_RenderCopy(renderer, texture, NULL, NULL);
   SDL_RenderPresent(renderer);
   cairo_surface_finish(cairo_surface);
-  cairo_destroy (cr);
+  cairo_destroy(cr);
+  SDL_DestroyTexture(texture);
 
   SDL_Event e;
   SDL_StartTextInput();
@@ -80,17 +81,8 @@ int main(int argc, char **argv) {
         goto render;
       }
       if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-        inspect(%d, e.window.data1);
-        inspect(%d, e.window.data2);
         buf.size.x = e.window.data1 - fridge;
         buf.size.y = e.window.data2;
-        SDL_DestroyTexture(texture);
-        texture = SDL_CreateTexture(
-          renderer,
-          SDL_PIXELFORMAT_ARGB8888,
-          SDL_TEXTUREACCESS_STREAMING,
-          buf.size.x, buf.size.y
-        );
         goto render;
       }
     }
@@ -102,6 +94,12 @@ int main(int argc, char **argv) {
   render: {
       void *pixels;
       int pitch;
+      SDL_Texture *texture = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        buf.size.x, buf.size.y
+      );
       SDL_LockTexture(texture, NULL, &pixels, &pitch);
       cairo_surface_t *cairo_surface = cairo_image_surface_create_for_data(
         pixels,
@@ -121,6 +119,7 @@ int main(int argc, char **argv) {
       SDL_RenderPresent(renderer);
       cairo_surface_finish(cairo_surface);
       cairo_destroy(cr);
+      SDL_DestroyTexture(texture);
       continue;
     }
   }

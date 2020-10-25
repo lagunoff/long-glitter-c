@@ -55,6 +55,7 @@ typedef struct {
 } buff_string_iter_t;
 
 bool bs_takewhile(buff_string_iter_t *iter, char *out, bool (*p)(char));
+bool bs_take(buff_string_iter_t *iter, char *out, int n);
 void bs_index(buff_string_t **str, buff_string_iter_t *iter, int i);
 void bs_begin(buff_string_iter_t *iter, buff_string_t **str);
 void bs_end(buff_string_iter_t *iter, buff_string_t **str);

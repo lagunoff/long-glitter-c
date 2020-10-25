@@ -117,20 +117,19 @@ bool bs_iterate(
         if (dir == BS_RIGHT && iter->local_index >= str->splice.start + str->splice.len
             || dir == BS_LEFT && iter->local_index > str->splice.start + str->splice.len) {
           iter->local_index += str->splice.deleted - str->splice.len;
-          iter->begin = str->splice.start + str->splice.deleted;
-          iter->end += str->splice.deleted - str->splice.len;
+          iter->begin = MAX(iter->begin, str->splice.start + str->splice.deleted);
           str = str->splice.base;
           continue;
         }
         if (dir == BS_RIGHT && iter->local_index < str->splice.start
             || dir == BS_LEFT && iter->local_index <= str->splice.start) {
-          iter->end = str->splice.start;
+          iter->end = MIN(iter->end, str->splice.start);
           str = str->splice.base;
           continue;
         }
         iter->bytes = str->splice.bytes;
-        iter->begin = 0;
-        iter->end = str->splice.len;
+        iter->begin = MAX(0, iter->begin - str->splice.start);
+        iter->end = MIN(iter->end, str->splice.len);
         iter->local_index = iter->local_index - str->splice.start;
         local_state = MOVING_INSIDE;
         continue;
@@ -157,6 +156,17 @@ bool bs_takewhile(buff_string_iter_t *iter, char *dest, bool (*p)(char)) {
   int j = 0;
   bool eof = bs_find(iter, lambda(bool _(char c) {
     bool is_ok = p(c);
+    if (is_ok) dest[j++] = c;
+    return !is_ok;
+  }));
+  dest[j] ='\0';
+  return eof;
+}
+
+bool bs_take(buff_string_iter_t *iter, char *dest, int n) {
+  int j = 0;
+  bool eof = bs_find(iter, lambda(bool _(char c) {
+    bool is_ok = j < n;
     if (is_ok) dest[j++] = c;
     return !is_ok;
   }));
@@ -193,6 +203,8 @@ int bs_offset(buff_string_iter_t *iter) {
 
 buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted, bs_direction_t dir, ...) {
   int start1 = dir == BS_RIGHT ? start : start - deleted;
+  // TODO: Check for right bound
+  if (start1 < 0) return base;
   buff_string_t *splice = new_splice_str(str, start1, deleted, base);
 
   va_list iters;

@@ -281,6 +281,49 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       self->selection.mark1 = self->cursor.pos;
       goto continue_command;
     }
+    if (e->key.keysym.scancode == SDL_SCANCODE_W && (e->key.keysym.mod & KMOD_CTRL)) {
+      if (self->selection.active) {
+        buff_string_iter_t mark_1 = self->selection.mark1;
+        buff_string_iter_t mark_2 = self->cursor.pos;
+        if (mark_1.global_index > mark_2.global_index) {
+          buff_string_iter_t tmp = mark_1;
+          mark_1 = mark_2;
+          mark_2 = tmp;
+        }
+        int len = mark_2.global_index - mark_1.global_index;
+        char temp[len + 1];
+        buff_string_iter_t mark_1_temp = mark_1;
+        bs_take(&mark_1_temp, temp, len);
+        SDL_SetClipboardText(temp);
+        self->contents = bs_insert(
+          self->contents,
+          mark_1.global_index,
+          "", len,
+          BS_RIGHT,
+          &self->cursor.pos,
+          &self->scroll.pos, NULL
+        );
+        self->selection.active = BS_INACTIVE;
+      }
+      goto continue_command;
+    }
+    if (e->key.keysym.scancode == SDL_SCANCODE_W && (e->key.keysym.mod & KMOD_ALT)) {
+      if (self->selection.active) {
+        buff_string_iter_t mark_1 = self->selection.mark1;
+        buff_string_iter_t mark_2 = self->cursor.pos;
+        if (mark_1.global_index > mark_2.global_index) {
+          buff_string_iter_t tmp = mark_1;
+          mark_1 = mark_2;
+          mark_2 = tmp;
+        }
+        int len = mark_2.global_index - mark_1.global_index;
+        char temp[len + 1];
+        bs_take(&mark_1, temp, len);
+        SDL_SetClipboardText(temp);
+        self->selection.active = BS_INACTIVE;
+      }
+      goto continue_command;
+    }
     self->_last_command = false;
     return false;
 
@@ -323,6 +366,7 @@ void buffer_view(buffer_t *self, cairo_t *cr) {
   char temp[1024 * 16]; // Maximum line length — 16kb
   color_t primary_text = {0, 0, 0, 0.87};
   color_t selection_bg = {0.8, 0.87, 0.98, 1};
+  color_t current_line_bg = {0.0, 0.0, 0.6, 0.05};
   bool inside_selection = false;
 
   buff_string_iter_t iter = self->scroll.pos;
@@ -333,8 +377,13 @@ void buffer_view(buffer_t *self, cairo_t *cr) {
     = self->selection.active == BS_COMPLETE ? bs_offset(&self->selection.mark2)
     : self->selection.active == BS_ONE_MARK ? bs_offset(&self->cursor.pos)
     : -1;
-  cairo_select_font_face (cr, "Hack", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-  cairo_set_font_size (cr, self->font_size);
+  if (mark1_offset > mark2_offset) {
+    int tmp = mark1_offset;
+    mark1_offset = mark2_offset;
+    mark2_offset = tmp;
+  }
+  cairo_select_font_face(cr, "Hack", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+  cairo_set_font_size(cr, self->font_size);
 
   cairo_font_extents_t fe;
   self->fe_initialized = true;
@@ -350,6 +399,44 @@ void buffer_view(buffer_t *self, cairo_t *cr) {
 
     bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
     int iter_offset = bs_offset(&iter);
+    if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
+      cairo_set_color(cr, &current_line_bg);
+      cairo_rectangle(cr, 0, y, self->size.x, fe.height);
+      cairo_fill(cr);
+      cairo_set_color(cr, &primary_text);
+    }
+
+    if (mark2_offset >= offset0 && mark2_offset <= iter_offset
+        && mark1_offset >= offset0 && mark1_offset <= iter_offset) {
+      int len = iter_offset - offset0;
+      int len1 = mark1_offset - offset0;
+      int len2 = mark2_offset - offset0 - len1;
+      int len3 = len - (len1 + len2);
+      char temp1[len1 + 1];
+      char temp2[len2 + 1];
+      char temp3[len3 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      strncpy(temp2, temp + len1, len2);
+      temp2[len2]='\0';
+      strncpy(temp3, temp + len1 + len2, len3);
+      temp3[len3]='\0';
+      cairo_text_extents_t te1;
+      cairo_text_extents(cr, temp1, &te1);
+      cairo_text_extents_t te2;
+      cairo_text_extents(cr, temp2, &te2);
+      cairo_rectangle(cr, te1.x_advance, y, te2.x_advance, fe.height);
+      cairo_set_color(cr, &selection_bg);
+      cairo_fill(cr);
+      cairo_set_color(cr, &primary_text);
+      cairo_move_to(cr, 0, y + fe.ascent);
+      cairo_show_text(cr, temp1);
+      cairo_move_to(cr, te1.x_advance, y + fe.ascent);
+      cairo_show_text(cr, temp2);
+      cairo_move_to(cr, te1.x_advance + te2.x_advance, y + fe.ascent);
+      cairo_show_text(cr, temp3);
+      goto draw_cursor;
+    }
 
     if (mark1_offset >= offset0 && mark1_offset <= iter_offset) {
       int len1 = mark1_offset - offset0;
@@ -367,24 +454,37 @@ void buffer_view(buffer_t *self, cairo_t *cr) {
       cairo_set_color(cr, &selection_bg);
       cairo_fill(cr);
       cairo_set_color(cr, &primary_text);
+      cairo_move_to(cr, 0, y + fe.ascent);
+      cairo_show_text(cr, temp1);
+      cairo_move_to(cr, te1.x_advance, y + fe.ascent);
+      cairo_show_text(cr, temp2);
       inside_selection = true;
+      goto draw_cursor;
     }
 
     if (mark2_offset >= offset0 && mark2_offset <= iter_offset) {
       int len1 = mark2_offset - offset0;
+      int len2 = iter_offset - mark2_offset;
       char temp1[len1 + 1];
+      char temp2[len2 + 1];
       strncpy(temp1, temp, len1);
       temp1[len1]='\0';
-      cairo_text_extents_t te;
-      cairo_text_extents(cr, temp1, &te);
-      cairo_rectangle(cr, 0, y, te.x_advance, fe.height);
+      strcpy(temp2, temp + len1);
+      cairo_text_extents_t te1;
+      cairo_text_extents(cr, temp1, &te1);
+      cairo_text_extents_t te2;
+      cairo_text_extents(cr, temp2, &te2);
+      cairo_rectangle(cr, 0, y, te1.x_advance, fe.height);
       cairo_set_color(cr, &selection_bg);
       cairo_fill(cr);
       cairo_set_color(cr, &primary_text);
 
       cairo_move_to(cr, 0, y + fe.ascent);
       cairo_show_text(cr, temp1);
+      cairo_move_to(cr, te1.x_advance, y + fe.ascent);
+      cairo_show_text(cr, temp2);
       inside_selection = false;
+      goto draw_cursor;
     }
 
     if (*temp != '\0' && *temp != '\n') {
@@ -399,26 +499,23 @@ void buffer_view(buffer_t *self, cairo_t *cr) {
       cairo_move_to (cr, 0, y + fe.ascent);
       cairo_show_text (cr, temp);
     }
-
+  draw_cursor:
     if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
-      int w,h;
       int cur_x_offset = cursor_offset - offset0;
       int cursor_char = temp[cur_x_offset];
       temp[cur_x_offset]='\0';
       cairo_text_extents_t te;
       cairo_text_extents (cr, temp, &te);
-      w = te.x_advance;
-      if (cur_x_offset == 0) w=0;
 
-      cairo_rectangle(cr, w, y, fe.max_x_advance, fe.height);
+      cairo_rectangle(cr, te.x_advance, y, fe.max_x_advance, fe.height);
       cairo_fill(cr);
 
       if (cursor_char != '\0' && cursor_char != '\n') {
         temp[0]=cursor_char;
         temp[1]='\0';
         cairo_set_source_rgb (cr, 1, 1, 1);
-        cairo_move_to (cr, w, y + fe.ascent);
-        cairo_show_text (cr, temp);
+        cairo_move_to(cr, te.x_advance, y + fe.ascent);
+        cairo_show_text(cr, temp);
       }
     }
     y += fe.height;
