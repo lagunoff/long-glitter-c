@@ -26,7 +26,7 @@ static SDL_Keysym zero_keysym = {0};
 
 void buffer_init(buffer_t *out, SDL_Point *size, char *path) {
   struct stat st;
-  out->fd = open(path, O_RDWR);
+  out->fd = open(path, O_RDONLY);
   fstat(out->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, out->fd, 0);
   out->contents.bytes = mmaped;
@@ -304,7 +304,7 @@ void buffer_view(buffer_t *self, cairo_t *cr) {
     }
 
     y += fe.height;
-    if (y > self->size.y) break;
+    if (y + fe.height > self->size.y - statusbar_height) break;
     // Skip newline symbol
     bool eof = bs_move(&iter, 1);
     if (eof) break;

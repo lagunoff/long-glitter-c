@@ -6,17 +6,15 @@
 #include <signal.h>
 
 #include "buff-string.h"
+#include "dlist.h"
 #include "main.h"
 
 bs_iter_state_t _bs_get_iter_state(buff_string_iter_t *iter, bs_direction_t dir);
-void _bs_check_iter(buff_string_iter_t *iter);
-void _bs_iter_right(buff_string_iter_t *iter);
-int _bs_iter_left(buff_string_iter_t *iter);
 void bs_insert_inside_splice(char *iter, bs_splice_t *splice, bs_direction_t dir, char *str, int deleted);
-void _bs_insert_after_1(buff_string_t *str, bs_splice_t *anchor, bs_splice_t *new);
-void _bs_insert_after_cursor(buff_string_iter_t *iter, bs_splice_t *anchor, bs_splice_t *new);
-void _bs_insert_after_iter(buff_string_iter_t *iter, bs_splice_t *anchor, bs_splice_t *new);
 void bs_splice_overlap(int offset, bs_splice_t *dest, bs_splice_t *splice, bs_direction_t dir);
+void _bs_insert_before_1(buff_string_t *str, bs_splice_t *anchor, bs_splice_t *new);
+void _bs_insert_before_2(buff_string_iter_t *iter, bs_splice_t *new, bs_direction_t dir);
+void _bs_insert_before_3(buff_string_iter_t *iter, bs_splice_t *anchor, bs_splice_t *new);
 
 int bs_length(buff_string_t *str) {
   bs_splice_t *iter = str->first;
@@ -195,7 +193,7 @@ void bs_end(buff_string_iter_t *iter, buff_string_t *str) {
 }
 
 bool bs_move(buff_string_iter_t *iter, int dx) {
-  if (dx > 0) {
+  if (dx >= 0) {
     int i = 0;
     return bs_iterate(iter, BS_RIGHT, BS_DONT_INCREMENT, lambda(bool _(char c) {return !(i++ < dx);}));
   }
@@ -301,8 +299,8 @@ void bs_insert(buff_string_iter_t *iter, bs_direction_t dir, char *str, int dele
       splice->deleted = deleted;
       splice->start = dir == BS_RIGHT ? iter->offset : iter->offset - splice->deleted;
 
-      _bs_insert_after_1(iter->str, prev, splice);
-      //    _bs_insert_after_cursor(iter, prev, splice);
+      _bs_insert_before_1(iter->str, next, splice);
+      _bs_insert_before_2(iter, splice, dir);
 
       va_list iters;
       va_start(iters, deleted);
@@ -316,6 +314,7 @@ void bs_insert(buff_string_iter_t *iter, bs_direction_t dir, char *str, int dele
     case BS_STATE_2: {
       // iter->current points to string inside next
       bs_splice_overlap(iter->offset, next, &new_splice, dir);
+      if (dir == BS_LEFT) bs_move(iter, new_splice.len - new_splice.deleted);
       goto end;
     }
     case BS_PROBLEM_1: {
@@ -351,32 +350,17 @@ void bs_insert(buff_string_iter_t *iter, bs_direction_t dir, char *str, int dele
   }
 
   end:
-  _bs_check_iter(iter);
+  return;
 }
 
-void _bs_insert_after_1(buff_string_t *str, bs_splice_t *anchor, bs_splice_t *new) {
-  if (anchor == NULL) {
-    new->next = str->first;
-    if (str->first) {
-      str->first->prev = new;
-    } else {
-      str->last = new;
-    }
-    str->first = new;
-    return;
-  }
-  bs_splice_t *iter = str->first;
-  for (;iter;iter=iter->next) {
-    if (iter == anchor) {
-      new->next = iter->next;
-      new->prev = iter;
-      if (iter->next) {
-        iter->next->prev = new;
-      } else {
-        str->last = new;
-      }
-      iter->next = new;
-    }
+void _bs_insert_before_1(buff_string_t *str, bs_splice_t *anchor, bs_splice_t *new) {
+  dlist_insert_before((dlist_head_t *)str, (dlist_node_t *)new, (dlist_node_t *)anchor);
+}
+
+void _bs_insert_before_2(buff_string_iter_t *iter, bs_splice_t *new, bs_direction_t dir) {
+  if (dir == BS_LEFT) {
+    bs_move(iter, 0);
+    //    int dx = new->len - new->deleted - 1;
   }
 }
 
@@ -440,10 +424,6 @@ void bs_forward_word(buff_string_iter_t *iter) {
 void bs_backward_word(buff_string_iter_t *iter) {
   bs_find_back(iter, lambda(bool _(char c) { return isalnum(c); }));
   bs_find_back(iter, lambda(bool _(char c) { return !isalnum(c); }));
-}
-
-void _bs_check_iter(buff_string_iter_t *iter) {
-
 }
 
 char _bs_read_next(buff_string_iter_t *iter, bs_direction_t dir) {

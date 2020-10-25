@@ -1,25 +1,25 @@
 #pragma once
 #include <stdbool.h>
 
-struct dlist_node {
-  struct dlist_node *next;
-  struct dlist_node *prev;
-};
+typedef struct dlist_node_t {
+  struct dlist_node_t *next;
+  struct dlist_node_t *prev;
+} dlist_node_t;
 
-struct dlist_head {
-  struct dlist_node *first;
-  struct dlist_node *last;
-};
+typedef struct {
+  dlist_node_t *first;
+  dlist_node_t *last;
+} dlist_head_t;
 
-struct dlist_iter {
-  struct dlist_node *next;
-};
+typedef struct {
+  dlist_node_t *next;
+} dlist_iter_t;
 
 static inline void
 dlist_insert_before(
-  struct dlist_head *head,
-  struct dlist_node *new,
-  struct dlist_node *anchor
+  dlist_head_t *head,
+  dlist_node_t *new,
+  dlist_node_t *anchor
 ) {
   new->next = anchor;
   if (anchor) {
@@ -37,8 +37,8 @@ dlist_insert_before(
 
 static inline void
 dlist_delete(
-  struct dlist_head *head,
-  struct dlist_node *deleted
+  dlist_head_t *head,
+  dlist_node_t *deleted
 ) {
   if (head->first == deleted) head->first = deleted->next;
   if (head->last == deleted) head->last = deleted->prev;
@@ -48,9 +48,9 @@ dlist_delete(
 
 static inline void
 dlist_delete_iter_fixup(
-  struct dlist_iter *iter,
-  struct dlist_head *head,
-  struct dlist_node *deleted
+  dlist_iter_t *iter,
+  dlist_head_t *head,
+  dlist_node_t *deleted
 ) {
   if (iter->next == deleted) iter->next = deleted->prev ? deleted->prev : head->first;
 }

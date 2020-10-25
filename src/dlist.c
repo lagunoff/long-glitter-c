@@ -11,12 +11,12 @@ struct int_list {
 };
 
 int dlist_unittest() {
-  struct dlist_head list = {NULL, NULL};
+  dlist_head_t list = {NULL, NULL};
   struct int_list items[10];
 
   for (int i = 0; i < 10; i++) {
     items[i].value = i;
-    struct dlist_node *it = (struct dlist_node *) &items[i];
+    dlist_node_t *it = (dlist_node_t *) &items[i];
     dlist_insert_before(&list, it, NULL);
   }
 
