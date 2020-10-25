@@ -8,10 +8,16 @@
 #include "cursor.h"
 #include "cursor.h"
 
+typedef enum {
+  BS_INACTIVE,
+  BS_ONE_MARK,
+  BS_COMPLETE,
+} bs_selection_state_t;
+
 typedef struct {
-  bool               active;
-  buff_string_iter_t mark1;
-  buff_string_iter_t mark2;
+  bs_selection_state_t active;
+  buff_string_iter_t   mark1;
+  buff_string_iter_t   mark2;
 } selection_t;
 
 typedef struct {

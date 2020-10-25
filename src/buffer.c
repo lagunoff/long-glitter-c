@@ -6,10 +6,12 @@
 #include <cairo.h>
 
 #include "buffer.h"
+#include "draw.h"
 #include "statusbar.h"
 #include "main.h"
 
 #define SCROLL_JUMP 8
+
 
 #define MODIFY_CURSOR(f) {                                        \
   cursor_t old_cursor = self->cursor;                        \
@@ -31,9 +33,9 @@ void buffer_init(buffer_t *out, SDL_Point *size, char *path) {
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, out->fd, 0);
   out->contents = (buff_string_t *)new_bytes(mmaped, st.st_size);
 
-  out->selection.active = false;
-  bs_index(&out->contents, &out->selection.mark1, 10);
-  bs_index(&out->contents, &out->selection.mark2, 20);
+  out->selection.active = BS_INACTIVE;
+  bs_index(&out->contents, &out->selection.mark1, 0);
+  bs_index(&out->contents, &out->selection.mark2, 60);
 
   out->size = *size;
   bs_begin(&out->scroll.pos, &out->contents);
@@ -269,6 +271,16 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       self->contents = bs_insert_undo(self->contents, &self->cursor.pos, &self->scroll.pos, NULL);
       goto continue_command;
     }
+    if (e->key.keysym.scancode == SDL_SCANCODE_SPACE && (e->key.keysym.mod & KMOD_CTRL)) {
+      self->selection.active = BS_ONE_MARK;
+      self->selection.mark1 = self->cursor.pos;
+      goto continue_command;
+    }
+    if (e->key.keysym.scancode == SDL_SCANCODE_G && (e->key.keysym.mod & KMOD_CTRL)) {
+      self->selection.active = BS_INACTIVE;
+      self->selection.mark1 = self->cursor.pos;
+      goto continue_command;
+    }
     self->_last_command = false;
     return false;
 
@@ -309,11 +321,18 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
 
 void buffer_view(buffer_t *self, cairo_t *cr) {
   char temp[1024 * 16]; // Maximum line length — 16kb
+  color_t primary_text = {0, 0, 0, 0.87};
+  color_t selection_bg = {0.8, 0.87, 0.98, 1};
+  bool inside_selection = false;
+
   buff_string_iter_t iter = self->scroll.pos;
   int y=0;
   int cursor_offset = bs_offset(&self->cursor.pos);
-  int mark1_offset = self->selection.active ? bs_offset(&self->selection.mark1) : -1;
-  int mark2_offset = self->selection.active ? bs_offset(&self->selection.mark2) : -1;
+  int mark1_offset = self->selection.active != BS_INACTIVE ? bs_offset(&self->selection.mark1) : -1;
+  int mark2_offset
+    = self->selection.active == BS_COMPLETE ? bs_offset(&self->selection.mark2)
+    : self->selection.active == BS_ONE_MARK ? bs_offset(&self->cursor.pos)
+    : -1;
   cairo_select_font_face (cr, "Hack", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
   cairo_set_font_size (cr, self->font_size);
 
@@ -326,13 +345,57 @@ void buffer_view(buffer_t *self, cairo_t *cr) {
   const int textarea_height = self->size.y - statusbar_height;
 
   for(;;) {
-    cairo_set_source_rgba (cr, 0, 0, 0, 0.87);
+    cairo_set_color(cr, &primary_text);
     int offset0 = bs_offset(&iter);
 
     bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
     int iter_offset = bs_offset(&iter);
 
+    if (mark1_offset >= offset0 && mark1_offset <= iter_offset) {
+      int len1 = mark1_offset - offset0;
+      int len2 = iter_offset - mark1_offset;
+      char temp1[len1 + 1];
+      char temp2[len2 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      strcpy(temp2, temp + len1);
+      cairo_text_extents_t te1;
+      cairo_text_extents(cr, temp1, &te1);
+      cairo_text_extents_t te2;
+      cairo_text_extents(cr, temp2, &te2);
+      cairo_rectangle(cr, te1.x_advance, y, te2.x_advance, fe.height);
+      cairo_set_color(cr, &selection_bg);
+      cairo_fill(cr);
+      cairo_set_color(cr, &primary_text);
+      inside_selection = true;
+    }
+
+    if (mark2_offset >= offset0 && mark2_offset <= iter_offset) {
+      int len1 = mark2_offset - offset0;
+      char temp1[len1 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      cairo_text_extents_t te;
+      cairo_text_extents(cr, temp1, &te);
+      cairo_rectangle(cr, 0, y, te.x_advance, fe.height);
+      cairo_set_color(cr, &selection_bg);
+      cairo_fill(cr);
+      cairo_set_color(cr, &primary_text);
+
+      cairo_move_to(cr, 0, y + fe.ascent);
+      cairo_show_text(cr, temp1);
+      inside_selection = false;
+    }
+
     if (*temp != '\0' && *temp != '\n') {
+      if (inside_selection) {
+        cairo_text_extents_t te;
+        cairo_text_extents(cr, temp, &te);
+        cairo_rectangle(cr, 0, y, te.x_advance, fe.height);
+        cairo_set_color(cr, &selection_bg);
+        cairo_fill(cr);
+        cairo_set_color(cr, &primary_text);
+      }
       cairo_move_to (cr, 0, y + fe.ascent);
       cairo_show_text (cr, temp);
     }
@@ -358,7 +421,6 @@ void buffer_view(buffer_t *self, cairo_t *cr) {
         cairo_show_text (cr, temp);
       }
     }
-
     y += fe.height;
     if (y + fe.height > self->size.y - statusbar_height) break;
     // Skip newline symbol
