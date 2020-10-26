@@ -56,6 +56,7 @@ typedef struct {
 
 bool bs_takewhile(buff_string_iter_t *iter, char *out, bool (*p)(char));
 bool bs_take(buff_string_iter_t *iter, char *out, int n);
+int bs_take_2(buff_string_iter_t *iter, char *out, int n);
 void bs_index(buff_string_t **str, buff_string_iter_t *iter, int i);
 void bs_begin(buff_string_iter_t *iter, buff_string_t **str);
 void bs_end(buff_string_iter_t *iter, buff_string_t **str);
@@ -75,7 +76,7 @@ bool bs_iterate(
   bool                       (*p)(char)
 );
 
-void bs_free(buff_string_t *str);
+void bs_free(buff_string_t *str, void (*free_last) (bs_bytes_t *));
 buff_string_t *new_bytes(char *str, int len);
 buff_string_t *new_splice(int start, int len, int deleted, buff_string_t *base);
 buff_string_t *new_splice_str(char *str, int start, int deleted, buff_string_t *base);

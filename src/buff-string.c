@@ -49,12 +49,13 @@ buff_string_t *new_splice_str(char *str, int start, int deleted, buff_string_t *
   return result;
 }
 
-void bs_free(buff_string_t *str) {
+void bs_free(buff_string_t *str, void (*free_last) (bs_bytes_t *)) {
   while (1) {
     switch (str->tag) {
     case BS_BYTES: {
+      free_last(&str->bytes);
       free(str);
-      break;
+      return;
     }
     case BS_SPLICE: {
       buff_string_t *base = str->splice.base;
@@ -174,6 +175,16 @@ bool bs_take(buff_string_iter_t *iter, char *dest, int n) {
   return eof;
 }
 
+int bs_take_2(buff_string_iter_t *iter, char *dest, int n) {
+  int j = 0;
+  bs_find(iter, lambda(bool _(char c) {
+    bool is_ok = j < n;
+    if (is_ok) dest[j++] = c;
+    return !is_ok;
+  }));
+  return MAX(0, j - 1);
+}
+
 void bs_begin(buff_string_iter_t *iter, buff_string_t **str) {
   iter->str=str;
   iter->global_index = 0;
@@ -232,7 +243,7 @@ buff_string_t *bs_insert_undo(buff_string_t *base, ...) {
     va_end(iters);
     buff_string_t *new_base = base->splice.base;
     base->splice.base = NULL;
-    bs_free(base);
+    bs_free(base, lambda(void _() {}));
     return new_base;
   }
   default: {

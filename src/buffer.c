@@ -26,29 +26,33 @@ static void cursor_modified (
 
 static SDL_Keysym zero_keysym = {0};
 
-void buffer_init(buffer_t *out, SDL_Point *size, char *path) {
+void buffer_init(buffer_t *self, SDL_Point *size, char *path) {
   struct stat st;
-  out->fd = open(path, O_RDONLY);
-  fstat(out->fd, &st);
-  char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, out->fd, 0);
-  out->contents = (buff_string_t *)new_bytes(mmaped, st.st_size);
+  self->path = path;
+  self->fd = open(path, O_RDWR);
+  fstat(self->fd, &st);
+  char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
+  self->contents = new_bytes(mmaped, st.st_size);
 
-  out->selection.active = BS_INACTIVE;
-  bs_index(&out->contents, &out->selection.mark1, 0);
-  bs_index(&out->contents, &out->selection.mark2, 60);
+  self->selection.active = BS_INACTIVE;
+  bs_index(&self->contents, &self->selection.mark1, 0);
+  bs_index(&self->contents, &self->selection.mark2, 60);
 
-  out->size = *size;
-  bs_begin(&out->scroll.pos, &out->contents);
-  bs_begin(&out->cursor.pos, &out->contents);
-  out->cursor.x0 = 0;
-  out->font_size = 18;
-  out->_last_command = false;
-  out->_prev_keysym = zero_keysym;
-  out->fe_initialized = false;
+  self->size = *size;
+  bs_begin(&self->scroll.pos, &self->contents);
+  bs_begin(&self->cursor.pos, &self->contents);
+  self->cursor.x0 = 0;
+  self->font_size = 18;
+  self->_last_command = false;
+  self->_prev_keysym = zero_keysym;
+  self->fe_initialized = false;
 }
 
 void buffer_destroy(buffer_t *self) {
-  munmap(self->contents->bytes.bytes, self->contents->bytes.len);
+  bs_free(self->contents, lambda(void _(bs_bytes_t *b){
+    munmap(b->bytes, b->len);
+  }));
+  close(self->fd);
 }
 
 bool buffer_update(buffer_t *self, SDL_Event *e) {
@@ -61,20 +65,33 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
 
     if (e->key.keysym.scancode == SDL_SCANCODE_S && (e->key.keysym.mod & KMOD_CTRL)
         && self->_prev_keysym.scancode == SDL_SCANCODE_X && (self->_prev_keysym.mod & KMOD_CTRL)) {
-      /* int written = 0; */
-      /* for (;;) { */
-      /*   int w = write (self->fd, self->contents->bytes + written, self->contents->len - written); */
-      /*   // TODO: handle write error */
-      /*   if (w == -1) goto continue_command; */
-      /*   written += w; */
-      /*   if (written >= self->contents->len) break; */
-      /* } */
+      buff_string_iter_t iter;
+      bs_begin(&iter, &self->contents);
+      int buf_len = 1024 * 64;
+      char buf[buf_len];
+      lseek(self->fd, 0, SEEK_SET);
+      for (;;) {
+        int taken = bs_take_2(&iter, buf, buf_len);
+        int written = 0;
+        for(;;) {
+          int w = write(self->fd, buf + written, taken - written);
+          // TODO: handle write error
+          if (w == -1) goto continue_command;
+          written += w;
+          if (written >= taken) break;
+        }
+        if (taken < buf_len) break;
+      }
+      SDL_Point size = self->size;
+      char *path = self->path;
+      buffer_destroy(self);
+      buffer_init(self, &size, path);
       goto continue_command;
     }
 
-    if ( e->key.keysym.scancode == SDL_SCANCODE_LEFT
-         || e->key.keysym.scancode == SDL_SCANCODE_B && (e->key.keysym.mod & KMOD_CTRL)
-         ) {
+    if (e->key.keysym.scancode == SDL_SCANCODE_LEFT
+        || e->key.keysym.scancode == SDL_SCANCODE_B && (e->key.keysym.mod & KMOD_CTRL)
+        ) {
       MODIFY_CURSOR(cursor_left);
       goto continue_command;
     }
@@ -528,7 +545,7 @@ void buffer_view(buffer_t *self, cairo_t *cr) {
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr, 0, self->size.y - statusbar_height);
-  statusbar_t statusbar = {&self->cursor};
+  statusbar_t statusbar = {self->contents, &self->cursor};
   statusbar_view(&statusbar, cr);
   cairo_set_matrix(cr, &matrix);
 }

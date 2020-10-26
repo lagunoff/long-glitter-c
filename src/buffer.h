@@ -30,6 +30,7 @@ typedef struct {
   bool           fe_initialized;
   int            fd;
   int            font_size;
+  char          *path;
   bool           _last_command;
   SDL_Keysym     _prev_keysym;
 } buffer_t;

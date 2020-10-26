@@ -8,7 +8,8 @@
 #include "cursor.h"
 
 typedef struct {
-  cursor_t *cursor;
+  buff_string_t *contents;
+  cursor_t      *cursor;
 } statusbar_t;
 
 bool statusbar_update(statusbar_t *self, SDL_Event *e);
