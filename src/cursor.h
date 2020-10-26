@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cairo.h>
+#include "draw.h"
 #include "buff-string.h"
 
 typedef struct {
@@ -27,9 +27,9 @@ void backward_paragraph(cursor_t *c);
 void forward_paragraph(cursor_t *c);
 
 void scroll_page(
-  scroll_t             *s,
-  cursor_t             *c,
-  cairo_font_extents_t *fe,
-  int                   height,
-  int                   n
+  scroll_t      *s,
+  cursor_t      *c,
+  draw_font_t *font,
+  int            height,
+  int            n
 );

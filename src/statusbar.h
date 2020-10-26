@@ -1,11 +1,10 @@
 #pragma once
 
 #include <SDL2/SDL.h>
-#include <cairo.h>
 
 #include "buffer.h"
 #include "cursor.h"
-#include "cursor.h"
+#include "draw.h"
 
 typedef struct {
   buff_string_t *contents;
@@ -13,4 +12,4 @@ typedef struct {
 } statusbar_t;
 
 bool statusbar_update(statusbar_t *self, SDL_Event *e);
-void statusbar_view(statusbar_t *self, cairo_t *cr);
+void statusbar_view(statusbar_t *self, draw_context_t *ctx);

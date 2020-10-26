@@ -21,4 +21,4 @@ proc03 ::
   => do
     x <- blala
     y <- blabla
-    return {x,y};
+    return {x,y},y};

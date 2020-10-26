@@ -3,7 +3,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <cairo.h>
+#include <SDL2_gfxPrimitives.h>
 
 #include "buffer.h"
 #include "draw.h"
@@ -16,7 +16,7 @@
 #define MODIFY_CURSOR(f) {                                        \
   cursor_t old_cursor = self->cursor;                        \
   f(&self->cursor);                                               \
-  if (self->fe_initialized) cursor_modified(self, &old_cursor);                        \
+  cursor_modified(self, &old_cursor);                        \
 }
 
 static void cursor_modified (
@@ -26,10 +26,11 @@ static void cursor_modified (
 
 static SDL_Keysym zero_keysym = {0};
 
-void buffer_init(buffer_t *self, SDL_Point *size, char *path) {
+void buffer_init(buffer_t *self, SDL_Point *size, char *path, int font_size) {
   struct stat st;
   self->path = path;
   self->fd = open(path, O_RDWR);
+  draw_init_font(&self->font, font_size);
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
   self->contents = new_bytes(mmaped, st.st_size);
@@ -42,10 +43,9 @@ void buffer_init(buffer_t *self, SDL_Point *size, char *path) {
   bs_begin(&self->scroll.pos, &self->contents);
   bs_begin(&self->cursor.pos, &self->contents);
   self->cursor.x0 = 0;
-  self->font_size = 18;
+  self->font.font_size = 18;
   self->_last_command = false;
   self->_prev_keysym = zero_keysym;
-  self->fe_initialized = false;
 }
 
 void buffer_destroy(buffer_t *self) {
@@ -53,6 +53,154 @@ void buffer_destroy(buffer_t *self) {
     munmap(b->bytes, b->len);
   }));
   close(self->fd);
+}
+
+void buffer_view(buffer_t *self, draw_context_t *ctx) {
+  char temp[1024 * 16]; // Maximum line length — 16kb
+  bool inside_selection = false;
+
+  buff_string_iter_t iter = self->scroll.pos;
+  int y=0;
+  int cursor_offset = bs_offset(&self->cursor.pos);
+  int mark1_offset = self->selection.active != BS_INACTIVE ? bs_offset(&self->selection.mark1) : -1;
+  int mark2_offset
+    = self->selection.active == BS_COMPLETE ? bs_offset(&self->selection.mark2)
+    : self->selection.active == BS_ONE_MARK ? bs_offset(&self->cursor.pos)
+    : -1;
+  if (mark1_offset > mark2_offset) {
+    int tmp = mark1_offset;
+    mark1_offset = mark2_offset;
+    mark2_offset = tmp;
+  }
+
+  const int statusbar_height = ctx->font->X_height + 8;
+  const int textarea_height = self->size.y - statusbar_height;
+  const int fringe = 8;
+
+  SDL_Rect textarea_viewport = {fringe, 0, self->size.x - fringe, textarea_height};
+  SDL_Rect statusbar_viewport = {0, textarea_height, self->size.x, statusbar_height};
+  SDL_RenderSetViewport(ctx->renderer, &textarea_viewport);
+
+  for(;;) {
+    draw_set_color(ctx, ctx->palette.primary_text);
+    int offset0 = bs_offset(&iter);
+
+    bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
+    int iter_offset = bs_offset(&iter);
+    if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
+      draw_set_color(ctx, ctx->palette.current_line_bg);
+      draw_box(ctx, 0, y, self->size.x, ctx->font->X_height);
+      draw_set_color(ctx, ctx->palette.primary_text);
+    }
+
+      if (mark2_offset >= offset0 && mark2_offset <= iter_offset
+        && mark1_offset >= offset0 && mark1_offset <= iter_offset) {
+      int len = iter_offset - offset0;
+      int len1 = mark1_offset - offset0;
+      int len2 = mark2_offset - offset0 - len1;
+      int len3 = len - (len1 + len2);
+      char temp1[len1 + 1];
+      char temp2[len2 + 1];
+      char temp3[len3 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      strncpy(temp2, temp + len1, len2);
+      temp2[len2]='\0';
+      strncpy(temp3, temp + len1 + len2, len3);
+      temp3[len3]='\0';
+      SDL_Point te1;
+      draw_measure_text(ctx, temp1, &te1);
+      SDL_Point te2;
+      draw_measure_text(ctx, temp2, &te2);
+      draw_set_color(ctx, ctx->palette.selection_bg);
+      draw_box(ctx, te1.x, y, te2.x, ctx->font->X_height);
+      draw_set_color(ctx, ctx->palette.primary_text);
+      draw_text(ctx, 0, y, temp1);
+      draw_text(ctx, te1.x, y, temp2);
+      draw_text(ctx, te1.x + te2.x, y, temp3);
+      goto draw_cursor;
+    }
+
+    if (mark1_offset >= offset0 && mark1_offset <= iter_offset) {
+      int len1 = mark1_offset - offset0;
+      int len2 = iter_offset - mark1_offset;
+      char temp1[len1 + 1];
+      char temp2[len2 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      strcpy(temp2, temp + len1);
+      SDL_Point te1;
+      draw_measure_text(ctx, temp1, &te1);
+      SDL_Point te2;
+      draw_measure_text(ctx, temp2, &te2);
+
+      draw_set_color(ctx, ctx->palette.selection_bg);
+      draw_box(ctx, te1.x, y, te2.x, ctx->font->X_height);
+      draw_set_color(ctx, ctx->palette.primary_text);
+      draw_text(ctx, 0, y, temp1);
+      draw_text(ctx, te1.x, y, temp2);
+      inside_selection = true;
+      goto draw_cursor;
+    }
+
+    if (mark2_offset >= offset0 && mark2_offset <= iter_offset) {
+      int len1 = mark2_offset - offset0;
+      int len2 = iter_offset - mark2_offset;
+      char temp1[len1 + 1];
+      char temp2[len2 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      strcpy(temp2, temp + len1);
+      SDL_Point te1;
+      draw_measure_text(ctx, temp1, &te1);
+      SDL_Point te2;
+      draw_measure_text(ctx, temp2, &te2);
+      draw_set_color(ctx, ctx->palette.selection_bg);
+      draw_box(ctx, 0, y, te1.x, ctx->font->X_height);
+      draw_set_color(ctx, ctx->palette.primary_text);
+
+      draw_text(ctx, 0, y, temp1);
+      draw_text(ctx, te1.x, y, temp2);
+      inside_selection = false;
+      goto draw_cursor;
+    }
+
+    if (*temp != '\0' && *temp != '\n') {
+      if (inside_selection) {
+        SDL_Point te;
+        draw_measure_text(ctx, temp, &te);
+        draw_set_color(ctx, ctx->palette.selection_bg);
+        draw_box(ctx, 0, y, te.x, ctx->font->X_height);
+        draw_set_color(ctx, ctx->palette.primary_text);
+      }
+      draw_text(ctx, 0, y, temp);
+    }
+  draw_cursor:
+    if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
+      int cur_x_offset = cursor_offset - offset0;
+      int cursor_char = temp[cur_x_offset];
+      temp[cur_x_offset]='\0';
+      SDL_Point te;
+      draw_measure_text(ctx, temp, &te);
+      draw_box(ctx, te.x, y, ctx->font->X_width, ctx->font->X_height);
+
+      if (cursor_char != '\0' && cursor_char != '\n') {
+        temp[0]=cursor_char;
+        temp[1]='\0';
+        draw_set_color_rgba(ctx, 1, 1, 1, 1);
+        draw_text(ctx, te.x, y, temp);
+      }
+    }
+    y += ctx->font->X_height;
+    if (y > self->size.y - statusbar_height) break;
+    // Skip newline symbol
+    bool eof = bs_move(&iter, 1);
+    if (eof) break;
+  }
+
+  SDL_RenderSetViewport(ctx->renderer, &statusbar_viewport);
+  statusbar_t statusbar = {self->contents, &self->cursor};
+  statusbar_view(&statusbar, ctx);
 }
 
 bool buffer_update(buffer_t *self, SDL_Event *e) {
@@ -84,8 +232,9 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       }
       SDL_Point size = self->size;
       char *path = self->path;
+      int font_size = self->font.font_size;
       buffer_destroy(self);
-      buffer_init(self, &size, path);
+      buffer_init(self, &size, path, font_size);
       goto continue_command;
     }
 
@@ -132,7 +281,7 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_V && (e->key.keysym.mod & KMOD_CTRL)
         || e->key.keysym.scancode == SDL_SCANCODE_PAGEDOWN && (e->key.keysym.mod==0)
         ) {
-      if (self->fe_initialized) scroll_page(&self->scroll, &self->cursor, &self->fe, self->size.y, 1);
+      scroll_page(&self->scroll, &self->cursor, &self->font, self->size.y, 1);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_LGUI)) {
@@ -150,11 +299,8 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       }
       debug0("Creating a window!");
       SDL_ShowWindow(tooltip);
-      // SDL_RaiseWindow(window);
       SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
       SDL_RenderClear(renderer);
-      //      SDL_Rect bg = {x:w,y:y,w:self->font.X_width,h:self->font.X_height};
-
       SDL_RenderPresent(renderer);
 
       goto continue_command;
@@ -222,7 +368,7 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_V && (e->key.keysym.mod & KMOD_ALT)
         || e->key.keysym.scancode == SDL_SCANCODE_PAGEUP && (e->key.keysym.mod==0)
         ) {
-      if (self->fe_initialized) scroll_page(&self->scroll, &self->cursor, &self->fe, self->size.y, -1);
+      scroll_page(&self->scroll, &self->cursor, &self->font, self->size.y, -1);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_LEFTBRACKET && (e->key.keysym.mod & KMOD_ALT && e->key.keysym.mod & KMOD_SHIFT)) {
@@ -234,11 +380,11 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_EQUALS  && (e->key.keysym.mod & KMOD_CTRL)) {
-      self->font_size += 1;
+      self->font.font_size += 1;
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_MINUS && (e->key.keysym.mod & KMOD_CTRL)) {
-      self->font_size -= 1;
+      self->font.font_size -= 1;
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_PERIOD && (e->key.keysym.mod & KMOD_ALT && e->key.keysym.mod & KMOD_SHIFT)) {
@@ -379,177 +525,6 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
   return false;
 }
 
-void buffer_view(buffer_t *self, cairo_t *cr) {
-  char temp[1024 * 16]; // Maximum line length — 16kb
-  color_t primary_text = {0, 0, 0, 0.87};
-  color_t selection_bg = {0.8, 0.87, 0.98, 1};
-  color_t current_line_bg = {0.0, 0.0, 0.6, 0.05};
-  bool inside_selection = false;
-
-  buff_string_iter_t iter = self->scroll.pos;
-  int y=0;
-  int cursor_offset = bs_offset(&self->cursor.pos);
-  int mark1_offset = self->selection.active != BS_INACTIVE ? bs_offset(&self->selection.mark1) : -1;
-  int mark2_offset
-    = self->selection.active == BS_COMPLETE ? bs_offset(&self->selection.mark2)
-    : self->selection.active == BS_ONE_MARK ? bs_offset(&self->cursor.pos)
-    : -1;
-  if (mark1_offset > mark2_offset) {
-    int tmp = mark1_offset;
-    mark1_offset = mark2_offset;
-    mark2_offset = tmp;
-  }
-  cairo_select_font_face(cr, "Hack", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-  cairo_set_font_size(cr, self->font_size);
-
-  cairo_font_extents_t fe;
-  self->fe_initialized = true;
-  self->fe = fe;
-  cairo_font_extents (cr, &fe);
-
-  const int statusbar_height = fe.height + 8;
-  const int textarea_height = self->size.y - statusbar_height;
-
-  for(;;) {
-    cairo_set_color(cr, &primary_text);
-    int offset0 = bs_offset(&iter);
-
-    bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
-    int iter_offset = bs_offset(&iter);
-    if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
-      cairo_set_color(cr, &current_line_bg);
-      cairo_rectangle(cr, 0, y, self->size.x, fe.height);
-      cairo_fill(cr);
-      cairo_set_color(cr, &primary_text);
-    }
-
-    if (mark2_offset >= offset0 && mark2_offset <= iter_offset
-        && mark1_offset >= offset0 && mark1_offset <= iter_offset) {
-      int len = iter_offset - offset0;
-      int len1 = mark1_offset - offset0;
-      int len2 = mark2_offset - offset0 - len1;
-      int len3 = len - (len1 + len2);
-      char temp1[len1 + 1];
-      char temp2[len2 + 1];
-      char temp3[len3 + 1];
-      strncpy(temp1, temp, len1);
-      temp1[len1]='\0';
-      strncpy(temp2, temp + len1, len2);
-      temp2[len2]='\0';
-      strncpy(temp3, temp + len1 + len2, len3);
-      temp3[len3]='\0';
-      cairo_text_extents_t te1;
-      cairo_text_extents(cr, temp1, &te1);
-      cairo_text_extents_t te2;
-      cairo_text_extents(cr, temp2, &te2);
-      cairo_rectangle(cr, te1.x_advance, y, te2.x_advance, fe.height);
-      cairo_set_color(cr, &selection_bg);
-      cairo_fill(cr);
-      cairo_set_color(cr, &primary_text);
-      cairo_move_to(cr, 0, y + fe.ascent);
-      cairo_show_text(cr, temp1);
-      cairo_move_to(cr, te1.x_advance, y + fe.ascent);
-      cairo_show_text(cr, temp2);
-      cairo_move_to(cr, te1.x_advance + te2.x_advance, y + fe.ascent);
-      cairo_show_text(cr, temp3);
-      goto draw_cursor;
-    }
-
-    if (mark1_offset >= offset0 && mark1_offset <= iter_offset) {
-      int len1 = mark1_offset - offset0;
-      int len2 = iter_offset - mark1_offset;
-      char temp1[len1 + 1];
-      char temp2[len2 + 1];
-      strncpy(temp1, temp, len1);
-      temp1[len1]='\0';
-      strcpy(temp2, temp + len1);
-      cairo_text_extents_t te1;
-      cairo_text_extents(cr, temp1, &te1);
-      cairo_text_extents_t te2;
-      cairo_text_extents(cr, temp2, &te2);
-      cairo_rectangle(cr, te1.x_advance, y, te2.x_advance, fe.height);
-      cairo_set_color(cr, &selection_bg);
-      cairo_fill(cr);
-      cairo_set_color(cr, &primary_text);
-      cairo_move_to(cr, 0, y + fe.ascent);
-      cairo_show_text(cr, temp1);
-      cairo_move_to(cr, te1.x_advance, y + fe.ascent);
-      cairo_show_text(cr, temp2);
-      inside_selection = true;
-      goto draw_cursor;
-    }
-
-    if (mark2_offset >= offset0 && mark2_offset <= iter_offset) {
-      int len1 = mark2_offset - offset0;
-      int len2 = iter_offset - mark2_offset;
-      char temp1[len1 + 1];
-      char temp2[len2 + 1];
-      strncpy(temp1, temp, len1);
-      temp1[len1]='\0';
-      strcpy(temp2, temp + len1);
-      cairo_text_extents_t te1;
-      cairo_text_extents(cr, temp1, &te1);
-      cairo_text_extents_t te2;
-      cairo_text_extents(cr, temp2, &te2);
-      cairo_rectangle(cr, 0, y, te1.x_advance, fe.height);
-      cairo_set_color(cr, &selection_bg);
-      cairo_fill(cr);
-      cairo_set_color(cr, &primary_text);
-
-      cairo_move_to(cr, 0, y + fe.ascent);
-      cairo_show_text(cr, temp1);
-      cairo_move_to(cr, te1.x_advance, y + fe.ascent);
-      cairo_show_text(cr, temp2);
-      inside_selection = false;
-      goto draw_cursor;
-    }
-
-    if (*temp != '\0' && *temp != '\n') {
-      if (inside_selection) {
-        cairo_text_extents_t te;
-        cairo_text_extents(cr, temp, &te);
-        cairo_rectangle(cr, 0, y, te.x_advance, fe.height);
-        cairo_set_color(cr, &selection_bg);
-        cairo_fill(cr);
-        cairo_set_color(cr, &primary_text);
-      }
-      cairo_move_to (cr, 0, y + fe.ascent);
-      cairo_show_text (cr, temp);
-    }
-  draw_cursor:
-    if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
-      int cur_x_offset = cursor_offset - offset0;
-      int cursor_char = temp[cur_x_offset];
-      temp[cur_x_offset]='\0';
-      cairo_text_extents_t te;
-      cairo_text_extents (cr, temp, &te);
-
-      cairo_rectangle(cr, te.x_advance, y, fe.max_x_advance, fe.height);
-      cairo_fill(cr);
-
-      if (cursor_char != '\0' && cursor_char != '\n') {
-        temp[0]=cursor_char;
-        temp[1]='\0';
-        cairo_set_source_rgb (cr, 1, 1, 1);
-        cairo_move_to(cr, te.x_advance, y + fe.ascent);
-        cairo_show_text(cr, temp);
-      }
-    }
-    y += fe.height;
-    if (y + fe.height > self->size.y - statusbar_height) break;
-    // Skip newline symbol
-    bool eof = bs_move(&iter, 1);
-    if (eof) break;
-  }
-
-  cairo_matrix_t matrix;
-  cairo_get_matrix(cr, &matrix);
-  cairo_translate(cr, 0, self->size.y - statusbar_height);
-  statusbar_t statusbar = {self->contents, &self->cursor};
-  statusbar_view(&statusbar, cr);
-  cairo_set_matrix(cr, &matrix);
-}
-
 void cursor_modified (
   buffer_t *self,
   cursor_t *prev
@@ -558,7 +533,7 @@ void cursor_modified (
   int prev_offset = bs_offset(&prev->pos);
   int scroll_offset = bs_offset(&self->scroll.pos);
   int diff = next_offset - prev_offset;
-  int screen_lines = div(self->size.y, self->fe.height).quot;
+  int screen_lines = div(self->size.y, self->font.X_height).quot;
 
   int count_lines() {
     buff_string_iter_t iter = self->cursor.pos;

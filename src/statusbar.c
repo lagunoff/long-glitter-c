@@ -10,24 +10,21 @@
 bool statusbar_update(statusbar_t *self, SDL_Event *e) {
 }
 
-void statusbar_view(statusbar_t *self, cairo_t *cr) {
+void statusbar_view(statusbar_t *self, draw_context_t *ctx) {
   int cursor_offset = bs_offset(&self->cursor->pos);
   char temp[128];
   bool is_saved = self->contents->tag == BS_BYTES;
   sprintf(temp, "Status: %s, Offset: %d, Column: %d", is_saved ? "saved" : "modified", cursor_offset, self->cursor->x0);
-  cairo_font_extents_t fe;
-  cairo_font_extents (cr, &fe);
-  double x1, x2, y1, y2;
-  cairo_clip_extents(cr, &x1, &y1, &x2, &y2);
+  SDL_Rect viewport;
+  SDL_RenderGetViewport(ctx->renderer, &viewport);
+  SDL_Point fe;
+  draw_measure_text(ctx, temp, &fe);
 
-  cairo_set_source_rgba (cr, 0, 0, 0, 0.08);
-  cairo_move_to (cr, 0, 0);
-  cairo_rectangle (cr, 0, 0, x2 - x1, 32);
-  cairo_fill(cr);
+  draw_set_color_rgba(ctx, 0, 0, 0, 0.08);
+  draw_box(ctx, 0, 0, viewport.w, 32);
 
-  cairo_set_source_rgba (cr, 0, 0, 0, 0.87);
-  cairo_move_to (cr, 0, fe.height);
-  cairo_show_text (cr, temp);
+  draw_set_color(ctx, ctx->palette.primary_text);
+  draw_text(ctx, 8, (viewport.h - ctx->font->X_height) * 0.5, temp);
 }
 
 int statusbar_unittest() {
