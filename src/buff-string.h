@@ -11,21 +11,14 @@ typedef enum {
   BS_DONT_INCREMENT,
 } bs_last_increment_policy_t;
 
-union buff_string_t;
+struct buff_string_t;
 
 typedef struct {
-  int                  index;
-  union buff_string_t *value;
+  int                   index;
+  struct buff_string_t *value;
 } bs_index_pair_t;
 
-typedef enum {
-  BS_SPLICE,
-  BS_BYTES,
-} buff_string_tag_t;
-
 typedef struct {
-  buff_string_tag_t    tag;
-  union buff_string_t *base;
   int   start;
   int   deleted;
   int   len;
@@ -33,17 +26,21 @@ typedef struct {
 } bs_splice_t;
 
 typedef struct {
-  buff_string_tag_t tag;
   char *bytes;
   int   len;
 } bs_bytes_t;
 
-union buff_string_t {
-  buff_string_tag_t tag;
-  bs_splice_t       splice;
-  bs_bytes_t        bytes;
+struct buff_string_t {
+  enum {
+    BS_SPLICE,
+    BS_BYTES,
+  } tag;
+  union {
+    bs_splice_t splice;
+    bs_bytes_t  bytes;
+  };
 };
-typedef union buff_string_t buff_string_t;
+typedef struct buff_string_t buff_string_t;
 
 typedef struct {
   buff_string_t **str;
