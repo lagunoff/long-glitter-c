@@ -24,22 +24,22 @@ void bs_index(buff_string_t **str, buff_string_iter_t *iter, int i) {
 }
 
 buff_string_t *new_bytes(char *str, int len) {
-  bs_bytes_t *s = malloc(sizeof(bs_bytes_t));
+  buff_string_t *s = malloc(sizeof(buff_string_t));
   s->tag = BS_BYTES;
-  s->bytes = str;
-  s->len = len;
-  return (buff_string_t *)s;
+  s->bytes.bytes = str;
+  s->bytes.len = len;
+  return s;
 }
 
 buff_string_t *new_splice(int start, int len, int deleted, buff_string_t *base) {
-  bs_splice_t *s = malloc(sizeof(bs_splice_t));
+  buff_string_t *s = malloc(sizeof(buff_string_t));
   s->tag = BS_SPLICE;
-  s->bytes = malloc(MAX(len, 1));
-  s->len = len;
-  s->deleted = deleted;
-  s->base = base;
-  s->start = start;
-  return (buff_string_t *)s;
+  s->splice.bytes = malloc(MAX(len, 1));
+  s->splice.len = len;
+  s->splice.deleted = deleted;
+  s->splice.base = base;
+  s->splice.start = start;
+  return s;
 }
 
 buff_string_t *new_splice_str(char *str, int start, int deleted, buff_string_t *base) {
@@ -289,7 +289,7 @@ char _bs_current(buff_string_iter_t *iter) {
 void bs_unittest() {
   char *s01 = "1234567890abcdefjhijklmnopqrstuvwxyz1234567890";
   char temp[512];
-  buff_string_t str01 = {.bytes = {.tag = BS_BYTES, s01, strlen(s01)}};
+  buff_string_t str01 = {.tag = BS_BYTES, .bytes = {s01, strlen(s01)}};
   buff_string_t *_str01 = &str01;
   buff_string_iter_t iter;
   bs_begin(&iter, &_str01);
@@ -312,7 +312,7 @@ void bs_unittest() {
   assert(strcmp(temp, "1234567890")==0);
 
   char *splice02 = "0000000000";
-  buff_string_t str02 = {.splice = {.tag = BS_SPLICE, &str01, 0, 0, strlen(splice02), splice02} };
+  buff_string_t str02 = {.tag = BS_SPLICE, .splice = {&str01, 0, 0, strlen(splice02), splice02} };
   buff_string_t *_str02 = &str02;
 
   bs_begin(&iter, &_str02);

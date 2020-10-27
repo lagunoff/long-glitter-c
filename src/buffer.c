@@ -49,6 +49,7 @@ void buffer_init(buffer_t *self, SDL_Point *size, char *path, int font_size) {
 }
 
 void buffer_destroy(buffer_t *self) {
+  TTF_CloseFont(self->font.font);
   bs_free(self->contents, lambda(void _(bs_bytes_t *b){
     munmap(b->bytes, b->len);
   }));
@@ -199,7 +200,7 @@ void buffer_view(buffer_t *self, draw_context_t *ctx) {
   }
 
   SDL_RenderSetViewport(ctx->renderer, &statusbar_viewport);
-  statusbar_t statusbar = {self->contents, &self->cursor};
+  statusbar_t statusbar = {self};
   statusbar_view(&statusbar, ctx);
 }
 
@@ -380,11 +381,15 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_EQUALS  && (e->key.keysym.mod & KMOD_CTRL)) {
+      TTF_CloseFont(self->font.font);
       self->font.font_size += 1;
+      draw_init_font(&self->font, self->font.font_size);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_MINUS && (e->key.keysym.mod & KMOD_CTRL)) {
+      TTF_CloseFont(self->font.font);
       self->font.font_size -= 1;
+      draw_init_font(&self->font, self->font.font_size);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_PERIOD && (e->key.keysym.mod & KMOD_ALT && e->key.keysym.mod & KMOD_SHIFT)) {

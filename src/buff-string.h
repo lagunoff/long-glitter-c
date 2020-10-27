@@ -19,6 +19,7 @@ typedef struct {
 } bs_index_pair_t;
 
 typedef struct {
+  struct buff_string_t *base;
   int   start;
   int   deleted;
   int   len;

@@ -7,8 +7,7 @@
 #include "draw.h"
 
 typedef struct {
-  buff_string_t *contents;
-  cursor_t      *cursor;
+  buffer_t *buffer;
 } statusbar_t;
 
 bool statusbar_update(statusbar_t *self, SDL_Event *e);
