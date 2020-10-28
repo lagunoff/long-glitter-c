@@ -9,6 +9,7 @@ typedef struct {
   int       font_size;
   int       X_width;
   int       X_height;
+  int       ascent;
 } draw_font_t;
 
 typedef struct {
@@ -24,6 +25,7 @@ typedef struct {
   draw_font_t small_font;
   draw_font_t fontawesome_font;
   char *default_font_path;
+  char *monospace_font_path;
 } draw_palette_t;
 
 typedef struct {

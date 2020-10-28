@@ -45,7 +45,7 @@ menulist_view(menulist_t *self) {
     if (strcmp(item_ptr->title, "Paste") == 0) glyph = 0xf15c;
     if (glyph != -1) {
       draw_set_color(ctx, palette.secondary_text);
-      draw_glyph(ctx, 8, y - 3, glyph, palette.fontawesome_font.font);
+      draw_glyph(ctx, 8, y - y_margin * 0.5 + (item_height - palette.fontawesome_font.ascent) * 0.5 - 1, glyph, palette.fontawesome_font.font);
       draw_set_color(ctx, palette.primary_text);
     }
     draw_text(ctx, x_padding + 1, y, item_ptr->title);

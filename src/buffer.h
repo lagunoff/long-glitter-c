@@ -13,6 +13,7 @@
 typedef enum {
   BS_INACTIVE,
   BS_ONE_MARK,
+  BS_DRAGGING,
   BS_COMPLETE,
 } bs_selection_state_t;
 
@@ -27,13 +28,6 @@ typedef struct {
   SDL_Renderer *renderer;
 } command_palette_t;
 
-typedef struct {
-  draw_context_t ctx;
-  draw_font_t    font;
-  char         **items;
-  int            hover;
-} buffer_context_menu_t;
-
 struct buffer_t {
   buff_string_t  *contents;
   draw_context_t *ctx;
@@ -46,6 +40,9 @@ struct buffer_t {
   command_palette_t command_palette;
   menulist_t      context_menu;
   statusbar_t     statusbar;
+  int            *lines;
+  int             lines_len;
+  SDL_Cursor*     x_cursor;
   bool            _last_command;
   SDL_Keysym      _prev_keysym;
 };
@@ -58,3 +55,4 @@ void buffer_init(buffer_t *self, draw_context_t *ctx, char *path, int font_size)
 void buffer_destroy(buffer_t *self);
 bool buffer_update(buffer_t *self, SDL_Event *e);
 void buffer_view(buffer_t *self);
+bool buffer_iter_screen_xy(buffer_t *self, buff_string_iter_t *iter, int x, int y, bool x_adjust);

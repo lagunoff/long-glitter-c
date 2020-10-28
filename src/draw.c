@@ -59,6 +59,7 @@ void draw_init_font(draw_font_t *self, char *path, int font_size) {
   int unused;
   TTF_SizeText(self->font, "X", &self->X_width, &unused);
   self->X_height = TTF_FontLineSkip(self->font);
+  self->ascent = TTF_FontAscent(self->font);
   if (self->font == NULL) {
     fprintf(stderr, "Cannot open font file\n");
     exit(1);
@@ -160,9 +161,10 @@ static __attribute__((constructor)) void __init__() {
   palette.ui_bg = draw_rgba(1, 1, 1, 1);
   palette.border = draw_rgba(0, 0, 0, 0.09);
   palette.hover = draw_rgba(0, 0, 0, 0.06);
-  palette.default_font_path = "/home/vlad/job/long-glitter-c/assets/Hack-Regular.ttf";
+  palette.default_font_path = "/home/vlad/job/long-glitter-c/assets/NotoSans-Regular.ttf";
+  palette.monospace_font_path = "/home/vlad/job/long-glitter-c/assets/Hack-Regular.ttf";
   draw_init_font(&palette.default_font, palette.default_font_path, 16);
-  draw_init_font(&palette.small_font, palette.default_font_path, 12);
+  draw_init_font(&palette.small_font, palette.default_font_path, 14);
   draw_init_font(&palette.fontawesome_font, "/home/vlad/job/long-glitter-c/assets/la-solid-900.ttf", 20);
 }
 

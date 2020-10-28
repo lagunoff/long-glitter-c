@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
 
 
   draw_init_context(&ctx, &buf.font);
-  buffer_init(&buf, &ctx, path, 18);
+  buffer_init(&buf, &ctx, path, 16);
   draw_set_color(&ctx, ctx.background);
   widget_window_set(ctx.window, &buffer_widget, (void *)&buf);
 

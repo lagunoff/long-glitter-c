@@ -11,7 +11,7 @@
 #include "main.h"
 
 static char *strchr_last(char *str, int c);
-static int y_padding = 8;
+static int y_padding = 6;
 
 void statusbar_init(statusbar_t *self, struct buffer_t *buffer) {
   self->ctx.font = &palette.small_font;
@@ -37,11 +37,9 @@ void statusbar_view(statusbar_t *self) {
   sprintf(temp, "%s (%s), %d:%d", last_slash, is_saved ? "saved" : "modified", cursor_offset, self->buffer->cursor.x0);
   SDL_Rect viewport;
   SDL_RenderGetViewport(ctx->renderer, &viewport);
-  SDL_Point fe;
-  draw_measure_text(ctx, temp, &fe);
 
   draw_set_color_rgba(ctx, 0, 0, 0, 0.08);
-  draw_box(ctx, 0, 0, viewport.w, 32);
+  draw_box(ctx, 0, 0, viewport.w, viewport.h);
 
   draw_set_color(ctx, ctx->palette->primary_text);
   draw_text(ctx, 8, (viewport.h - ctx->font->X_height) * 0.5, temp);
