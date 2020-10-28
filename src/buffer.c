@@ -33,7 +33,7 @@ void buffer_init(buffer_t *self, draw_context_t *ctx, char *path, int font_size)
   struct stat st;
   self->path = path;
   self->fd = open(path, O_RDWR);
-  draw_init_font(&self->font, font_size);
+  draw_init_font(&self->font, palette.default_font_path, font_size);
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
   self->contents = new_bytes(mmaped, st.st_size);
@@ -53,6 +53,8 @@ void buffer_init(buffer_t *self, draw_context_t *ctx, char *path, int font_size)
   self->command_palette.renderer = NULL;
   self->context_menu.ctx = *ctx;
   self->context_menu.ctx.window = NULL;
+  self->statusbar.ctx = *ctx;
+  statusbar_init(&self->statusbar, self);
 }
 
 void buffer_destroy(buffer_t *self) {
@@ -84,27 +86,28 @@ void buffer_view(buffer_t *self) {
 
   SDL_Rect viewport;
   SDL_RenderGetViewport(ctx->renderer, &viewport);
-  const int statusbar_height = ctx->font->X_height + 8;
-  const int textarea_height = viewport.h - statusbar_height;
+  SDL_Point statusbar_measured;
+  statusbar_measure(&self->statusbar, &statusbar_measured);
+  const int textarea_height = viewport.h - statusbar_measured.y;
   const int fringe = 8;
   const int cursor_width = 2;
 
   SDL_Rect textarea_viewport = {fringe, 0, viewport.w - fringe, textarea_height};
-  SDL_Rect statusbar_viewport = {0, textarea_height, viewport.w, statusbar_height};
+  SDL_Rect statusbar_viewport = {0, textarea_height, viewport.w, statusbar_measured.y};
   SDL_RenderSetViewport(ctx->renderer, &textarea_viewport);
   draw_set_color(ctx, ctx->background);
   SDL_RenderClear(ctx->renderer);
 
   for(;;) {
-    draw_set_color(ctx, ctx->palette.primary_text);
+    draw_set_color(ctx, ctx->palette->primary_text);
     int offset0 = bs_offset(&iter);
 
     bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
     int iter_offset = bs_offset(&iter);
     if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
-      draw_set_color(ctx, ctx->palette.current_line_bg);
+      draw_set_color(ctx, ctx->palette->current_line_bg);
       draw_box(ctx, 0, y, viewport.w, ctx->font->X_height);
-      draw_set_color(ctx, ctx->palette.primary_text);
+      draw_set_color(ctx, ctx->palette->primary_text);
     }
 
     if (mark2_offset >= offset0 && mark2_offset <= iter_offset
@@ -126,9 +129,9 @@ void buffer_view(buffer_t *self) {
       draw_measure_text(ctx, temp1, &te1);
       SDL_Point te2;
       draw_measure_text(ctx, temp2, &te2);
-      draw_set_color(ctx, ctx->palette.selection_bg);
+      draw_set_color(ctx, ctx->palette->selection_bg);
       draw_box(ctx, te1.x, y, te2.x, ctx->font->X_height);
-      draw_set_color(ctx, ctx->palette.primary_text);
+      draw_set_color(ctx, ctx->palette->primary_text);
       draw_text(ctx, 0, y, temp1);
       draw_text(ctx, te1.x, y, temp2);
       draw_text(ctx, te1.x + te2.x, y, temp3);
@@ -148,9 +151,9 @@ void buffer_view(buffer_t *self) {
       SDL_Point te2;
       draw_measure_text(ctx, temp2, &te2);
 
-      draw_set_color(ctx, ctx->palette.selection_bg);
+      draw_set_color(ctx, ctx->palette->selection_bg);
       draw_box(ctx, te1.x, y, te2.x, ctx->font->X_height);
-      draw_set_color(ctx, ctx->palette.primary_text);
+      draw_set_color(ctx, ctx->palette->primary_text);
       draw_text(ctx, 0, y, temp1);
       draw_text(ctx, te1.x, y, temp2);
       inside_selection = true;
@@ -169,9 +172,9 @@ void buffer_view(buffer_t *self) {
       draw_measure_text(ctx, temp1, &te1);
       SDL_Point te2;
       draw_measure_text(ctx, temp2, &te2);
-      draw_set_color(ctx, ctx->palette.selection_bg);
+      draw_set_color(ctx, ctx->palette->selection_bg);
       draw_box(ctx, 0, y, te1.x, ctx->font->X_height);
-      draw_set_color(ctx, ctx->palette.primary_text);
+      draw_set_color(ctx, ctx->palette->primary_text);
 
       draw_text(ctx, 0, y, temp1);
       draw_text(ctx, te1.x, y, temp2);
@@ -183,9 +186,9 @@ void buffer_view(buffer_t *self) {
       if (inside_selection) {
         SDL_Point te;
         draw_measure_text(ctx, temp, &te);
-        draw_set_color(ctx, ctx->palette.selection_bg);
+        draw_set_color(ctx, ctx->palette->selection_bg);
         draw_box(ctx, 0, y, te.x, ctx->font->X_height);
-        draw_set_color(ctx, ctx->palette.primary_text);
+        draw_set_color(ctx, ctx->palette->primary_text);
       }
       draw_text(ctx, 0, y, temp);
     }
@@ -208,15 +211,15 @@ void buffer_view(buffer_t *self) {
       /* } */
     }
     y += ctx->font->X_height;
-    if (y > viewport.h - statusbar_height) break;
+    if (y > viewport.h - statusbar_measured.y) break;
     // Skip newline symbol
     bool eof = bs_move(&iter, 1);
     if (eof) break;
   }
 
   SDL_RenderSetViewport(ctx->renderer, &statusbar_viewport);
-  statusbar_t statusbar = {self};
-  statusbar_view(&statusbar, ctx);
+  statusbar_view(&self->statusbar);
+  SDL_RenderSetViewport(ctx->renderer, &viewport);
 }
 
 bool buffer_update(buffer_t *self, SDL_Event *e) {
@@ -324,7 +327,6 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_LGUI)) {
-      debug0("debuggggggg");
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_X && (e->key.keysym.mod & KMOD_ALT)) {
@@ -409,13 +411,13 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_EQUALS  && (e->key.keysym.mod & KMOD_CTRL)) {
       TTF_CloseFont(self->font.font);
       self->font.font_size += 1;
-      draw_init_font(&self->font, self->font.font_size);
+      draw_init_font(&self->font, palette.default_font_path, self->font.font_size);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_MINUS && (e->key.keysym.mod & KMOD_CTRL)) {
       TTF_CloseFont(self->font.font);
       self->font.font_size -= 1;
-      draw_init_font(&self->font, self->font.font_size);
+      draw_init_font(&self->font, palette.default_font_path, self->font.font_size);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_PERIOD && (e->key.keysym.mod & KMOD_ALT && e->key.keysym.mod & KMOD_SHIFT)) {

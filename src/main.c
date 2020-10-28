@@ -34,10 +34,6 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  if (TTF_Init() != 0) {
-    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
-  }
 
   draw_init_context(&ctx, &buf.font);
   buffer_init(&buf, &ctx, path, 18);
@@ -97,6 +93,11 @@ int main(int argc, char **argv) {
       }
       goto end_iteration;
     }
+    if (e.type == SDL_TEXTINPUT) {
+      event_window = SDL_GetWindowFromID(e.text.windowID);
+      do_update = true;
+      goto end_iteration;
+    }
 
   end_iteration:
     if (event_window == NULL) continue;
@@ -115,7 +116,6 @@ int main(int argc, char **argv) {
 
   buffer_destroy(&buf);
   SDL_StopTextInput();
-  TTF_Quit();
   SDL_DestroyRenderer(ctx.renderer);
   SDL_DestroyWindow(ctx.window);
 

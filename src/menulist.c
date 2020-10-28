@@ -4,10 +4,12 @@
 
 #include "menulist.h"
 
+static int x_padding = 32;
+static int y_margin = 12;
+
 void
 menulist_init(menulist_t *self, menulist_item_t *items, int len, int alignement) {
-  draw_init_font(&self->font, 12);
-  self->ctx.font = &self->font;
+  self->ctx.font = &palette.small_font;
   self->items = items;
   self->len = len;
   self->alignement = alignement;
@@ -16,42 +18,47 @@ menulist_init(menulist_t *self, menulist_item_t *items, int len, int alignement)
 
 void
 menulist_free(menulist_t *self) {
-  draw_free_font(self->ctx.font);
 }
 
 void
 menulist_view(menulist_t *self) {
   draw_context_t *ctx = &self->ctx;
+  draw_font_t *initial_font = ctx->font;
   SDL_Rect viewport;
   SDL_RenderGetViewport(ctx->renderer, &viewport);
-  draw_set_color(ctx, ctx->palette.ui_bg);
+  draw_set_color(ctx, ctx->palette->ui_bg);
   SDL_RenderClear(ctx->renderer);
-  int x_padding = 32;
-  int y_margin = 8;
   int item_height = self->ctx.font->X_height + y_margin;
   int y = 1 + y_margin;
-  draw_set_color(ctx, ctx->palette.primary_text);
+  draw_set_color(ctx, ctx->palette->primary_text);
   for (int i = 0; i < self->len; i++) {
     uint8_t *ptr8 = (uint8_t *)self->items;
     menulist_item_t *item_ptr = (menulist_item_t *)(ptr8 + i * self->alignement);
     if (i == self->hover) {
-      draw_set_color(ctx, ctx->palette.selection_bg);
-      draw_box(ctx, 0, y - 3, viewport.w, item_height);
-      draw_set_color(ctx, ctx->palette.primary_text);
+      draw_set_color(ctx, ctx->palette->hover);
+      draw_box(ctx, 0, y - y_margin * 0.5, viewport.w, item_height);
+      draw_set_color(ctx, ctx->palette->primary_text);
+    }
+    int glyph = -1;
+    if (strcmp(item_ptr->title, "Cut") == 0) glyph = 0xf0c4;
+    if (strcmp(item_ptr->title, "Copy") == 0) glyph = 0xf328;
+    if (strcmp(item_ptr->title, "Paste") == 0) glyph = 0xf15c;
+    if (glyph != -1) {
+      draw_set_color(ctx, palette.secondary_text);
+      draw_glyph(ctx, 8, y - 3, glyph, palette.fontawesome_font.font);
+      draw_set_color(ctx, palette.primary_text);
     }
     draw_text(ctx, x_padding + 1, y, item_ptr->title);
     y += item_height;
   }
-  draw_set_color(ctx, ctx->palette.border);
-  draw_rectangle(ctx, 0,0,viewport.w,viewport.h);
+  draw_set_color(ctx, ctx->palette->border);
+  draw_rectangle(ctx, 0, 0, viewport.w, viewport.h);
 }
 
 void
 menulist_measure(menulist_t *self, SDL_Point *size) {
-  int x_padding = 32;
-  int y_margin = 8;
   int item_height = self->ctx.font->X_height + y_margin;
-  size->x = 240;
+  size->x = 200;
   size->y = self->len * item_height + y_margin + 2;
 }
 

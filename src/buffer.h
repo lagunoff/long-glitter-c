@@ -8,6 +8,7 @@
 #include "draw.h"
 #include "widget.h"
 #include "menulist.h"
+#include "statusbar.h"
 
 typedef enum {
   BS_INACTIVE,
@@ -33,7 +34,7 @@ typedef struct {
   int            hover;
 } buffer_context_menu_t;
 
-typedef struct {
+struct buffer_t {
   buff_string_t  *contents;
   draw_context_t *ctx;
   char           *path;
@@ -44,9 +45,11 @@ typedef struct {
   int             fd;
   command_palette_t command_palette;
   menulist_t      context_menu;
+  statusbar_t     statusbar;
   bool            _last_command;
   SDL_Keysym      _prev_keysym;
-} buffer_t;
+};
+typedef struct buffer_t buffer_t;
 
 widget_t buffer_widget;
 widget_t buffer_context_menu_widget;

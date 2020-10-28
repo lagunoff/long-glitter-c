@@ -32,9 +32,30 @@ void draw_text(draw_context_t *ctx, int x, int y, char *text) {
   SDL_DestroyTexture(texture);
 }
 
-void draw_init_font(draw_font_t *self, int font_size) {
+void draw_glyph(draw_context_t *ctx, int x, int y, int ch, TTF_Font *font) {
+  SDL_Rect rect;
+  SDL_Surface *surface = TTF_RenderGlyph_Blended(font, ch, ctx->foreground);
+  if (!surface) {
+    fprintf(stderr, SDL_GetError());
+    exit(1);
+  }
+  SDL_Texture *texture = SDL_CreateTextureFromSurface(ctx->renderer, surface);
+  if (!texture) {
+    fprintf(stderr, SDL_GetError());
+    exit(1);
+  }
+  rect.x = x;
+  rect.y = y;
+  rect.w = surface->w;
+  rect.h = surface->h;
+  SDL_FreeSurface(surface);
+  SDL_RenderCopy(ctx->renderer, texture, NULL, &rect);
+  SDL_DestroyTexture(texture);
+}
+
+void draw_init_font(draw_font_t *self, char *path, int font_size) {
   self->font_size = font_size;
-  self->font = TTF_OpenFont("/home/vlad/downloads/ttf/Hack-Regular.ttf", font_size);
+  self->font = TTF_OpenFont(path, font_size);
   int unused;
   TTF_SizeText(self->font, "X", &self->X_width, &unused);
   self->X_height = TTF_FontLineSkip(self->font);
@@ -49,20 +70,11 @@ SDL_Color draw_rgba(double r, double g, double b, double a) {
   return color;
 }
 
-void draw_init_palette(draw_palette_t *self) {
-  self->primary_text = draw_rgba(0,0,0,0.87);
-  self->current_line_bg = draw_rgba(0.0, 0.0, 0.6, 0.05);
-  self->selection_bg = draw_rgba(0.8, 0.87, 0.98, 1);
-  self->default_bg = draw_rgba(1, 1, 1, 1);
-  self->ui_bg = draw_rgba(1, 1, 1, 1);
-  self->border = draw_rgba(0, 0, 0, 0.09);
-}
-
 void draw_init_context(draw_context_t *self, draw_font_t *font) {
-  draw_init_palette(&self->palette);
+  self->palette = &palette;
   self->font = font;
   self->background = draw_rgba(1,1,1,1);
-  self->foreground = self->palette.primary_text;
+  self->foreground = self->palette->primary_text;
 }
 
 void draw_set_color(draw_context_t *ctx, SDL_Color color) {
@@ -133,4 +145,30 @@ void draw_open_window_measure(
 
 void draw_free_font(draw_font_t *self) {
   TTF_CloseFont(self->font);
+}
+
+static __attribute__((constructor)) void __init__() {
+  if (TTF_Init() != 0) {
+    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
+    return;
+  }
+  palette.primary_text = draw_rgba(0,0,0,0.87);
+  palette.secondary_text = draw_rgba(0,0,0,0.54);
+  palette.current_line_bg = draw_rgba(0.0, 0.0, 0.6, 0.05);
+  palette.selection_bg = draw_rgba(0.8, 0.87, 0.98, 1);
+  palette.default_bg = draw_rgba(1, 1, 1, 1);
+  palette.ui_bg = draw_rgba(1, 1, 1, 1);
+  palette.border = draw_rgba(0, 0, 0, 0.09);
+  palette.hover = draw_rgba(0, 0, 0, 0.06);
+  palette.default_font_path = "/home/vlad/job/long-glitter-c/assets/Hack-Regular.ttf";
+  draw_init_font(&palette.default_font, palette.default_font_path, 16);
+  draw_init_font(&palette.small_font, palette.default_font_path, 12);
+  draw_init_font(&palette.fontawesome_font, "/home/vlad/job/long-glitter-c/assets/la-solid-900.ttf", 20);
+}
+
+static __attribute__((destructor)) void __free__() {
+  draw_free_font(&palette.default_font);
+  draw_free_font(&palette.small_font);
+  draw_free_font(&palette.fontawesome_font);
+  TTF_Quit();
 }

@@ -121,11 +121,11 @@ void scroll_lines(scroll_t *s, int n) {
 }
 
 void scroll_page(
-  scroll_t      *s,
-  cursor_t      *c,
+  scroll_t    *s,
+  cursor_t    *c,
   draw_font_t *font,
-  int            height,
-  int            n
+  int          height,
+  int          n
 ) {
   int screen_lines = div(height, font->X_height).quot;
   if (n > 0) {

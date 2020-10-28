@@ -15,7 +15,6 @@ typedef enum {
 
 typedef struct {
   draw_context_t   ctx;
-  draw_font_t      font;
   menulist_item_t *items; //! aligned by value of 'alignment' field
   int              len;
   int              alignement; //! sizeof(specific_item_t)
