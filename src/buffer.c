@@ -3,15 +3,16 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <SDL2/SDL.h>
 #include <SDL2_gfxPrimitives.h>
 
 #include "buffer.h"
 #include "draw.h"
 #include "statusbar.h"
 #include "main.h"
+#include "widget.h"
 
 #define SCROLL_JUMP 8
-
 
 #define MODIFY_CURSOR(f) {                                        \
   cursor_t old_cursor = self->cursor;                        \
@@ -26,7 +27,9 @@ static void cursor_modified (
 
 static SDL_Keysym zero_keysym = {0};
 
-void buffer_init(buffer_t *self, SDL_Point *size, char *path, int font_size) {
+static void buffer_context_menu_init(menulist_t *self);
+
+void buffer_init(buffer_t *self, draw_context_t *ctx, char *path, int font_size) {
   struct stat st;
   self->path = path;
   self->fd = open(path, O_RDWR);
@@ -39,13 +42,17 @@ void buffer_init(buffer_t *self, SDL_Point *size, char *path, int font_size) {
   bs_index(&self->contents, &self->selection.mark1, 0);
   bs_index(&self->contents, &self->selection.mark2, 60);
 
-  self->size = *size;
+  self->ctx = ctx;
   bs_begin(&self->scroll.pos, &self->contents);
   bs_begin(&self->cursor.pos, &self->contents);
   self->cursor.x0 = 0;
   self->font.font_size = 18;
   self->_last_command = false;
   self->_prev_keysym = zero_keysym;
+  self->command_palette.window = NULL;
+  self->command_palette.renderer = NULL;
+  self->context_menu.ctx = *ctx;
+  self->context_menu.ctx.window = NULL;
 }
 
 void buffer_destroy(buffer_t *self) {
@@ -56,7 +63,8 @@ void buffer_destroy(buffer_t *self) {
   close(self->fd);
 }
 
-void buffer_view(buffer_t *self, draw_context_t *ctx) {
+void buffer_view(buffer_t *self) {
+  draw_context_t *ctx = self->ctx;
   char temp[1024 * 16]; // Maximum line length — 16kb
   bool inside_selection = false;
 
@@ -74,13 +82,18 @@ void buffer_view(buffer_t *self, draw_context_t *ctx) {
     mark2_offset = tmp;
   }
 
+  SDL_Rect viewport;
+  SDL_RenderGetViewport(ctx->renderer, &viewport);
   const int statusbar_height = ctx->font->X_height + 8;
-  const int textarea_height = self->size.y - statusbar_height;
+  const int textarea_height = viewport.h - statusbar_height;
   const int fringe = 8;
+  const int cursor_width = 2;
 
-  SDL_Rect textarea_viewport = {fringe, 0, self->size.x - fringe, textarea_height};
-  SDL_Rect statusbar_viewport = {0, textarea_height, self->size.x, statusbar_height};
+  SDL_Rect textarea_viewport = {fringe, 0, viewport.w - fringe, textarea_height};
+  SDL_Rect statusbar_viewport = {0, textarea_height, viewport.w, statusbar_height};
   SDL_RenderSetViewport(ctx->renderer, &textarea_viewport);
+  draw_set_color(ctx, ctx->background);
+  SDL_RenderClear(ctx->renderer);
 
   for(;;) {
     draw_set_color(ctx, ctx->palette.primary_text);
@@ -90,12 +103,12 @@ void buffer_view(buffer_t *self, draw_context_t *ctx) {
     int iter_offset = bs_offset(&iter);
     if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
       draw_set_color(ctx, ctx->palette.current_line_bg);
-      draw_box(ctx, 0, y, self->size.x, ctx->font->X_height);
+      draw_box(ctx, 0, y, viewport.w, ctx->font->X_height);
       draw_set_color(ctx, ctx->palette.primary_text);
     }
 
-      if (mark2_offset >= offset0 && mark2_offset <= iter_offset
-        && mark1_offset >= offset0 && mark1_offset <= iter_offset) {
+    if (mark2_offset >= offset0 && mark2_offset <= iter_offset
+      && mark1_offset >= offset0 && mark1_offset <= iter_offset) {
       int len = iter_offset - offset0;
       int len1 = mark1_offset - offset0;
       int len2 = mark2_offset - offset0 - len1;
@@ -183,17 +196,19 @@ void buffer_view(buffer_t *self, draw_context_t *ctx) {
       temp[cur_x_offset]='\0';
       SDL_Point te;
       draw_measure_text(ctx, temp, &te);
-      draw_box(ctx, te.x, y, ctx->font->X_width, ctx->font->X_height);
+      SDL_RenderSetViewport(ctx->renderer, NULL);
+      draw_box(ctx, fringe + te.x - cursor_width / 2, y - 2, cursor_width, ctx->font->X_height + 2);
+      SDL_RenderSetViewport(ctx->renderer, &textarea_viewport);
 
-      if (cursor_char != '\0' && cursor_char != '\n') {
-        temp[0]=cursor_char;
-        temp[1]='\0';
-        draw_set_color_rgba(ctx, 1, 1, 1, 1);
-        draw_text(ctx, te.x, y, temp);
-      }
+      /* if (cursor_char != '\0' && cursor_char != '\n') { */
+      /*   temp[0]=cursor_char; */
+      /*   temp[1]='\0'; */
+      /*   draw_set_color_rgba(ctx, 1, 1, 1, 1); */
+      /*   draw_text(ctx, te.x, y, temp); */
+      /* } */
     }
     y += ctx->font->X_height;
-    if (y > self->size.y - statusbar_height) break;
+    if (y > viewport.h - statusbar_height) break;
     // Skip newline symbol
     bool eof = bs_move(&iter, 1);
     if (eof) break;
@@ -205,9 +220,30 @@ void buffer_view(buffer_t *self, draw_context_t *ctx) {
 }
 
 bool buffer_update(buffer_t *self, SDL_Event *e) {
+  if (self->context_menu.ctx.window) {
+    menulist_action_t action = menulist_context_update(&self->context_menu, e);
+    if (action == MENULIST_DESTROY) {
+      draw_close_window(self->context_menu.ctx.window);
+      self->context_menu.ctx.window = NULL;
+    }
+  }
+  if (e->type == SDL_MOUSEMOTION) {
+    return false;
+  }
+  if (e->type == SDL_MOUSEBUTTONDOWN) {
+    if (e->button.button == SDL_BUTTON_RIGHT) {
+      if (self->context_menu.ctx.window) draw_close_window(self->context_menu.ctx.window);
+      SDL_Point size_pos;
+      SDL_GetWindowPosition(self->ctx->window, &size_pos.x, &size_pos.y);
+      size_pos.x += e->button.x;
+      size_pos.y += e->button.y;
+      buffer_context_menu_init(&self->context_menu);
+      draw_open_window_measure(&size_pos, SDL_WINDOW_TOOLTIP, &self->context_menu.ctx.window, &self->context_menu.ctx.renderer, &buffer_context_menu_widget, &self->context_menu);
+    }
+    goto continue_command;
+  }
   if (e->type == SDL_KEYDOWN) {
     if (e->key.keysym.scancode == SDL_SCANCODE_X && (e->key.keysym.mod & KMOD_CTRL)) {
-      debug0("prev = e->key");
       self->_prev_keysym = e->key.keysym;
       goto continue_dont_clear_prev;
     }
@@ -231,11 +267,11 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
         }
         if (taken < buf_len) break;
       }
-      SDL_Point size = self->size;
+      draw_context_t *ctx = self->ctx;
       char *path = self->path;
       int font_size = self->font.font_size;
       buffer_destroy(self);
-      buffer_init(self, &size, path, font_size);
+      buffer_init(self, ctx, path, font_size);
       goto continue_command;
     }
 
@@ -282,28 +318,16 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_V && (e->key.keysym.mod & KMOD_CTRL)
         || e->key.keysym.scancode == SDL_SCANCODE_PAGEDOWN && (e->key.keysym.mod==0)
         ) {
-      scroll_page(&self->scroll, &self->cursor, &self->font, self->size.y, 1);
+      SDL_Rect viewport;
+      SDL_RenderGetViewport(self->ctx->renderer, &viewport);
+      scroll_page(&self->scroll, &self->cursor, &self->font, viewport.h, 1);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_D && (e->key.keysym.mod & KMOD_LGUI)) {
       debug0("debuggggggg");
       goto continue_command;
     }
-    if (e->key.keysym.scancode == SDL_SCANCODE_W && (e->key.keysym.mod & KMOD_LGUI)) {
-      SDL_Renderer *renderer;
-      SDL_Window *tooltip;
-      debug0("Creating a window!");
-
-      if (SDL_CreateWindowAndRenderer(240, 360, SDL_WINDOW_TOOLTIP, &tooltip, &renderer) != 0) {
-        fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-        exit (EXIT_FAILURE);
-      }
-      debug0("Creating a window!");
-      SDL_ShowWindow(tooltip);
-      SDL_SetRenderDrawColor(renderer, 255, 0, 0, 0);
-      SDL_RenderClear(renderer);
-      SDL_RenderPresent(renderer);
-
+    if (e->key.keysym.scancode == SDL_SCANCODE_X && (e->key.keysym.mod & KMOD_ALT)) {
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_Y && (e->key.keysym.mod & KMOD_CTRL)) {
@@ -369,7 +393,9 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_V && (e->key.keysym.mod & KMOD_ALT)
         || e->key.keysym.scancode == SDL_SCANCODE_PAGEUP && (e->key.keysym.mod==0)
         ) {
-      scroll_page(&self->scroll, &self->cursor, &self->font, self->size.y, -1);
+      SDL_Rect viewport;
+      SDL_RenderGetViewport(self->ctx->renderer, &viewport);
+      scroll_page(&self->scroll, &self->cursor, &self->font, viewport.h, -1);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_LEFTBRACKET && (e->key.keysym.mod & KMOD_ALT && e->key.keysym.mod & KMOD_SHIFT)) {
@@ -530,15 +556,20 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
   return false;
 }
 
-void cursor_modified (
+void buffer_init_widget(widget_t *self, buffer_t *model) {
+}
+
+static void cursor_modified (
   buffer_t *self,
   cursor_t *prev
 ) {
+  SDL_Rect viewport;
+  SDL_RenderGetViewport(self->ctx->renderer, &viewport);
   int next_offset = bs_offset(&self->cursor.pos);
   int prev_offset = bs_offset(&prev->pos);
   int scroll_offset = bs_offset(&self->scroll.pos);
   int diff = next_offset - prev_offset;
-  int screen_lines = div(self->size.y, self->font.X_height).quot;
+  int screen_lines = div(viewport.h, self->font.X_height).quot;
 
   int count_lines() {
     buff_string_iter_t iter = self->cursor.pos;
@@ -572,6 +603,26 @@ void cursor_modified (
       scroll_lines(&self->scroll, lines - SCROLL_JUMP - 1);
     }
   }
+}
+
+static menulist_item_t items[] = {
+  {.title="Cut"}, {.title="Copy"}, {.title="Paste"}
+};
+
+static void
+buffer_context_menu_init(menulist_t *self) {
+  menulist_init(self, items, sizeof(items)/sizeof(menulist_item_t), sizeof(menulist_item_t));
+}
+
+static __attribute__((constructor)) void __init__() {
+  buffer_widget.update = (update_t)buffer_update;
+  buffer_widget.view = (view_t)buffer_view;
+  buffer_widget.free = (finalizer_t)buffer_destroy;
+
+  buffer_context_menu_widget.update = (update_t)menulist_update;
+  buffer_context_menu_widget.view = (view_t)menulist_view;
+  buffer_context_menu_widget.measure = (measure_t)menulist_measure;
+  buffer_context_menu_widget.free = (finalizer_t)menulist_free;
 }
 
 int buffer_unittest() {

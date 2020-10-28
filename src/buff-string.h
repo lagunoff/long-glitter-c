@@ -31,6 +31,9 @@ typedef struct {
   int   len;
 } bs_bytes_t;
 
+//! TODO: need to balance this structure somehow, later found
+//! https://en.wikipedia.org/wiki/Rope_(data_structure) need more
+//! research on how to represent strings in text editors
 struct buff_string_t {
   enum {
     BS_SPLICE,

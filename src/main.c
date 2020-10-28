@@ -12,11 +12,11 @@
 #include "cursor.h"
 #include "buffer.h"
 #include "main.h"
-
+#include "widget.h"
 
 int main(int argc, char **argv) {
-  SDL_Renderer *renderer;
-  SDL_Window *window;
+  buffer_t buf;
+  draw_context_t ctx;
   char *path = argc < 2 ? "/home/vlad/job/long-glitter-c/test/01.lisp" : argv[1];
 
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -24,12 +24,12 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  if ((window = SDL_CreateWindow("Long Glitter", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE)) == NULL) {
+  if ((ctx.window = SDL_CreateWindow("Long Glitter", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE)) == NULL) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
 
-  if ((renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED)) == NULL) {
+  if ((ctx.renderer = SDL_CreateRenderer(ctx.window, -1, SDL_RENDERER_ACCELERATED)) == NULL) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
@@ -39,22 +39,25 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  SDL_Point size = {WINDOW_WIDTH, WINDOW_HEIGHT};
-  buffer_t buf;
-  draw_context_t ctx;
-  buffer_init(&buf, &size, path, 18);
-  draw_init_context(&ctx, renderer, &buf.font);
+  draw_init_context(&ctx, &buf.font);
+  buffer_init(&buf, &ctx, path, 18);
   draw_set_color(&ctx, ctx.background);
-  SDL_RenderClear(ctx.renderer);
-  buffer_view(&buf, &ctx);
-  SDL_RenderPresent(renderer);
+  widget_window_set(ctx.window, &buffer_widget, (void *)&buf);
 
   SDL_Event e;
   SDL_StartTextInput();
   int keydowns = 0;
 
+  SDL_Window *event_window = NULL;
+  SDL_Renderer *event_renderer = NULL;
+  widget_t *root_widget = NULL;
+  void *root_widget_data = NULL;
+  bool do_render = false;
+  bool do_update = false;
   while (SDL_WaitEvent(&e) == 1) {
-    SDL_Rect viewport = {0, 0, buf.size.x, buf.size.y};
+    do_render = false;
+    do_update = false;
+
     if (e.type == SDL_QUIT) {
       break;
     }
@@ -64,37 +67,57 @@ int main(int argc, char **argv) {
         continue;
       }
       keydowns = 1;
+      do_update = true;
+      event_window = SDL_GetWindowFromID(e.key.windowID);
+      goto end_iteration;
+    }
+
+    if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) {
+      do_update = true;
+      event_window = SDL_GetWindowFromID(e.button.windowID);
+      goto end_iteration;
+    }
+
+    if (e.type == SDL_MOUSEMOTION) {
+      do_update = true;
+      event_window = SDL_GetWindowFromID(e.motion.windowID);
+      goto end_iteration;
     }
 
     if (e.type == SDL_WINDOWEVENT) {
+      event_window = SDL_GetWindowFromID(e.window.windowID);
+      do_update = true;
       if (e.window.event == SDL_WINDOWEVENT_EXPOSED) {
-        goto render;
+        do_render = true;
+        do_update = false;
       }
       if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-        buf.size.x = e.window.data1;
-        buf.size.y = e.window.data2;
-        goto render;
+        do_render = true;
+        do_update = false;
       }
+      goto end_iteration;
     }
 
-    bool need_render = buffer_update(&buf, &e);
-    if (need_render) goto render;
+  end_iteration:
+    if (event_window == NULL) continue;
+    event_renderer = SDL_GetRenderer(event_window);
+    widget_window_get(event_window, &root_widget, &root_widget_data);
+    if (!root_widget || !root_widget_data) continue;
+    if (do_update && root_widget->update) do_render = root_widget->update(root_widget_data, &e);
+    if (!do_render) continue;
+    if (event_renderer == NULL) continue;
+    SDL_RenderSetViewport(event_renderer, NULL);
+    root_widget->view(root_widget_data);
+    SDL_RenderPresent(event_renderer);
+    event_window = NULL;
     continue;
-
-  render: {
-      draw_set_color(&ctx, ctx.background);
-      SDL_RenderClear(ctx.renderer);
-      buffer_view(&buf, &ctx);
-      SDL_RenderPresent(renderer);
-      continue;
-    }
   }
 
   buffer_destroy(&buf);
   SDL_StopTextInput();
   TTF_Quit();
-  SDL_DestroyRenderer(renderer);
-  SDL_DestroyWindow(window);
+  SDL_DestroyRenderer(ctx.renderer);
+  SDL_DestroyWindow(ctx.window);
 
   return EXIT_SUCCESS;
 }
