@@ -16,29 +16,28 @@
 
 int main(int argc, char **argv) {
   buffer_t buf;
-  draw_context_t ctx;
-  char *path = argc < 2 ? "/home/vlad/job/long-glitter-c/test/01.lisp" : argv[1];
+  __auto_type ctx = &buf.ctx;
+
+  char *path = argc < 2 ? "/home/vlad/job/long-glitter-c/src/buff-string.c" : argv[1];
 
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
 
-  if ((ctx.window = SDL_CreateWindow("Long Glitter", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE)) == NULL) {
+  if ((ctx->window = SDL_CreateWindow("Long Glitter", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE)) == NULL) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
 
-  if ((ctx.renderer = SDL_CreateRenderer(ctx.window, -1, SDL_RENDERER_ACCELERATED)) == NULL) {
+  if ((ctx->renderer = SDL_CreateRenderer(ctx->window, -1, SDL_RENDERER_ACCELERATED)) == NULL) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
 
-
-  draw_init_context(&ctx, &buf.font);
-  buffer_init(&buf, &ctx, path, 16);
-  draw_set_color(&ctx, ctx.background);
-  widget_window_set(ctx.window, &buffer_widget, (void *)&buf);
+  buffer_init(&buf, path, 14);
+  draw_set_color(ctx, ctx->background);
+  widget_window_set(ctx->window, &buffer_widget, (void *)&buf);
 
   SDL_Event e;
   SDL_StartTextInput();
@@ -83,14 +82,6 @@ int main(int argc, char **argv) {
     if (e.type == SDL_WINDOWEVENT) {
       event_window = SDL_GetWindowFromID(e.window.windowID);
       do_update = true;
-      if (e.window.event == SDL_WINDOWEVENT_EXPOSED) {
-        do_render = true;
-        do_update = false;
-      }
-      if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-        do_render = true;
-        do_update = false;
-      }
       goto end_iteration;
     }
     if (e.type == SDL_TEXTINPUT) {
@@ -121,8 +112,8 @@ int main(int argc, char **argv) {
 
   buffer_destroy(&buf);
   SDL_StopTextInput();
-  SDL_DestroyRenderer(ctx.renderer);
-  SDL_DestroyWindow(ctx.window);
+  SDL_DestroyRenderer(ctx->renderer);
+  SDL_DestroyWindow(ctx->window);
 
   return EXIT_SUCCESS;
 }

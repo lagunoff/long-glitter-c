@@ -3,8 +3,8 @@
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
-#define WINDOW_WIDTH 400
-#define WINDOW_HEIGHT (WINDOW_WIDTH * 16 / 9)
+#define WINDOW_HEIGHT 711
+#define WINDOW_WIDTH (WINDOW_HEIGHT * 4 / 3)
 #define FONT_HEIGHT 22
 
 #define MIN(a,b) (((a)<(b))?(a):(b))

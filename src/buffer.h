@@ -28,9 +28,15 @@ typedef struct {
   SDL_Renderer *renderer;
 } command_palette_t;
 
+typedef struct {
+  SDL_Rect textarea;
+  SDL_Rect statusbar;
+  SDL_Rect lines;
+} buffer_geometry_t;
+
 struct buffer_t {
+  draw_context_t  ctx;
   buff_string_t  *contents;
-  draw_context_t *ctx;
   char           *path;
   draw_font_t     font;
   scroll_t        scroll;
@@ -40,9 +46,10 @@ struct buffer_t {
   command_palette_t command_palette;
   menulist_t      context_menu;
   statusbar_t     statusbar;
+  buffer_geometry_t geometry;
   int            *lines;
   int             lines_len;
-  SDL_Cursor*     x_cursor;
+  SDL_Cursor*     ibeam_cursor;
   bool            _last_command;
   SDL_Keysym      _prev_keysym;
 };
@@ -51,8 +58,9 @@ typedef struct buffer_t buffer_t;
 widget_t buffer_widget;
 widget_t buffer_context_menu_widget;
 
-void buffer_init(buffer_t *self, draw_context_t *ctx, char *path, int font_size);
+void buffer_init(buffer_t *self, char *path, int font_size);
 void buffer_destroy(buffer_t *self);
 bool buffer_update(buffer_t *self, SDL_Event *e);
 void buffer_view(buffer_t *self);
 bool buffer_iter_screen_xy(buffer_t *self, buff_string_iter_t *iter, int x, int y, bool x_adjust);
+void buffer_get_geometry(buffer_t *self, buffer_geometry_t *geometry);
