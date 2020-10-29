@@ -10,6 +10,7 @@ typedef struct {
 
 typedef struct {
   buff_string_iter_t pos;
+  int                line;
 } scroll_t;
 
 void cursor_up(cursor_t *c);
@@ -27,9 +28,9 @@ void backward_paragraph(cursor_t *c);
 void forward_paragraph(cursor_t *c);
 
 void scroll_page(
-  scroll_t      *s,
-  cursor_t      *c,
+  scroll_t    *s,
+  cursor_t    *c,
   draw_font_t *font,
-  int            height,
-  int            n
+  int          height,
+  int          n
 );

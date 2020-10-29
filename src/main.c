@@ -98,6 +98,11 @@ int main(int argc, char **argv) {
       do_update = true;
       goto end_iteration;
     }
+    if (e.type == SDL_MOUSEWHEEL) {
+      event_window = SDL_GetWindowFromID(e.wheel.windowID);
+      do_update = true;
+      goto end_iteration;
+    }
 
   end_iteration:
     if (event_window == NULL) continue;

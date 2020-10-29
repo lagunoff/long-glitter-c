@@ -6,6 +6,7 @@
 
 typedef struct {
   char *title;
+  bool  disabled;
 } menulist_item_t;
 
 typedef enum {

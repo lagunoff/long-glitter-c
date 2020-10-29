@@ -20,14 +20,12 @@
   cursor_modified(self, &old_cursor);                        \
 }
 
-static void cursor_modified (
-  buffer_t *self,
-  cursor_t *prev
-);
+static void cursor_modified (buffer_t *self,cursor_t *prev);
+static void buffer_context_menu_init(menulist_t *self);
+void buffer_view_lines(buffer_t *self, SDL_Rect *viewport);
 
 static SDL_Keysym zero_keysym = {0};
 
-static void buffer_context_menu_init(menulist_t *self);
 
 void buffer_init(buffer_t *self, draw_context_t *ctx, char *path, int font_size) {
   struct stat st;
@@ -43,6 +41,7 @@ void buffer_init(buffer_t *self, draw_context_t *ctx, char *path, int font_size)
   bs_index(&self->contents, &self->selection.mark2, 60);
 
   self->ctx = ctx;
+  self->scroll.line = 0;
   bs_begin(&self->scroll.pos, &self->contents);
   bs_begin(&self->cursor.pos, &self->contents);
   self->cursor.x0 = 0;
@@ -94,24 +93,30 @@ void buffer_view(buffer_t *self) {
   SDL_Point statusbar_measured;
   statusbar_measure(&self->statusbar, &statusbar_measured);
   const int textarea_height = viewport.h - statusbar_measured.y;
-  const int fringe = 8;
+  const int fringe = 0;
   const int cursor_width = 2;
 
-  SDL_Rect textarea_viewport = {fringe, 0, viewport.w - fringe, textarea_height};
   SDL_Rect statusbar_viewport = {0, textarea_height, viewport.w, statusbar_measured.y};
+  SDL_Rect lines_viewport = {0, 0, 64, viewport.h - statusbar_viewport.h};
+  SDL_Rect textarea_viewport = {lines_viewport.w + fringe, 0, viewport.w - fringe - lines_viewport.w, textarea_height};
   SDL_RenderSetViewport(ctx->renderer, &textarea_viewport);
   draw_set_color(ctx, ctx->background);
   SDL_RenderClear(ctx->renderer);
 
   int lines_len = div(viewport.h - statusbar_measured.y + ctx->font->X_height, ctx->font->X_height).quot + 1;
-  if (!self->lines || lines_len != self->lines_len) {
+  if (!self->lines || (lines_len != self->lines_len)) {
     self->lines_len = lines_len;
     self->lines = realloc(self->lines, self->lines_len * sizeof(int));
+    if (self->lines_len == 0) self->lines = NULL;
   }
 
-  int y=0;
+  SDL_RenderSetViewport(ctx->renderer, &lines_viewport);
+  buffer_view_lines(self, &lines_viewport);
+  SDL_RenderSetViewport(ctx->renderer, &textarea_viewport);
+
+  int y = 0;
   int i = 0;
-  for(; i < lines_len; i++) {
+  for(;;i++) {
     draw_set_color(ctx, ctx->palette->primary_text);
     int offset0 = bs_offset(&iter);
     self->lines[i] = offset0;
@@ -214,7 +219,7 @@ void buffer_view(buffer_t *self) {
       SDL_Point te;
       draw_measure_text(ctx, temp, &te);
       SDL_RenderSetViewport(ctx->renderer, NULL);
-      draw_box(ctx, fringe + te.x - cursor_width / 2, y - 2, cursor_width, ctx->font->X_height + 2);
+      draw_box(ctx, textarea_viewport.x + te.x - cursor_width / 2, y - 2, cursor_width, ctx->font->X_height + 2);
       SDL_RenderSetViewport(ctx->renderer, &textarea_viewport);
 
       /* if (cursor_char != '\0' && cursor_char != '\n') { */
@@ -225,6 +230,7 @@ void buffer_view(buffer_t *self) {
       /* } */
     }
     y += ctx->font->X_height;
+    if (y + ctx->font->X_height >= textarea_viewport.h) break;
     // Skip newline symbol
     bool eof = bs_move(&iter, 1);
     if (eof) break;
@@ -240,7 +246,7 @@ void buffer_view(buffer_t *self) {
 
 bool buffer_update(buffer_t *self, SDL_Event *e) {
   if (self->context_menu.ctx.window) {
-    menulist_action_t action = menulist_context_update(&self->context_menu, e);
+    __auto_type action = menulist_context_update(&self->context_menu, e);
     if (action == MENULIST_DESTROY) {
       draw_close_window(self->context_menu.ctx.window);
       self->context_menu.ctx.window = NULL;
@@ -252,6 +258,10 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       return true;
     }
     return false;
+  }
+  if (e->type == SDL_MOUSEWHEEL) {
+    scroll_lines(&self->scroll, -e->wheel.y);
+    return true;
   }
   if (e->type == SDL_MOUSEBUTTONDOWN) {
     if (e->button.button == SDL_BUTTON_RIGHT) {
@@ -268,7 +278,7 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       buffer_iter_screen_xy(self, &self->cursor.pos, e->button.x, e->button.y, true);
       self->selection.mark1 = self->cursor.pos;
     }
-    goto continue_command;
+    return true;
   }
   if (e->type == SDL_MOUSEBUTTONUP) {
     if (e->button.button == SDL_BUTTON_LEFT && self->selection.active == BS_DRAGGING) {
@@ -276,6 +286,7 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       int mark2_offset = bs_offset(&self->cursor.pos);
       self->selection.active = mark2_offset == mark1_offset ? BS_INACTIVE : BS_ONE_MARK;
     }
+    return true;
   }
 
   if (e->type == SDL_KEYDOWN) {
@@ -444,13 +455,13 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
     if (e->key.keysym.scancode == SDL_SCANCODE_EQUALS  && (e->key.keysym.mod & KMOD_CTRL)) {
       TTF_CloseFont(self->font.font);
       self->font.font_size += 1;
-      draw_init_font(&self->font, palette.default_font_path, self->font.font_size);
+      draw_init_font(&self->font, palette.monospace_font_path, self->font.font_size);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_MINUS && (e->key.keysym.mod & KMOD_CTRL)) {
       TTF_CloseFont(self->font.font);
       self->font.font_size -= 1;
-      draw_init_font(&self->font, palette.default_font_path, self->font.font_size);
+      draw_init_font(&self->font, palette.monospace_font_path, self->font.font_size);
       goto continue_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_PERIOD && (e->key.keysym.mod & KMOD_ALT && e->key.keysym.mod & KMOD_SHIFT)) {
@@ -633,6 +644,24 @@ bool buffer_iter_screen_xy(buffer_t *self, buff_string_iter_t *iter, int screen_
     return false;
   }));
   return true;
+}
+
+void buffer_view_lines(buffer_t *self, SDL_Rect *viewport) {
+  __auto_type ctx = self->ctx;
+  /* draw_set_color(ctx, ctx->palette->hover); */
+  /* draw_box(ctx, 0, 0, viewport->w, viewport->h); */
+  draw_set_color(ctx, ctx->palette->secondary_text);
+  char temp[64];
+  SDL_Point text_size;
+  int y = 0;
+  int line = self->scroll.line;
+  for(;;line++) {
+    sprintf(temp, "%d", line + 1);
+    draw_measure_text(ctx, temp, &text_size);
+    draw_text(ctx, viewport->w - 12 - text_size.x, y, temp);
+    y += ctx->font->X_height;
+    if (y + ctx->font->X_height >= viewport->h) break;
+  }
 }
 
 static void cursor_modified (

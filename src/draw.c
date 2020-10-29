@@ -131,12 +131,12 @@ void draw_close_window(SDL_Window *window) {
 }
 
 void draw_open_window_measure(
-  SDL_Point *pos,
-  Uint32 window_flags,
-  SDL_Window **window,
-  SDL_Renderer **renderer,
+  SDL_Point       *pos,
+  Uint32           window_flags,
+  SDL_Window     **window,
+  SDL_Renderer   **renderer,
   struct widget_t *widget,
-  void *model
+  void            *model
 ) {
   SDL_Point measured;
   widget->measure(model, &measured);
@@ -154,9 +154,9 @@ static __attribute__((constructor)) void __init__() {
     return;
   }
   palette.primary_text = draw_rgba(0,0,0,0.87);
-  palette.secondary_text = draw_rgba(0,0,0,0.54);
-  palette.current_line_bg = draw_rgba(0.0, 0.0, 0.6, 0.05);
-  palette.selection_bg = draw_rgba(0.8, 0.87, 0.98, 1);
+  palette.secondary_text = draw_rgba(0,0,0,0.17);
+  palette.current_line_bg = draw_rgba(0.0, 0.0, 0, 0.06);
+  palette.selection_bg = draw_rgba(0, 0, 0, 0.09);
   palette.default_bg = draw_rgba(1, 1, 1, 1);
   palette.ui_bg = draw_rgba(1, 1, 1, 1);
   palette.border = draw_rgba(0, 0, 0, 0.09);

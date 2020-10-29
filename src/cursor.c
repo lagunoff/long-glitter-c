@@ -93,30 +93,25 @@ void cursor_begin(cursor_t *c) {
 }
 
 void scroll_lines(scroll_t *s, int n) {
+  if (n == 0) return;
   if (n > 0) {
     int newlines = 0;
-    bs_find(&(s->pos), lambda(bool _(char c) {
+    bool eof = bs_iterate(&s->pos, BS_RIGHT, BS_DO_INCREMENT, lambda(bool _(char c) {
       if (c=='\n') {
-        if (!(newlines++ < n)) return true;
+        if (!(++newlines < n)) return true;
       }
       return false;
     }));
-    bool eof = bs_find_back(&(s->pos), lambda(bool _(char c) {
-      return c=='\n';
-    }));
-    if (!eof) bs_move(&(s->pos), 1);
+    s->line += newlines;
   } else {
-    int newlines = 0;
-    bs_find_back(&(s->pos), lambda(bool _(char c) {
+    int newlines = -1;
+    bool eof = bs_iterate(&s->pos, BS_LEFT, BS_DONT_INCREMENT, lambda(bool _(char c) {
       if (c=='\n') {
-        if (!(newlines++ < abs(n))) return true;
+        if (!(++newlines < abs(n))) return true;
       }
       return false;
     }));
-    bool eof = bs_find_back(&(s->pos), lambda(bool _(char c) {
-      return c=='\n';
-    }));
-    if (!eof) bs_move(&(s->pos), 1);
+    s->line -= eof ? newlines + 1: newlines;
   }
 }
 
