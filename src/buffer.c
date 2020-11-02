@@ -45,6 +45,7 @@ void buffer_init(buffer_t *self, char *path, int font_size) {
   self->lines = NULL;
   self->lines_len = 0;
   self->ibeam_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
+  c_mode_init(&self->c_mode);
 }
 
 void buffer_destroy(buffer_t *self) {
@@ -61,9 +62,11 @@ void buffer_view(buffer_t *self) {
   __auto_type ctx = &self->ctx;
   char temp[1024 * 16]; // Maximum line length — 16kb
   bool inside_selection = false;
-
+  c_mode_context_t c_mode = {CMODE_NORMAL};
   buff_string_iter_t iter = self->scroll.pos;
+
   int cursor_offset = bs_offset(&self->cursor.pos);
+  int scroll_offset = bs_offset(&self->scroll.pos);
   int mark1_offset = self->selection.active != BS_INACTIVE ? bs_offset(&self->selection.mark1) : -1;
   int mark2_offset
     = self->selection.active == BS_COMPLETE ? bs_offset(&self->selection.mark2)
@@ -96,6 +99,7 @@ void buffer_view(buffer_t *self) {
 
     bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
     int iter_offset = bs_offset(&iter);
+    int line_len = iter_offset - offset0;
     if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
       draw_set_color(ctx, ctx->palette->current_line_bg);
       draw_box(ctx, 0, y, viewport.w, ctx->font->X_height);
@@ -182,7 +186,18 @@ void buffer_view(buffer_t *self) {
         draw_box(ctx, 0, y, te.x, ctx->font->X_height);
         draw_set_color(ctx, ctx->palette->primary_text);
       }
-      draw_text(ctx, 0, y, temp);
+      int x = 0;
+      c_mode_highlight(&c_mode, temp, line_len, lambda(void _(char *start, int len, c_mode_state_t state){
+        char t[len + 1];
+        SDL_Point temp_size;
+        strncpy(t, start, len);
+        t[len] = '\0';
+        draw_set_color(ctx, c_mode_choose_color(ctx, state));
+        draw_text(ctx, x, y, t);
+        draw_set_color(ctx, ctx->palette->primary_text);
+        draw_measure_text(ctx, t, &temp_size);
+        x += temp_size.x;
+      }));
     }
   draw_cursor:
     if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {

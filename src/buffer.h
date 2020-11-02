@@ -9,6 +9,7 @@
 #include "widget.h"
 #include "menulist.h"
 #include "statusbar.h"
+#include "c-mode.h"
 
 typedef enum {
   BS_INACTIVE,
@@ -50,6 +51,7 @@ struct buffer_t {
   int            *lines;
   int             lines_len;
   SDL_Cursor*     ibeam_cursor;
+  c_mode_context_t c_mode;
   bool            _last_command;
   SDL_Keysym      _prev_keysym;
 };

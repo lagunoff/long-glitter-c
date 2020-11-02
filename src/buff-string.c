@@ -185,6 +185,10 @@ int bs_take_2(buff_string_iter_t *iter, char *dest, int n) {
   return MAX(0, j - 1);
 }
 
+int bs_diff(buff_string_iter_t *a, buff_string_iter_t *b) {
+  return bs_offset(b) - bs_offset(a);
+}
+
 void bs_begin(buff_string_iter_t *iter, buff_string_t **str) {
   iter->str=str;
   iter->global_index = 0;

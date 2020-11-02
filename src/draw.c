@@ -10,6 +10,15 @@ typedef union {
   Uint32 uint32;
 } color_to_uint32_t;
 
+struct hex_color {
+  char r1;
+  char r2;
+  char g1;
+  char g2;
+  char b1;
+  char b2;
+} __attribute__((packed));
+
 void draw_text(draw_context_t *ctx, int x, int y, char *text) {
   if (text[0] == '\0') return;
   SDL_Rect rect;
@@ -148,6 +157,37 @@ void draw_free_font(draw_font_t *self) {
   TTF_CloseFont(self->font);
 }
 
+SDL_Color draw_rgb_hex(char *str) {
+  int hexval(char c) {
+    return c >= '0' && c <= '9' ? c - '0' : tolower(c) - 'a' + 10;
+  }
+
+  __auto_type view_hex = (struct hex_color *)str;
+  SDL_Color color;
+  color.r = hexval(view_hex->r1) * 16 + hexval(view_hex->r2);
+  color.g = hexval(view_hex->g1) * 16 + hexval(view_hex->g2);
+  color.b = hexval(view_hex->b1) * 16 + hexval(view_hex->b2);
+  return color;
+}
+
+void draw_set_color_hex(draw_context_t *ctx, char *str) {
+  draw_set_color(ctx, draw_rgb_hex(str));
+}
+
+void draw_github_theme(syntax_theme_t *self) {
+  self->preprocessor = draw_rgb_hex("445588");
+  self->identifier = draw_rgb_hex("ba2f59");
+  self->comment = draw_rgb_hex("b8b6b1");
+  self->keyword = draw_rgb_hex("3a81c3");
+  self->builtin = draw_rgb_hex("3a81c3");
+  self->string = draw_rgb_hex("2d9574");
+  self->constant = draw_rgb_hex("DD1144");
+}
+
+void draw_init_syntax(syntax_theme_t *self) {
+  draw_github_theme(self);
+}
+
 static __attribute__((constructor)) void __init__() {
   if (TTF_Init() != 0) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
@@ -166,6 +206,7 @@ static __attribute__((constructor)) void __init__() {
   draw_init_font(&palette.default_font, palette.default_font_path, 16);
   draw_init_font(&palette.small_font, palette.default_font_path, 14);
   draw_init_font(&palette.fontawesome_font, "/home/vlad/job/long-glitter-c/assets/la-solid-900.ttf", 20);
+  draw_init_syntax(&palette.syntax);
 }
 
 static __attribute__((destructor)) void __free__() {

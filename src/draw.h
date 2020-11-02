@@ -13,6 +13,16 @@ typedef struct {
 } draw_font_t;
 
 typedef struct {
+  SDL_Color preprocessor;
+  SDL_Color comment;
+  SDL_Color keyword;
+  SDL_Color builtin;
+  SDL_Color string;
+  SDL_Color constant;
+  SDL_Color identifier;
+} syntax_theme_t;
+
+typedef struct {
   SDL_Color primary_text;
   SDL_Color secondary_text;
   SDL_Color selection_bg;
@@ -21,11 +31,12 @@ typedef struct {
   SDL_Color ui_bg;
   SDL_Color border;
   SDL_Color hover;
-  draw_font_t default_font;
-  draw_font_t small_font;
-  draw_font_t fontawesome_font;
-  char *default_font_path;
-  char *monospace_font_path;
+  syntax_theme_t syntax;
+  draw_font_t    default_font;
+  draw_font_t    small_font;
+  draw_font_t    fontawesome_font;
+  char          *default_font_path;
+  char          *monospace_font_path;
 } draw_palette_t;
 
 typedef struct {
@@ -40,8 +51,10 @@ typedef struct {
 draw_palette_t palette;
 
 SDL_Color draw_rgba(double r, double g, double b, double a);
+SDL_Color draw_rgb_hex(char *str);
 void draw_set_color(draw_context_t *ctx, SDL_Color color);
 void draw_set_color_rgba(draw_context_t *ctx, double r, double g, double b, double a);
+void draw_set_color_hex(draw_context_t *ctx, char *str);
 void draw_text(draw_context_t *ctx, int x, int y, char *text);
 void draw_glyph(draw_context_t *ctx, int x, int y, int ch, TTF_Font *font);
 void draw_rectangle(draw_context_t *ctx, Sint16 x, Sint16 y, Sint16 w, Sint16 h);
