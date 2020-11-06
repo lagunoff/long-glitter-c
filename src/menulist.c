@@ -93,13 +93,17 @@ menulist_update(menulist_t *self, SDL_Event *e) {
 menulist_action_t
 menulist_context_update(menulist_t *self, SDL_Event *e) {
   if (e->type == SDL_WINDOWEVENT) {
-    if (e->window.event == SDL_WINDOWEVENT_LEAVE || e->window.event == SDL_WINDOWEVENT_ENTER) {
+    if (e->window.event == SDL_WINDOWEVENT_LEAVE
+      || e->window.event == SDL_WINDOWEVENT_ENTER
+      || e->window.event == SDL_WINDOWEVENT_EXPOSED ) {
       return MENULIST_NOOP;
     }
     return MENULIST_DESTROY;
   }
   if (e->type == SDL_MOUSEBUTTONDOWN) {
-    return MENULIST_DESTROY;
+    if (e->button.button == SDL_BUTTON_LEFT) {
+      return MENULIST_DESTROY;
+    }
   }
   return MENULIST_NOOP;
 }

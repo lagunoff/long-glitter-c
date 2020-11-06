@@ -118,7 +118,8 @@ bool bs_iterate(
         if (dir == BS_RIGHT && iter->local_index >= str->splice.start + str->splice.len
             || dir == BS_LEFT && iter->local_index > str->splice.start + str->splice.len) {
           iter->local_index += str->splice.deleted - str->splice.len;
-          iter->begin = MAX(iter->begin, str->splice.start + str->splice.deleted);
+          iter->begin += str->splice.deleted - str->splice.len;
+          iter->end += str->splice.deleted - str->splice.len;
           str = str->splice.base;
           continue;
         }
