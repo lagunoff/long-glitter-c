@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "buffer.h"
 #include "main.h"
@@ -72,12 +73,13 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
       bs_begin(&iter, &self->contents);
       int buf_len = 1024 * 64;
       char buf[buf_len];
-      lseek(self->fd, 0, SEEK_SET);
+      remove(self->path);
+      int fd = open(self->path, O_WRONLY|O_CREAT|O_TRUNC, 0644);
       for (;;) {
         int taken = bs_take_2(&iter, buf, buf_len);
         int written = 0;
         for(;;) {
-          int w = write(self->fd, buf + written, taken - written);
+          int w = write(fd, buf + written, taken - written);
           // TODO: handle write error
           if (w == -1) goto continue_command;
           written += w;
@@ -85,6 +87,7 @@ bool buffer_update(buffer_t *self, SDL_Event *e) {
         }
         if (taken < buf_len) break;
       }
+      close(fd);
       __auto_type path = self->path;
       __auto_type font_size = self->font.font_size;
       buffer_destroy(self);

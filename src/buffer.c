@@ -17,11 +17,12 @@ static SDL_Keysym zero_keysym = {0};
 
 void buffer_init(buffer_t *self, char *path, int font_size) {
   struct stat st;
-  self->path = path;
   self->fd = open(path, O_RDWR);
+  self->path = path;
   draw_init_font(&self->font, palette.monospace_font_path, font_size);
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
+  //close(self->fd);
   self->contents = new_bytes(mmaped, st.st_size);
 
   self->selection.active = BS_INACTIVE;
@@ -79,6 +80,8 @@ void buffer_view(buffer_t *self) {
     mark2_offset = tmp;
   }
 
+  if (!self->lines) buffer_get_geometry(self, &self->geometry);
+
   SDL_Rect viewport;
   SDL_RenderGetViewport(ctx->renderer, &viewport);
   const int cursor_width = 2;
@@ -97,7 +100,7 @@ void buffer_view(buffer_t *self) {
     int offset0 = bs_offset(&iter);
     self->lines[i] = offset0;
 
-    bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
+    bool eof = bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
     int iter_offset = bs_offset(&iter);
     int line_len = iter_offset - offset0;
     if (cursor_offset >= offset0 && cursor_offset <= iter_offset) {
@@ -220,7 +223,7 @@ void buffer_view(buffer_t *self) {
     y += ctx->font->X_height;
     if (y + ctx->font->X_height >= self->geometry.textarea.h) break;
     // Skip newline symbol
-    bool eof = bs_move(&iter, 1);
+    bs_move(&iter, 1);
     if (eof) break;
   }
 

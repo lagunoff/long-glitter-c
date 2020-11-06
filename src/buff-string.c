@@ -9,8 +9,8 @@
 #include "dlist.h"
 #include "main.h"
 
-void _bs_insert_insert_fixup(buff_string_iter_t *iter, bs_splice_t *new, bs_direction_t dir);
-void _bs_insert_insert_fixup_inv(buff_string_iter_t *iter, bs_splice_t *new);
+void _bs_insert_insert_fixup(buff_string_iter_t *iter, buff_string_t *new, bs_direction_t dir);
+void _bs_insert_insert_fixup_inv(buff_string_iter_t *iter, buff_string_t *new);
 
 int bs_length(buff_string_t *str) {
   buff_string_iter_t iter;
@@ -178,12 +178,13 @@ bool bs_take(buff_string_iter_t *iter, char *dest, int n) {
 
 int bs_take_2(buff_string_iter_t *iter, char *dest, int n) {
   int j = 0;
+  // TODO: too slow, need to copy the string block by block
   bs_find(iter, lambda(bool _(char c) {
     bool is_ok = j < n;
     if (is_ok) dest[j++] = c;
     return !is_ok;
   }));
-  return MAX(0, j - 1);
+  return MAX(0, j);
 }
 
 int bs_diff(buff_string_iter_t *a, buff_string_iter_t *b) {
@@ -243,7 +244,7 @@ buff_string_t *bs_insert_undo(buff_string_t *base, ...) {
     while(1) {
       buff_string_iter_t *it = va_arg(iters, buff_string_iter_t *);
       if (it == NULL) break;
-      _bs_insert_insert_fixup_inv(it, (bs_splice_t *)new);
+      _bs_insert_insert_fixup_inv(it, new);
     }
     va_end(iters);
     buff_string_t *new_base = base->splice.base;
@@ -257,16 +258,16 @@ buff_string_t *bs_insert_undo(buff_string_t *base, ...) {
   }
 }
 
-void _bs_insert_insert_fixup(buff_string_iter_t *iter, bs_splice_t *new, bs_direction_t dir) {
-  if (new->start <= iter->global_index) {
-    int dx = new->len - (dir == BS_LEFT ? new->deleted : 0);
+void _bs_insert_insert_fixup(buff_string_iter_t *iter, buff_string_t *new, bs_direction_t dir) {
+  if (new->splice.start <= iter->global_index) {
+    int dx = new->splice.len - (dir == BS_LEFT ? new->splice.deleted : 0);
     bs_move(iter, dx);
   }
 }
 
-void _bs_insert_insert_fixup_inv(buff_string_iter_t *iter, bs_splice_t *new) {
-  if (new->start < iter->global_index) {
-    int dx = -MIN(new->len, iter->global_index - new->start) + new->deleted;
+void _bs_insert_insert_fixup_inv(buff_string_iter_t *iter, buff_string_t *new) {
+  if (new->splice.start < iter->global_index) {
+    int dx = -MIN(new->splice.len, iter->global_index - new->splice.start) + new->splice.deleted;
     bs_move(iter, dx);
   }
 }
