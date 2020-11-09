@@ -64,6 +64,3 @@ void draw_init_font(draw_font_t *self, char *path, int font_size);
 void draw_free_font(draw_font_t *self);
 void draw_init_palette(draw_palette_t *self);
 void draw_init_context(draw_context_t *self, draw_font_t *font);
-void draw_open_window(SDL_Rect *size_pos, Uint32 window_flags, SDL_Window **window, SDL_Renderer **renderer, struct widget_t *widget, void *model);
-void draw_open_window_measure(SDL_Point *pos, Uint32 window_flags, SDL_Window **window, SDL_Renderer **renderer, struct widget_t *widget, void *model);
-void draw_close_window(SDL_Window *window);

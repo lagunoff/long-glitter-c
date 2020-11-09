@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <limits.h>
 #include <SDL2/SDL.h>
 #include <SDL2_gfxPrimitives.h>
 
@@ -63,7 +64,7 @@ void buffer_view(buffer_t *self) {
   __auto_type ctx = &self->ctx;
   char temp[1024 * 16]; // Maximum line length — 16kb
   bool inside_selection = false;
-  c_mode_context_t c_mode = {CMODE_NORMAL};
+  c_mode_context_t c_mode = {C_MODE_NORMAL};
   buff_string_iter_t iter = self->scroll.pos;
 
   int cursor_offset = bs_offset(&self->cursor.pos);
@@ -308,15 +309,78 @@ void buffer_get_geometry(buffer_t *self, buffer_geometry_t *geometry) {
   }
 }
 
-static __attribute__((constructor)) void __init__() {
-  buffer_widget.update = (update_t)buffer_update;
-  buffer_widget.view = (view_t)buffer_view;
-  buffer_widget.free = (finalizer_t)buffer_destroy;
+void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
+  void yield_context_menu(void *msg) {
+    buffer_msg_t buffer_msg = {.tag = BUFFER_CONTEXT_MENU, .context_menu = *(menulist_msg_t *)msg};
+    yield(&buffer_msg);
+  }
 
-  buffer_context_menu_widget.update = (update_t)menulist_update;
-  buffer_context_menu_widget.view = (view_t)menulist_view;
-  buffer_context_menu_widget.measure = (measure_t)menulist_measure;
-  buffer_context_menu_widget.free = (finalizer_t)menulist_free;
+  switch (msg->tag) {
+    case MSG_SDL_EVENT: {
+      buffer_dispatch_sdl(self, msg, yield, &yield_context_menu);
+      return;
+    }
+    case MSG_FREE: {
+      buffer_destroy(self);
+      return;
+    }
+    case MSG_VIEW: {
+      buffer_view(self);
+      return;
+    }
+    case MSG_MEASURE: {
+      msg->widget.measure.result->x = INT_MAX;
+      msg->widget.measure.result->y = INT_MAX;
+      return;
+    }
+    case BUFFER_CUT: {
+      buff_string_iter_t mark_1 = self->selection.mark1;
+      buff_string_iter_t mark_2 = self->cursor.pos;
+      if (mark_1.global_index > mark_2.global_index) {
+        buff_string_iter_t tmp = mark_1;
+        mark_1 = mark_2;
+        mark_2 = tmp;
+      }
+      int len = mark_2.global_index - mark_1.global_index;
+      char temp[len + 1];
+      buff_string_iter_t mark_1_temp = mark_1;
+      bs_take(&mark_1_temp, temp, len);
+      SDL_SetClipboardText(temp);
+      self->contents = bs_insert(
+        self->contents,
+        mark_1.global_index,
+        "", len,
+        BS_RIGHT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
+      self->selection.active = BS_INACTIVE;
+      yield(&msg_view);
+      return;
+    }
+    case BUFFER_CONTEXT_MENU: {
+      if (msg->context_menu.tag == MENULIST_ITEM_CLICKED) {
+        buffer_msg_t next_msg = {.tag = msg->context_menu.item_clicked->action};
+        yield(&next_msg);
+        widget_close_window(self->context_menu.ctx.window);
+        self->context_menu.ctx.window = NULL;
+        return;
+      }
+      if (msg->context_menu.tag == MENULIST_DESTROY) {
+        widget_close_window(self->context_menu.ctx.window);
+        self->context_menu.ctx.window = NULL;
+        return;
+      }
+      menulist_dispatch(&self->context_menu, &msg->context_menu, &yield_context_menu);
+      if (msg->context_menu.tag == MSG_VIEW) {
+        SDL_RenderPresent(self->context_menu.ctx.renderer);
+      }
+      return;
+    }
+    default: {
+      return;
+    }
+  }
 }
 
 int buffer_unittest() {

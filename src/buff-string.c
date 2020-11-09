@@ -229,7 +229,7 @@ buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted,
   while(1) {
     buff_string_iter_t *it = va_arg(iters, buff_string_iter_t *);
     if (it == NULL) break;
-    _bs_insert_insert_fixup(it, (bs_splice_t *)splice, dir);
+    _bs_insert_insert_fixup(it, splice, dir);
   }
   va_end(iters);
   return splice;
@@ -238,13 +238,13 @@ buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted,
 buff_string_t *bs_insert_undo(buff_string_t *base, ...) {
   switch (base->tag) {
   case BS_SPLICE: {
-    bs_splice_t *new = &base->splice;
+    __auto_type new = &base->splice;
     va_list iters;
     va_start(iters, base);
     while(1) {
       buff_string_iter_t *it = va_arg(iters, buff_string_iter_t *);
       if (it == NULL) break;
-      _bs_insert_insert_fixup_inv(it, new);
+      _bs_insert_insert_fixup_inv(it, base);
     }
     va_end(iters);
     buff_string_t *new_base = base->splice.base;

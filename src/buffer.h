@@ -57,12 +57,37 @@ struct buffer_t {
 };
 typedef struct buffer_t buffer_t;
 
-widget_t buffer_widget;
-widget_t buffer_context_menu_widget;
+typedef enum {
+  BUFFER_CONTEXT_MENU = MSG_USER,
+  BUFFER_CUT,
+  BUFFER_COPY,
+  BUFFER_PASTE,
+} buffer_msg_tag_t;
+
+typedef union {
+  menulist_item_t menulist_item;
+  struct {
+    char *title;
+    bool  disabled;
+    int   icon;
+    buffer_msg_tag_t action;
+  };
+} buffer_context_menu_item_t __attribute__((__transparent_union__));
+
+typedef union {
+  widget_msg_t widget;
+  struct {
+    buffer_msg_tag_t tag;
+    union {
+      menulist_msg_t context_menu;
+    };
+  };
+} buffer_msg_t;
 
 void buffer_init(buffer_t *self, char *path, int font_size);
 void buffer_destroy(buffer_t *self);
-bool buffer_update(buffer_t *self, SDL_Event *e);
-void buffer_view(buffer_t *self);
+void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield);
+
+void buffer_dispatch_sdl(buffer_t *self, buffer_msg_t *msg, yield_t yield, yield_t yield_cm);
 bool buffer_iter_screen_xy(buffer_t *self, buff_string_iter_t *iter, int x, int y, bool x_adjust);
 void buffer_get_geometry(buffer_t *self, buffer_geometry_t *geometry);

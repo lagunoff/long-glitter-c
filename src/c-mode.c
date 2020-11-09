@@ -101,100 +101,100 @@ static char *c_mode_types[] = {
 };
 
 void c_mode_init(c_mode_context_t *ctx) {
-  ctx->state = CMODE_NORMAL;
+  ctx->state = C_MODE_NORMAL;
 }
 
 SDL_Color c_mode_choose_color(draw_context_t *ctx, c_mode_state_t state) {
   switch (state) {
-  case CMODE_NORMAL: return ctx->palette->primary_text;
-  case CMODE_SINGLE_COMMENT: return ctx->palette->syntax.comment;
-  case CMODE_MULTI_COMMENT: return ctx->palette->syntax.comment;
-  case CMODE_KEYWORD: return ctx->palette->syntax.keyword;
-  case CMODE_CONTROL_FLOW: return ctx->palette->syntax.builtin;
-  case CMODE_TYPES: return ctx->palette->syntax.identifier;
-  case CMODE_PREPROCESSOR: return ctx->palette->syntax.preprocessor;
-  case CMODE_STRING: return ctx->palette->syntax.string;
-  case CMODE_CONSTANT: return ctx->palette->syntax.constant;
+  case C_MODE_NORMAL: return ctx->palette->primary_text;
+  case C_MODE_SINGLE_COMMENT: return ctx->palette->syntax.comment;
+  case C_MODE_MULTI_COMMENT: return ctx->palette->syntax.comment;
+  case C_MODE_KEYWORD: return ctx->palette->syntax.keyword;
+  case C_MODE_CONTROL_FLOW: return ctx->palette->syntax.builtin;
+  case C_MODE_TYPES: return ctx->palette->syntax.identifier;
+  case C_MODE_PREPROCESSOR: return ctx->palette->syntax.preprocessor;
+  case C_MODE_STRING: return ctx->palette->syntax.string;
+  case C_MODE_CONSTANT: return ctx->palette->syntax.constant;
   }
 }
 
 void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result_t result) {
   char *prefix_start = input;
   char *iter = input;
-  c_mode_state_t state = CMODE_NORMAL;
+  c_mode_state_t state = C_MODE_NORMAL;
   for (;iter < input + len;) {
     int eaten = 0;
     switch (ctx->state) {
-    case CMODE_KEYWORD: {
+    case C_MODE_KEYWORD: {
       // Seek end of word
       break;
     }
-    case CMODE_CONTROL_FLOW: {
+    case C_MODE_CONTROL_FLOW: {
       // Seek end of word
       break;
     }
-    case CMODE_TYPES: {
+    case C_MODE_TYPES: {
       // Seek end of word
       break;
     }
-    case CMODE_CONSTANT: {
+    case C_MODE_CONSTANT: {
       __auto_type curr_char = *iter;
       if (!isdigit(*iter)) {
         __auto_type prefix_len = iter - prefix_start;
-        if (prefix_len) result(prefix_start, prefix_len, CMODE_CONSTANT);
-        ctx->state = CMODE_NORMAL;
+        if (prefix_len) result(prefix_start, prefix_len, C_MODE_CONSTANT);
+        ctx->state = C_MODE_NORMAL;
         prefix_start = iter;
         continue;
       }
       break;
     }
-    case CMODE_SINGLE_COMMENT: {
+    case C_MODE_SINGLE_COMMENT: {
       // SEEK NEWLINE
       __auto_type comment_len = len - (iter - input);
-      if (comment_len) result(iter, comment_len, CMODE_SINGLE_COMMENT);
+      if (comment_len) result(iter, comment_len, C_MODE_SINGLE_COMMENT);
       iter += comment_len;
       prefix_start = iter;
-      ctx->state = CMODE_NORMAL;
+      ctx->state = C_MODE_NORMAL;
       break;
     }
-    case CMODE_MULTI_COMMENT: {
+    case C_MODE_MULTI_COMMENT: {
       // SEEK END SEQ
       __auto_type curr_char = *iter;
       __auto_type next_char = iter == input + len ? ' ' : *(iter + 1);
       if (curr_char == '*' && next_char == '/') {
         iter += 2;
         __auto_type prefix_len = iter - prefix_start;
-        if (prefix_len) result(prefix_start, prefix_len, CMODE_MULTI_COMMENT);
-        ctx->state = CMODE_NORMAL;
+        if (prefix_len) result(prefix_start, prefix_len, C_MODE_MULTI_COMMENT);
+        ctx->state = C_MODE_NORMAL;
         prefix_start = iter;
         continue;
       }
       break;
     }
-    case CMODE_STRING: {
+    case C_MODE_STRING: {
       __auto_type curr_char = *iter;
       __auto_type prev_char = iter == input ? ' ' : *(iter - 1);
       if (curr_char == '"' && prev_char != '\\') {
         iter += 1;
         __auto_type prefix_len = iter - prefix_start;
-        if (prefix_len) result(prefix_start, prefix_len, CMODE_STRING);
-        ctx->state = CMODE_NORMAL;
+        if (prefix_len) result(prefix_start, prefix_len, C_MODE_STRING);
+        ctx->state = C_MODE_NORMAL;
         prefix_start = iter;
         continue;
       }
       break;
     }
-    case CMODE_PREPROCESSOR: {
+    case C_MODE_PREPROCESSOR: {
       if (!isalnum(*iter)) {
         __auto_type prefix_len = iter - prefix_start;
-        if (prefix_len) result(prefix_start, prefix_len, CMODE_PREPROCESSOR);
-        ctx->state = CMODE_NORMAL;
+        if (prefix_len) result(prefix_start, prefix_len, C_MODE_PREPROCESSOR);
+        ctx->state = C_MODE_NORMAL;
         prefix_start = iter;
         continue;
       }
       break;
     }
-    case CMODE_NORMAL: {
+    case C_MODE_NORMAL: {
       // Lookup for start of other syntax modes
       __auto_type last_char = iter == input ? ' ' : *(iter - 1);
       __auto_type curr_char = *iter;
@@ -204,13 +204,13 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
         __auto_type prefix_len = iter - prefix_start;
         if (prefix_len) result(prefix_start, prefix_len, ctx->state);
         prefix_start = iter;
-        ctx->state = CMODE_CONSTANT;
+        ctx->state = C_MODE_CONSTANT;
         continue;
       }
       if (curr_char == '/' && next_char == '/') {
         __auto_type prefix_len = iter - prefix_start;
         if (prefix_len) result(prefix_start, prefix_len, ctx->state);
-        ctx->state = CMODE_SINGLE_COMMENT;
+        ctx->state = C_MODE_SINGLE_COMMENT;
         continue;
       }
       if (curr_char == '/' && next_char == '*') {
@@ -218,7 +218,7 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
         if (prefix_len) result(prefix_start, prefix_len, ctx->state);
         prefix_start = iter;
         iter += 2;
-        ctx->state = CMODE_MULTI_COMMENT;
+        ctx->state = C_MODE_MULTI_COMMENT;
         continue;
       }
       if (curr_char == '#') {
@@ -226,7 +226,7 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
         if (prefix_len) result(prefix_start, prefix_len, ctx->state);
         prefix_start = iter;
         iter += 1;
-        ctx->state = CMODE_PREPROCESSOR;
+        ctx->state = C_MODE_PREPROCESSOR;
         continue;
       }
       if (curr_char == '"') {
@@ -234,15 +234,15 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
         if (prefix_len) result(prefix_start, prefix_len, ctx->state);
         prefix_start = iter;
         iter += 1;
-        ctx->state = CMODE_STRING;
+        ctx->state = C_MODE_STRING;
         continue;
       }
       eaten = c_mode_match_strings(iter, len - (iter - input), c_mode_keywords, sizeof(c_mode_keywords)/sizeof(c_mode_keywords[0]));
-      if (eaten) { state = CMODE_KEYWORD; goto eaten_some; }
+      if (eaten) { state = C_MODE_KEYWORD; goto eaten_some; }
       eaten = c_mode_match_strings(iter, len - (iter - input), c_mode_control_flow, sizeof(c_mode_control_flow)/sizeof(c_mode_control_flow[0]));
-      if (eaten) { state = CMODE_CONTROL_FLOW; goto eaten_some; }
+      if (eaten) { state = C_MODE_CONTROL_FLOW; goto eaten_some; }
       eaten = c_mode_match_strings(iter, len - (iter - input), c_mode_types, sizeof(c_mode_types)/sizeof(c_mode_types[0]));
-      if (eaten) { state = CMODE_TYPES; goto eaten_some; }
+      if (eaten) { state = C_MODE_TYPES; goto eaten_some; }
       break;
     }
     }
@@ -254,7 +254,7 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
         result(prefix_start, prefix_len, ctx->state);
       }
       result(iter, eaten, state);
-      ctx->state = CMODE_NORMAL;
+      ctx->state = C_MODE_NORMAL;
       iter = iter + eaten;
       prefix_start = iter;
     }

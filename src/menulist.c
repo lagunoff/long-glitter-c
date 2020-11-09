@@ -39,13 +39,9 @@ menulist_view(menulist_t *self) {
       draw_box(ctx, 0, y - y_margin * 0.5, viewport.w, item_height);
       draw_set_color(ctx, ctx->palette->primary_text);
     }
-    int glyph = -1;
-    if (strcmp(item_ptr->title, "Cut") == 0) glyph = 0xf0c4;
-    if (strcmp(item_ptr->title, "Copy") == 0) glyph = 0xf328;
-    if (strcmp(item_ptr->title, "Paste") == 0) glyph = 0xf15c;
-    if (glyph != -1) {
+    if (item_ptr->title) {
       draw_set_color(ctx, palette.secondary_text);
-      draw_glyph(ctx, 8, y - y_margin * 0.5 + (item_height - palette.fontawesome_font.ascent) * 0.5 - 1, glyph, palette.fontawesome_font.font);
+      draw_glyph(ctx, 8, y - y_margin * 0.5 + (item_height - palette.fontawesome_font.ascent) * 0.5 - 1, item_ptr->icon, palette.fontawesome_font.font);
       draw_set_color(ctx, palette.primary_text);
     }
     draw_text(ctx, x_padding + 1, y, item_ptr->title);
@@ -56,61 +52,102 @@ menulist_view(menulist_t *self) {
 }
 
 void
-menulist_measure(menulist_t *self, SDL_Point *size) {
-  int item_height = self->ctx.font->X_height + y_margin;
-  size->x = 200;
-  size->y = self->len * item_height + y_margin + 2;
-}
-
-bool
-menulist_update(menulist_t *self, SDL_Event *e) {
-  if (e->type == SDL_MOUSEMOTION) {
-    SDL_Rect viewport;
-    SDL_RenderGetViewport(self->ctx.renderer, &viewport);
-    int y_margin = 8;
-    int item_height = self->ctx.font->X_height + y_margin;
-    int y = 1 + y_margin;
-    for (int i = 0; i < self->len; i++) {
-      if (e->motion.y - viewport.y >= y && e->motion.y - viewport.y < y + item_height) {
-        self->hover = i;
-        return true;
+menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
+  switch (msg->tag) {
+    case MSG_SDL_EVENT: {
+      __auto_type e = msg->widget.sdl_event.event;
+      if (e->type == SDL_MOUSEMOTION) {
+        SDL_Rect viewport;
+        SDL_RenderGetViewport(self->ctx.renderer, &viewport);
+        int y_margin = 8;
+        int item_height = self->ctx.font->X_height + y_margin;
+        int y = 1 + y_margin;
+        for (int i = 0; i < self->len; i++) {
+          if (e->motion.y - viewport.y >= y && e->motion.y - viewport.y < y + item_height) {
+            self->hover = i;
+            goto _view;
+          }
+          y += item_height;
+        }
+        self->hover = -1;
       }
-      y += item_height;
+      if (e->type == SDL_MOUSEBUTTONUP) {
+        SDL_Rect viewport;
+        SDL_RenderGetViewport(self->ctx.renderer, &viewport);
+        int y_margin = 8;
+        int item_height = self->ctx.font->X_height + y_margin;
+        int y = 1 + y_margin;
+        for (int i = 0; i < self->len; i++) {
+          if (e->motion.y - viewport.y >= y && e->motion.y - viewport.y < y + item_height) {
+            __auto_type ptr8 = (uint8_t *)self->items;
+            __auto_type item_ptr = (menulist_item_t *)(ptr8 + i * self->alignement);
+            __auto_type clicked_msg = menulist_item_clicked(item_ptr);
+            return yield(&clicked_msg);
+          }
+          y += item_height;
+        }
+        self->hover = -1;
+      }
+      if (e->type == SDL_WINDOWEVENT) {
+        if (e->window.event == SDL_WINDOWEVENT_LEAVE) {
+          self->hover = -1;
+          goto _view;
+        }
+      }
+      goto _view;
     }
-    self->hover = -1;
+    case MSG_FREE: {
+      goto _noop;
+    }
+    case MSG_VIEW: {
+      menulist_view(self);
+      goto _noop;
+    }
+    case MSG_MEASURE: {
+      int item_height = self->ctx.font->X_height + y_margin;
+      msg->widget.measure.result->x = 200;
+      msg->widget.measure.result->y = self->len * item_height + y_margin + 2;
+      goto _noop;
+    }
+    case MENULIST_DESTROY: {
+      goto _noop;
+    }
+    case MENULIST_PARENT_WINDOW: {
+      __auto_type e = msg->parent_sdl_event;
+      if (e->type == SDL_WINDOWEVENT) {
+        if (e->window.event == SDL_WINDOWEVENT_LEAVE
+            || e->window.event == SDL_WINDOWEVENT_ENTER
+            || e->window.event == SDL_WINDOWEVENT_EXPOSED ) {
+          goto _noop;
+        }
+        yield(&menulist_destroy);
+        return;
+      }
+      if (e->type == SDL_MOUSEBUTTONDOWN) {
+        if (e->button.button == SDL_BUTTON_LEFT) {
+          yield(&menulist_destroy);
+          return;
+        }
+      }
+      goto _noop;
+    }
   }
 
-  if (e->type == SDL_WINDOWEVENT) {
-    if (e->window.event == SDL_WINDOWEVENT_LEAVE) {
-      self->hover = -1;
-      return true;
-    }
-  }
-
-  return true;
+  _noop:
+  return;
+  _view:
+  yield(&msg_view);
+  return;
 }
 
-menulist_action_t
-menulist_context_update(menulist_t *self, SDL_Event *e) {
-  if (e->type == SDL_WINDOWEVENT) {
-    if (e->window.event == SDL_WINDOWEVENT_LEAVE
-      || e->window.event == SDL_WINDOWEVENT_ENTER
-      || e->window.event == SDL_WINDOWEVENT_EXPOSED ) {
-      return MENULIST_NOOP;
-    }
-    return MENULIST_DESTROY;
-  }
-  if (e->type == SDL_MOUSEBUTTONDOWN) {
-    if (e->button.button == SDL_BUTTON_LEFT) {
-      return MENULIST_DESTROY;
-    }
-  }
-  return MENULIST_NOOP;
+menulist_msg_t menulist_destroy = {.tag = MENULIST_DESTROY};
+
+menulist_msg_t menulist_parent_window(SDL_Event *event) {
+  menulist_msg_t msg = {.tag = MENULIST_PARENT_WINDOW, .parent_sdl_event = event};
+  return msg;
 }
 
-static __attribute__((constructor)) void __init__() {
-  menulist_widget.update = (update_t)menulist_update;
-  menulist_widget.view = (view_t)menulist_view;
-  menulist_widget.measure = (measure_t)menulist_measure;
-  menulist_widget.free = (finalizer_t)menulist_free;
+menulist_msg_t menulist_item_clicked(menulist_item_t *item) {
+  menulist_msg_t msg = {.tag = MENULIST_ITEM_CLICKED, .item_clicked = item};
+  return msg;
 }
