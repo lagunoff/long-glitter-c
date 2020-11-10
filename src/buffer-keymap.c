@@ -26,7 +26,7 @@ void buffer_dispatch_sdl(buffer_t *self, buffer_msg_t *msg, yield_t yield, yield
     menulist_dispatch(&self->context_menu, &msg, yield_cm);
   }
   if (e->type == SDL_MOUSEMOTION) {
-    if (self->selection.active == BS_DRAGGING) {
+    if (self->selection.state == SELECTION_DRAGGING_MOUSE) {
       buffer_iter_screen_xy(self, &self->cursor.pos, e->motion.x, e->motion.y, true);
       goto _view;
     }
@@ -47,17 +47,18 @@ void buffer_dispatch_sdl(buffer_t *self, buffer_msg_t *msg, yield_t yield, yield
       widget_open_window_measure(&size_pos, SDL_WINDOW_TOOLTIP, &self->context_menu.ctx.window, &self->context_menu.ctx.renderer, (widget_t)&buffer_context_menu_dispatch, self);
     }
     if (e->button.button == SDL_BUTTON_LEFT) {
-      self->selection.active = BS_DRAGGING;
+      self->selection.state = SELECTION_DRAGGING_MOUSE;
       buffer_iter_screen_xy(self, &self->cursor.pos, e->button.x, e->button.y, true);
-      self->selection.mark1 = self->cursor.pos;
+      self->selection.mark_1 = self->cursor.pos;
     }
     goto _view;
   }
   if (e->type == SDL_MOUSEBUTTONUP) {
-    if (e->button.button == SDL_BUTTON_LEFT && self->selection.active == BS_DRAGGING) {
-      int mark1_offset = bs_offset(&self->selection.mark1);
+    if (e->button.button == SDL_BUTTON_LEFT && self->selection.state == SELECTION_DRAGGING_MOUSE) {
+      int mark1_offset = bs_offset(&self->selection.mark_1);
       int mark2_offset = bs_offset(&self->cursor.pos);
-      self->selection.active = mark2_offset == mark1_offset ? BS_INACTIVE : BS_ONE_MARK;
+      self->selection.state = mark2_offset == mark1_offset ? SELECTION_INACTIVE : SELECTION_COMPLETE;
+      self->selection.mark_2 = self->cursor.pos;
     }
     goto _view;
   }
@@ -91,7 +92,7 @@ void buffer_dispatch_sdl(buffer_t *self, buffer_msg_t *msg, yield_t yield, yield
       close(fd);
       __auto_type path = self->path;
       __auto_type font_size = self->font.font_size;
-      buffer_destroy(self);
+      buffer_free(self);
       buffer_init(self, path, font_size);
       goto _view_command;
     }
@@ -289,17 +290,18 @@ void buffer_dispatch_sdl(buffer_t *self, buffer_msg_t *msg, yield_t yield, yield
       goto _view_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_SPACE && (e->key.keysym.mod & KMOD_CTRL)) {
-      self->selection.active = BS_ONE_MARK;
-      self->selection.mark1 = self->cursor.pos;
+      self->selection.state = SELECTION_COMPLETE;
+      self->selection.mark_1 = self->cursor.pos;
+      self->selection.mark_2 = self->cursor.pos;
       goto _view_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_G && (e->key.keysym.mod & KMOD_CTRL)) {
-      self->selection.active = BS_INACTIVE;
-      self->selection.mark1 = self->cursor.pos;
+      self->selection.state = SELECTION_INACTIVE;
+      self->selection.mark_1 = self->cursor.pos;
       goto _view_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_W && (e->key.keysym.mod & KMOD_CTRL)) {
-      if (self->selection.active) {
+      if (self->selection.state) {
         msg->tag = BUFFER_CUT;
         self->_last_command = true;
         self->_prev_keysym = zero_keysym;
@@ -308,8 +310,8 @@ void buffer_dispatch_sdl(buffer_t *self, buffer_msg_t *msg, yield_t yield, yield
       goto _view_command;
     }
     if (e->key.keysym.scancode == SDL_SCANCODE_W && (e->key.keysym.mod & KMOD_ALT)) {
-      if (self->selection.active) {
-        buff_string_iter_t mark_1 = self->selection.mark1;
+      if (self->selection.state) {
+        buff_string_iter_t mark_1 = self->selection.mark_1;
         buff_string_iter_t mark_2 = self->cursor.pos;
         if (mark_1.global_index > mark_2.global_index) {
           buff_string_iter_t tmp = mark_1;
@@ -320,8 +322,13 @@ void buffer_dispatch_sdl(buffer_t *self, buffer_msg_t *msg, yield_t yield, yield
         char temp[len + 1];
         bs_take(&mark_1, temp, len);
         SDL_SetClipboardText(temp);
-        self->selection.active = BS_INACTIVE;
+        self->selection.state = SELECTION_INACTIVE;
       }
+      goto _view_command;
+    }
+    if (e->key.keysym.scancode == SDL_SCANCODE_F10) {
+      self->show_lines = self->show_lines ? false : true;
+      buffer_get_geometry(self, &self->geometry);
       goto _view_command;
     }
     self->_last_command = false;

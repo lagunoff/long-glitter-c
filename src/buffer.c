@@ -23,12 +23,11 @@ void buffer_init(buffer_t *self, char *path, int font_size) {
   draw_init_font(&self->font, palette.monospace_font_path, font_size);
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
-  //close(self->fd);
   self->contents = new_bytes(mmaped, st.st_size);
 
-  self->selection.active = BS_INACTIVE;
-  bs_index(&self->contents, &self->selection.mark1, 0);
-  bs_index(&self->contents, &self->selection.mark2, 60);
+  self->selection.state = SELECTION_INACTIVE;
+  bs_index(&self->contents, &self->selection.mark_1, 0);
+  bs_index(&self->contents, &self->selection.mark_2, 60);
 
   draw_init_context(&self->ctx, &self->font);
   self->scroll.line = 0;
@@ -46,11 +45,13 @@ void buffer_init(buffer_t *self, char *path, int font_size) {
   statusbar_init(&self->statusbar, self);
   self->lines = NULL;
   self->lines_len = 0;
+  self->show_lines = true;
+  self->single_line = false;
   self->ibeam_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
   c_mode_init(&self->c_mode);
 }
 
-void buffer_destroy(buffer_t *self) {
+void buffer_free(buffer_t *self) {
   TTF_CloseFont(self->font.font);
   bs_free(self->contents, lambda(void _(bs_bytes_t *b){
     munmap(b->bytes, b->len);
@@ -69,17 +70,9 @@ void buffer_view(buffer_t *self) {
 
   int cursor_offset = bs_offset(&self->cursor.pos);
   int scroll_offset = bs_offset(&self->scroll.pos);
-  int mark1_offset = self->selection.active != BS_INACTIVE ? bs_offset(&self->selection.mark1) : -1;
-  int mark2_offset
-    = self->selection.active == BS_COMPLETE ? bs_offset(&self->selection.mark2)
-    : self->selection.active == BS_ONE_MARK ? bs_offset(&self->cursor.pos)
-    : self->selection.active == BS_DRAGGING ? bs_offset(&self->cursor.pos)
-    : -1;
-  if (mark1_offset > mark2_offset) {
-    int tmp = mark1_offset;
-    mark1_offset = mark2_offset;
-    mark2_offset = tmp;
-  }
+  __auto_type sel_range = selection_get_range(&self->selection, &self->cursor);
+  int mark1_offset = sel_range.x;
+  int mark2_offset = sel_range.y;
 
   if (!self->lines) buffer_get_geometry(self, &self->geometry);
 
@@ -287,7 +280,7 @@ void buffer_get_geometry(buffer_t *self, buffer_geometry_t *geometry) {
 
   geometry->lines.x = 0;
   geometry->lines.y = 0;
-  geometry->lines.w = 64;
+  geometry->lines.w = self->show_lines ? 64 : 0;
   geometry->lines.h = viewport.h - statusbar_size.y;
 
   geometry->textarea.x = geometry->lines.w;
@@ -321,7 +314,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       return;
     }
     case MSG_FREE: {
-      buffer_destroy(self);
+      buffer_free(self);
       return;
     }
     case MSG_VIEW: {
@@ -334,12 +327,12 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       return;
     }
     case BUFFER_CUT: {
-      buff_string_iter_t mark_1 = self->selection.mark1;
+      buff_string_iter_t mark_1 = self->selection.mark_1;
       buff_string_iter_t mark_2 = self->cursor.pos;
       if (mark_1.global_index > mark_2.global_index) {
-        buff_string_iter_t tmp = mark_1;
+        __auto_type temp = mark_1;
         mark_1 = mark_2;
-        mark_2 = tmp;
+        mark_2 = temp;
       }
       int len = mark_2.global_index - mark_1.global_index;
       char temp[len + 1];
@@ -354,7 +347,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
         &self->cursor.pos,
         &self->scroll.pos, NULL
       );
-      self->selection.active = BS_INACTIVE;
+      self->selection.state = SELECTION_INACTIVE;
       yield(&msg_view);
       return;
     }

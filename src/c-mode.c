@@ -100,11 +100,11 @@ static char *c_mode_types[] = {
   "max_align_t",
 };
 
-void c_mode_init(c_mode_context_t *ctx) {
-  ctx->state = C_MODE_NORMAL;
+void c_mode_init(c_mode_state_t *ctx) {
+  ctx->token = C_MODE_NORMAL;
 }
 
-SDL_Color c_mode_choose_color(draw_context_t *ctx, c_mode_state_t state) {
+SDL_Color c_mode_choose_color(draw_context_t *ctx, c_mode_token_t state) {
   switch (state) {
   case C_MODE_NORMAL: return ctx->palette->primary_text;
   case C_MODE_SINGLE_COMMENT: return ctx->palette->syntax.comment;
@@ -118,13 +118,21 @@ SDL_Color c_mode_choose_color(draw_context_t *ctx, c_mode_state_t state) {
   }
 }
 
-void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result_t result) {
-  char *prefix_start = input;
-  char *iter = input;
-  c_mode_state_t state = C_MODE_NORMAL;
+void c_mode_highlight(c_mode_state_t *ctx, highlighter_args_t *args, highlighter_cb_t cb) {
+  __auto_type input = args->input;
+  __auto_type len = args->len;
+  __auto_type prefix_start = input;
+  __auto_type iter = input;
+  __auto_type state = C_MODE_NORMAL;
+
+  void result(char *start, int len, c_mode_token_t tok) {
+    args->ctx->foreground = c_mode_choose_color(args->ctx, tok);
+    cb(start, len, args->ctx);
+  }
+
   for (;iter < input + len;) {
     int eaten = 0;
-    switch (ctx->state) {
+    switch (ctx->token) {
     case C_MODE_KEYWORD: {
       // Seek end of word
       break;
@@ -142,7 +150,7 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
       if (!isdigit(*iter)) {
         __auto_type prefix_len = iter - prefix_start;
         if (prefix_len) result(prefix_start, prefix_len, C_MODE_CONSTANT);
-        ctx->state = C_MODE_NORMAL;
+        ctx->token = C_MODE_NORMAL;
         prefix_start = iter;
         continue;
       }
@@ -154,7 +162,7 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
       if (comment_len) result(iter, comment_len, C_MODE_SINGLE_COMMENT);
       iter += comment_len;
       prefix_start = iter;
-      ctx->state = C_MODE_NORMAL;
+      ctx->token = C_MODE_NORMAL;
       break;
     }
     case C_MODE_MULTI_COMMENT: {
@@ -165,7 +173,7 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
         iter += 2;
         __auto_type prefix_len = iter - prefix_start;
         if (prefix_len) result(prefix_start, prefix_len, C_MODE_MULTI_COMMENT);
-        ctx->state = C_MODE_NORMAL;
+        ctx->token = C_MODE_NORMAL;
         prefix_start = iter;
         continue;
       }
@@ -178,7 +186,7 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
         iter += 1;
         __auto_type prefix_len = iter - prefix_start;
         if (prefix_len) result(prefix_start, prefix_len, C_MODE_STRING);
-        ctx->state = C_MODE_NORMAL;
+        ctx->token = C_MODE_NORMAL;
         prefix_start = iter;
         continue;
       }
@@ -188,7 +196,7 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
       if (!isalnum(*iter)) {
         __auto_type prefix_len = iter - prefix_start;
         if (prefix_len) result(prefix_start, prefix_len, C_MODE_PREPROCESSOR);
-        ctx->state = C_MODE_NORMAL;
+        ctx->token = C_MODE_NORMAL;
         prefix_start = iter;
         continue;
       }
@@ -202,39 +210,39 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
       if (isalnum(last_char)) break;
       if (isdigit(curr_char)) {
         __auto_type prefix_len = iter - prefix_start;
-        if (prefix_len) result(prefix_start, prefix_len, ctx->state);
+        if (prefix_len) result(prefix_start, prefix_len, ctx->token);
         prefix_start = iter;
-        ctx->state = C_MODE_CONSTANT;
+        ctx->token = C_MODE_CONSTANT;
         continue;
       }
       if (curr_char == '/' && next_char == '/') {
         __auto_type prefix_len = iter - prefix_start;
-        if (prefix_len) result(prefix_start, prefix_len, ctx->state);
-        ctx->state = C_MODE_SINGLE_COMMENT;
+        if (prefix_len) result(prefix_start, prefix_len, ctx->token);
+        ctx->token = C_MODE_SINGLE_COMMENT;
         continue;
       }
       if (curr_char == '/' && next_char == '*') {
         __auto_type prefix_len = iter - prefix_start;
-        if (prefix_len) result(prefix_start, prefix_len, ctx->state);
+        if (prefix_len) result(prefix_start, prefix_len, ctx->token);
         prefix_start = iter;
         iter += 2;
-        ctx->state = C_MODE_MULTI_COMMENT;
+        ctx->token = C_MODE_MULTI_COMMENT;
         continue;
       }
       if (curr_char == '#') {
         __auto_type prefix_len = iter - prefix_start;
-        if (prefix_len) result(prefix_start, prefix_len, ctx->state);
+        if (prefix_len) result(prefix_start, prefix_len, ctx->token);
         prefix_start = iter;
         iter += 1;
-        ctx->state = C_MODE_PREPROCESSOR;
+        ctx->token = C_MODE_PREPROCESSOR;
         continue;
       }
       if (curr_char == '"') {
         __auto_type prefix_len = iter - prefix_start;
-        if (prefix_len) result(prefix_start, prefix_len, ctx->state);
+        if (prefix_len) result(prefix_start, prefix_len, ctx->token);
         prefix_start = iter;
         iter += 1;
-        ctx->state = C_MODE_STRING;
+        ctx->token = C_MODE_STRING;
         continue;
       }
       eaten = c_mode_match_strings(iter, len - (iter - input), c_mode_keywords, sizeof(c_mode_keywords)/sizeof(c_mode_keywords[0]));
@@ -251,24 +259,23 @@ void c_mode_highlight(c_mode_context_t *ctx, char *input, int len, c_mode_result
   eaten_some: {
       __auto_type prefix_len = iter - prefix_start;
       if (prefix_len) {
-        result(prefix_start, prefix_len, ctx->state);
+        result(prefix_start, prefix_len, ctx->token);
       }
       result(iter, eaten, state);
-      ctx->state = C_MODE_NORMAL;
+      ctx->token = C_MODE_NORMAL;
       iter = iter + eaten;
       prefix_start = iter;
     }
   }
   __auto_type prefix_len = iter - prefix_start;
   if (prefix_len) {
-    result(prefix_start, prefix_len, ctx->state);
+    result(prefix_start, prefix_len, ctx->token);
   }
 }
 
-
-void c_mode_fast_forward(c_mode_context_t *ctx, char *input, int len) {
-  c_mode_highlight(ctx, input, len, lambda(void _(char *start, int len, c_mode_state_t state){
-  }));
+void c_mode_fast_forward(c_mode_state_t *ctx, char *input, int len) {
+  /* c_mode_highlight(ctx, input, len, lambda(void _(char *start, int len, c_mode_token_t state){ */
+  /* })); */
 }
 
 int c_mode_match_strings(char *input, int input_len, char **arr, int arr_len) {
@@ -288,6 +295,11 @@ int c_mode_match_strings(char *input, int input_len, char **arr, int arr_len) {
     if (matches) return j;
   }
   return 0;
+}
+
+static __attribute__((constructor)) void __init__() {
+  c_mode_highlighter.forward = &c_mode_fast_forward;
+  c_mode_highlighter.highlight = &c_mode_highlight;
 }
 
 int c_mode_unittest() {

@@ -10,19 +10,7 @@
 #include "menulist.h"
 #include "statusbar.h"
 #include "c-mode.h"
-
-typedef enum {
-  BS_INACTIVE,
-  BS_ONE_MARK,
-  BS_DRAGGING,
-  BS_COMPLETE,
-} bs_selection_state_t;
-
-typedef struct {
-  bs_selection_state_t active;
-  buff_string_iter_t   mark1;
-  buff_string_iter_t   mark2;
-} selection_t;
+#include "input.h"
 
 typedef struct {
   SDL_Window   *window;
@@ -50,6 +38,8 @@ struct buffer_t {
   buffer_geometry_t geometry;
   int            *lines;
   int             lines_len;
+  bool            show_lines;
+  bool            single_line;
   SDL_Cursor*     ibeam_cursor;
   c_mode_context_t c_mode;
   bool            _last_command;
@@ -85,7 +75,7 @@ typedef union {
 } buffer_msg_t;
 
 void buffer_init(buffer_t *self, char *path, int font_size);
-void buffer_destroy(buffer_t *self);
+void buffer_free(buffer_t *self);
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield);
 
 void buffer_dispatch_sdl(buffer_t *self, buffer_msg_t *msg, yield_t yield, yield_t yield_cm);

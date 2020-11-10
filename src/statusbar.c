@@ -28,13 +28,19 @@ void statusbar_measure(statusbar_t *self, SDL_Point *size) {
 }
 
 void statusbar_view(statusbar_t *self) {
-  draw_context_t *ctx = &self->ctx;
+  __auto_type ctx = &self->ctx;
+  __auto_type buff = self->buffer;
   int cursor_offset = bs_offset(&self->buffer->cursor.pos);
   char temp[128];
   char *last_slash = strchr_last(self->buffer->path, '/');
   last_slash = last_slash ? last_slash + 1 : self->buffer->path;
   bool is_saved = self->buffer->contents->tag == BS_BYTES;
-  sprintf(temp, "%s (%s), %d:%d", last_slash, is_saved ? "saved" : "modified", cursor_offset, self->buffer->cursor.x0);
+  char sel[64] = {[0] = '\0'};
+  __auto_type sel_range = selection_get_range(&buff->selection, &buff->cursor);
+  if (sel_range.x != -1 && sel_range.y != -1) {
+    sprintf(sel, " [%d:%d]", sel_range.x, sel_range.y);
+  }
+  sprintf(temp, "%s (%s), %d:%d%s", last_slash, is_saved ? "saved" : "modified", cursor_offset, self->buffer->cursor.x0, sel);
   SDL_Rect viewport;
   SDL_RenderGetViewport(ctx->renderer, &viewport);
 

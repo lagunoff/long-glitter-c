@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
 
   char *path = argc < 2 ? "/home/vlad/job/long-glitter-c/tmp/xola.c" : argv[1];
 
-  if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+  if (SDL_Init(0) != 0) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  if ((ctx->renderer = SDL_CreateRenderer(ctx->window, -1, SDL_RENDERER_ACCELERATED)) == NULL) {
+  if ((ctx->renderer = SDL_CreateRenderer(ctx->window, -1, 0)) == NULL) {
     fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
     continue;
   }
 
-  buffer_destroy(&buf);
+  buffer_free(&buf);
   SDL_StopTextInput();
   SDL_DestroyRenderer(ctx->renderer);
   SDL_DestroyWindow(ctx->window);
