@@ -42,13 +42,22 @@ typedef struct {
 typedef struct {
   SDL_Renderer   *renderer;
   SDL_Window     *window;
+  draw_palette_t *palette;
+} draw_context_ro_t;
+
+typedef struct {
+  // ro fields
+  SDL_Renderer   *renderer;
+  SDL_Window     *window;
+  draw_palette_t *palette;
+  // rw fields
   SDL_Color       foreground;
   SDL_Color       background;
   draw_font_t    *font;
-  draw_palette_t *palette;
 } draw_context_t;
 
 draw_palette_t palette;
+
 
 SDL_Color draw_rgba(double r, double g, double b, double a);
 SDL_Color draw_rgb_hex(char *str);

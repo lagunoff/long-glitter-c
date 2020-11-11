@@ -8,7 +8,6 @@
 #include "draw.h"
 #include "widget.h"
 #include "menulist.h"
-#include "c-mode.h"
 
 typedef enum {
   SELECTION_INACTIVE,
@@ -16,6 +15,11 @@ typedef enum {
   SELECTION_DRAGGING_KEYBOARD,
   SELECTION_COMPLETE,
 } selection_state_t;
+
+typedef enum {
+  CURSOR_LINE,
+  CURSOR_BLOCK,
+} cursor_style_t;
 
 typedef struct {
   selection_state_t  state;
@@ -41,11 +45,14 @@ typedef struct {
   draw_context_t ctx;
   buff_string_t *contents;
   draw_font_t    font;
+  cursor_style_t cursor_style;
   scroll_t       scroll;
   cursor_t       cursor;
   selection_t    selection;
   menulist_t     context_menu;
   SDL_Cursor*    ibeam_cursor;
+  //! Offsets of the line beginnings, -1 if the line is outside text
+  //! contents
   int           *lines;
   int            lines_len;
   highlighter_t *highlighter;

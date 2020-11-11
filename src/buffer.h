@@ -25,33 +25,20 @@ typedef struct {
 
 struct buffer_t {
   draw_context_t  ctx;
-  buff_string_t  *contents;
   char           *path;
-  draw_font_t     font;
-  scroll_t        scroll;
-  cursor_t        cursor;
-  selection_t     selection;
   int             fd;
-  command_palette_t command_palette;
+  buffer_geometry_t geometry;
+  bool            show_lines;
+  // Children widgets
+  input_t         input;
   menulist_t      context_menu;
   statusbar_t     statusbar;
-  buffer_geometry_t geometry;
-  int            *lines;
-  int             lines_len;
-  bool            show_lines;
-  bool            single_line;
-  SDL_Cursor*     ibeam_cursor;
-  c_mode_context_t c_mode;
-  bool            _last_command;
-  SDL_Keysym      _prev_keysym;
 };
 typedef struct buffer_t buffer_t;
 
 typedef enum {
   BUFFER_CONTEXT_MENU = MSG_USER,
-  BUFFER_CUT,
-  BUFFER_COPY,
-  BUFFER_PASTE,
+  BUFFER_INPUT,
 } buffer_msg_tag_t;
 
 typedef union {
@@ -70,6 +57,7 @@ typedef union {
     buffer_msg_tag_t tag;
     union {
       menulist_msg_t context_menu;
+      input_msg_t    input;
     };
   };
 } buffer_msg_t;

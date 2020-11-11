@@ -13,7 +13,10 @@
 #include "widget.h"
 
 void input_view_lines(input_t *self, SDL_Rect *viewport);
-static SDL_Keysym zero_keysym = {0};
+void input_update_lines(input_t *self, SDL_Rect *viewport);
+
+static const SDL_Keysym zero_keysym = {0};
+static const int CURSOR_LINE_WIDTH = 2;
 
 void input_init(input_t *self, buff_string_t *content) {
   draw_init_font(&self->font, palette.default_font_path, 16);
@@ -44,6 +47,170 @@ void input_free(input_t *self) {
 }
 
 void input_view(input_t *self) {
+  __auto_type ctx = &self->ctx;
+  __auto_type inside_selection = false;
+  __auto_type iter = self->scroll.pos;
+  __auto_type cursor_offset = bs_offset(&self->cursor.pos);
+  __auto_type scroll_offset = bs_offset(&self->scroll.pos);
+  __auto_type sel_range = selection_get_range(&self->selection, &self->cursor);
+
+  char temp[1024 * 16]; // Maximum line length — 16kb
+
+  SDL_Rect viewport;
+  SDL_RenderGetViewport(ctx->renderer, &viewport);
+  input_update_lines(self, &viewport);
+  draw_set_color(ctx, ctx->background);
+
+  int y = 0; // y coordinate of the top-left corner of the text
+  int i = 0; // Index of the line
+  for(;;i++) {
+    draw_set_color(ctx, ctx->palette->primary_text);
+    __auto_type begin_offset = bs_offset(&iter);
+    __auto_type eof = bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
+    __auto_type end_offset = bs_offset(&iter);
+    __auto_type line_len = end_offset - begin_offset;
+    self->lines[i] = begin_offset;
+
+    if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
+      draw_set_color(ctx, ctx->palette->current_line_bg);
+      draw_box(ctx, 0, y, viewport.w, ctx->font->X_height);
+      draw_set_color(ctx, ctx->palette->primary_text);
+    }
+
+    // Whole selection inside the current line
+    if (sel_range.y >= begin_offset && sel_range.y <= end_offset
+      && sel_range.x >= begin_offset && sel_range.x <= end_offset) {
+      int len = end_offset - begin_offset;
+      int len1 = sel_range.x - begin_offset;
+      int len2 = sel_range.y - begin_offset - len1;
+      int len3 = len - (len1 + len2);
+      char temp1[len1 + 1];
+      char temp2[len2 + 1];
+      char temp3[len3 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      strncpy(temp2, temp + len1, len2);
+      temp2[len2]='\0';
+      strncpy(temp3, temp + len1 + len2, len3);
+      temp3[len3]='\0';
+      SDL_Point te1;
+      draw_measure_text(ctx, temp1, &te1);
+      SDL_Point te2;
+      draw_measure_text(ctx, temp2, &te2);
+      draw_set_color(ctx, ctx->palette->selection_bg);
+      draw_box(ctx, te1.x, y, te2.x, ctx->font->X_height);
+      draw_set_color(ctx, ctx->palette->primary_text);
+      draw_text(ctx, 0, y, temp1);
+      draw_text(ctx, te1.x, y, temp2);
+      draw_text(ctx, te1.x + te2.x, y, temp3);
+      goto draw_cursor;
+    }
+
+    // Selection starts inside the current line and continues further
+    if (sel_range.x >= begin_offset && sel_range.x <= end_offset) {
+      int len1 = sel_range.x - begin_offset;
+      int len2 = end_offset - sel_range.x;
+      char temp1[len1 + 1];
+      char temp2[len2 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      strcpy(temp2, temp + len1);
+      SDL_Point te1;
+      draw_measure_text(ctx, temp1, &te1);
+      SDL_Point te2;
+      draw_measure_text(ctx, temp2, &te2);
+
+      draw_set_color(ctx, ctx->palette->selection_bg);
+      draw_box(ctx, te1.x, y, te2.x, ctx->font->X_height);
+      draw_set_color(ctx, ctx->palette->primary_text);
+      draw_text(ctx, 0, y, temp1);
+      draw_text(ctx, te1.x, y, temp2);
+      inside_selection = true;
+      goto draw_cursor;
+    }
+
+    // Selection ends inside the current line
+    if (sel_range.y >= begin_offset && sel_range.y <= end_offset) {
+      int len1 = sel_range.y - begin_offset;
+      int len2 = end_offset - sel_range.y;
+      char temp1[len1 + 1];
+      char temp2[len2 + 1];
+      strncpy(temp1, temp, len1);
+      temp1[len1]='\0';
+      strcpy(temp2, temp + len1);
+      SDL_Point te1;
+      draw_measure_text(ctx, temp1, &te1);
+      SDL_Point te2;
+      draw_measure_text(ctx, temp2, &te2);
+      draw_set_color(ctx, ctx->palette->selection_bg);
+      draw_box(ctx, 0, y, te1.x, ctx->font->X_height);
+      draw_set_color(ctx, ctx->palette->primary_text);
+
+      draw_text(ctx, 0, y, temp1);
+      draw_text(ctx, te1.x, y, temp2);
+      inside_selection = false;
+      goto draw_cursor;
+    }
+
+    if (*temp != '\0' && *temp != '\n') {
+      if (inside_selection) {
+        SDL_Point te;
+        draw_measure_text(ctx, temp, &te);
+        draw_set_color(ctx, ctx->palette->selection_bg);
+        draw_box(ctx, 0, y, te.x, ctx->font->X_height);
+        draw_set_color(ctx, ctx->palette->primary_text);
+      }
+      int x = CURSOR_LINE_WIDTH / 2;
+      draw_set_color(ctx, ctx->palette->primary_text);
+      draw_text(ctx, x, y, temp);
+      /* c_mode_highlight(&c_mode, temp, line_len, lambda(void _(char *start, int len, c_mode_state_t state){ */
+      /*   char t[len + 1]; */
+      /*   SDL_Point temp_size; */
+      /*   strncpy(t, start, len); */
+      /*   t[len] = '\0'; */
+      /*   draw_set_color(ctx, c_mode_choose_color(ctx, state)); */
+      /*   draw_text(ctx, x, y, t); */
+      /*   draw_set_color(ctx, ctx->palette->primary_text); */
+      /*   draw_measure_text(ctx, t, &temp_size); */
+      /*   x += temp_size.x; */
+      /* })); */
+    }
+  draw_cursor:
+    if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
+      int cur_x_offset = cursor_offset - begin_offset;
+      int cursor_char = temp[cur_x_offset];
+      temp[cur_x_offset]='\0';
+      SDL_Point te;
+      draw_measure_text(ctx, temp, &te);
+      draw_box(ctx, te.x, y - 2, CURSOR_LINE_WIDTH, ctx->font->X_height + 2);
+
+      /* if (cursor_char != '\0' && cursor_char != '\n') { */
+      /*   temp[0]=cursor_char; */
+      /*   temp[1]='\0'; */
+      /*   draw_set_color_rgba(ctx, 1, 1, 1, 1); */
+      /*   draw_text(ctx, te.x, y, temp); */
+      /* } */
+    }
+    y += ctx->font->X_height;
+    if (y + ctx->font->X_height >= viewport.h) break;
+    // Skip newline symbol
+    bs_move(&iter, 1);
+    if (eof) break;
+  }
+
+  self->lines[i++] = bs_offset(&iter);
+  for (;i < self->lines_len; i++) self->lines[i] = -1;
+}
+
+void input_update_lines(input_t *self, SDL_Rect *viewport) {
+  __auto_type ctx = &self->ctx;
+  int lines_len = div(viewport->h + ctx->font->X_height, ctx->font->X_height).quot + 1;
+
+  if (!self->lines || (lines_len != self->lines_len)) {
+    self->lines_len = lines_len;
+    self->lines = realloc(self->lines, self->lines_len * sizeof(int));
+    if (self->lines_len == 0) self->lines = NULL;
+  }
 }
 
 bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x, int screen_y, bool x_adjust) {
