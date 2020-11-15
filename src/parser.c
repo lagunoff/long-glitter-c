@@ -1,8 +1,11 @@
 #include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
 #include <ctype.h>
 
 #include "parser.h"
-#include "main.h"
+#include "utils.h"
 
 void p_number(parser_context_t *ctx, parser_result_t *result) {
   expr_t *expr;

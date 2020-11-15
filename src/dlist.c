@@ -1,8 +1,9 @@
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #include "dlist.h"
-#include "main.h"
+#include "utils.h"
 
 struct int_list {
   struct int_list *next;

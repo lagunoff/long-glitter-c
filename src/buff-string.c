@@ -1,13 +1,16 @@
+#include <assert.h>
+#include <ctype.h>
+#include <limits.h>
 #include <malloc.h>
 #include <math.h>
-#include <string.h>
-#include <assert.h>
-#include <limits.h>
 #include <signal.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "buff-string.h"
 #include "dlist.h"
-#include "main.h"
+#include "utils.h"
 
 void _bs_insert_insert_fixup(buff_string_iter_t *iter, buff_string_t *new, bs_direction_t dir);
 void _bs_insert_insert_fixup_inv(buff_string_iter_t *iter, buff_string_t *new);

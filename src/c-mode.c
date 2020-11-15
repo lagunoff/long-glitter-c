@@ -1,7 +1,7 @@
 #include <stdbool.h>
-
+#if 0
 #include "c-mode.h"
-#include "main.h"
+#include "utils.h"
 
 int c_mode_match_strings(char *input, int input_len, char **arr, int arr_len);
 
@@ -304,3 +304,4 @@ static __attribute__((constructor)) void __init__() {
 
 int c_mode_unittest() {
 }
+#endif

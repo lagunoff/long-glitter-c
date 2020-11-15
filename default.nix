@@ -4,17 +4,22 @@ let
     url = "https://github.com/NixOS/nixpkgs/archive/dd2727773a23d5aac1f084f0b0891bf5b797199d.tar.gz";
   }) {};
 
-  long-glitter-cpp = nixpkgs.stdenv.mkDerivation {
-    name = "long-glitter-cpp";
+  long-glitter = nixpkgs.stdenv.mkDerivation {
+    name = "long-glitter";
     nativeBuildInputs = [
       nixpkgs.pkg-config
+      nixpkgs.ctags
       nixpkgs.gdb
     ];
     buildInputs = [
-      nixpkgs.SDL2
-      nixpkgs.lightning
-      nixpkgs.SDL2_gfx
-      nixpkgs.SDL2_ttf
+      nixpkgs.xorg.libX11
+      nixpkgs.xorg.libXext
+      nixpkgs.xorg.libXcursor
+      nixpkgs.xorg.libXrender
+      nixpkgs.xorg.libXft
+      nixpkgs.wayland
+      nixpkgs.wayland-protocols
+      nixpkgs.cairo
     ];
   };
-in { shell = long-glitter-cpp; }
+in long-glitter

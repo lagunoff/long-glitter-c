@@ -1,81 +1,64 @@
 #include <stdlib.h>
-
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <stdio.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <X11/Xlib.h>
+#include <X11/Xatom.h>
+#include <X11/Xutil.h>
+#include <X11/Xft/Xft.h>
 
-#include "buff-string.h"
-#include "cursor.h"
+#include "utils.h"
+#include "draw.h"
 #include "buffer.h"
-#include "main.h"
-#include "widget.h"
 
 int main(int argc, char **argv) {
-  buffer_t buf;
-  __auto_type ctx = &buf.ctx;
+  int width = 900, height = 500;
+  draw_context_ro_t app_ctx;
+  __auto_type path = argc < 2 ? "/home/vlad/job/long-glitter-c/tmp/xola.c" : argv[1];
+  app_ctx.display = XOpenDisplay(NULL); exit_if_not(app_ctx.display);
+  XSetWindowAttributes win_attr;
+  __auto_type screen = DefaultScreen(app_ctx.display);
+  app_ctx.window = XCreateWindow(app_ctx.display, DefaultRootWindow(app_ctx.display), 0, 0, width, height, 0, CopyFromParent, InputOutput, CopyFromParent, 0, &win_attr); exit_if_not(app_ctx.window);
+  XSelectInput(app_ctx.display, app_ctx.window, ButtonPressMask|KeyPressMask|ExposureMask);
+  XMapWindow(app_ctx.display, app_ctx.window);
+  draw_init(app_ctx.display);
+  app_ctx.xftdraw = XftDrawCreate(app_ctx.display,app_ctx.window,DefaultVisual(app_ctx.display,0),DefaultColormap(app_ctx.display,0)); exit_if_not(app_ctx.xftdraw);
+  app_ctx.palette = &palette;
+  XWindowAttributes attr;
+  XGetWindowAttributes(app_ctx.display, app_ctx.window, &attr);
+  __auto_type picture_format = XRenderFindVisualFormat(app_ctx.display, attr.visual);
+  XRenderPictureAttributes pa;
+  pa.subwindow_mode = IncludeInferiors;
+  pa.component_alpha = True;
+  app_ctx.picture = XRenderCreatePicture(app_ctx.display, app_ctx.window, picture_format, CPSubwindowMode | CPComponentAlpha, &pa);
+  XGCValues values;
+  values.foreground = WhitePixel(app_ctx.display, screen);
+  values.background = WhitePixel(app_ctx.display, screen);
+  app_ctx.gc = XCreateGC(app_ctx.display, app_ctx.window, (GCForeground | GCBackground), &values);
 
-  char *path = argc < 2 ? "/home/vlad/job/long-glitter-c/tmp/xola.c" : argv[1];
+  draw_context_init_t init_ctx = {.ro = &app_ctx, .clip = {0,0,width,height}};
 
-  if (SDL_Init(0) != 0) {
-    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
+  buffer_t buffer;
+  buffer_init(&buffer, &init_ctx , path);
+
+  XEvent e;
+  char keybuf[8];
+  KeySym key;
+
+  void loop(void *msg) {
+    buffer_dispatch(&buffer, msg ? msg : &e, (yield_t)&loop);
   }
 
-  if ((ctx->window = SDL_CreateWindow("Long Glitter", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE)) == NULL) {
-    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
+  while (1) {
+    XNextEvent(app_ctx.display, &e);
+    loop(NULL);
   }
 
-  if ((ctx->renderer = SDL_CreateRenderer(ctx->window, -1, 0)) == NULL) {
-    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
-  }
-
-  buffer_init(&buf, path, 14);
-  draw_set_color(ctx, ctx->background);
-  widget_window_set(ctx->window, (widget_t)&buffer_dispatch, (void *)&buf);
-
-  SDL_Event e;
-  SDL_StartTextInput();
-  int keydowns = 0;
-
-  SDL_Window *event_window = NULL;
-  SDL_Renderer *event_renderer = NULL;
-  widget_t root_widget = NULL;
-  void *root_widget_data = NULL;
-
-  void loop(widget_msg_t *msg) {
-    bool do_render = msg->tag == MSG_VIEW;
-    if (do_render) {
-      event_renderer = event_window ? SDL_GetRenderer(event_window) : ctx->renderer;
-      SDL_RenderSetViewport(event_renderer, NULL);
-    }
-    event_window = NULL;
-    root_widget(root_widget_data, msg, (yield_t)&loop);
-    if (do_render) SDL_RenderPresent(event_renderer);
-  }
-
-  while (SDL_WaitEvent(&e) == 1) {
-    if (e.type == SDL_QUIT) break;
-    event_window = widget_get_event_window(&e);
-    if (event_window == NULL) continue;
-    widget_window_get(event_window, &root_widget, &root_widget_data);
-    if (!root_widget || !root_widget_data) continue;
-
-    widget_msg_t msg[4];
-    msg[0] = msg_sdl_event(&e);
-    loop(msg);
-    continue;
-  }
-
-  buffer_free(&buf);
-  SDL_StopTextInput();
-  SDL_DestroyRenderer(ctx->renderer);
-  SDL_DestroyWindow(ctx->window);
-
+  draw_free(app_ctx.display);
+  XRenderFreePicture(app_ctx.display, app_ctx.picture);
+  XCloseDisplay(app_ctx.display);
   return EXIT_SUCCESS;
 }
