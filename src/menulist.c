@@ -22,8 +22,7 @@ menulist_free(menulist_t *self) {
 void
 menulist_view(menulist_t *self) {
   __auto_type ctx = &self->ctx;
-  __auto_type extents = self->ctx.font;
-  rect_t viewport;
+  __auto_type extents = &self->ctx.font.extents;
   draw_set_color(ctx, ctx->palette->ui_bg);
 
   int item_height = extents->height + Y_MARGIN;
@@ -34,7 +33,7 @@ menulist_view(menulist_t *self) {
     menulist_item_t *item_ptr = (menulist_item_t *)(ptr8 + i * self->alignement);
     if (i == self->hover) {
       draw_set_color(ctx, ctx->palette->hover);
-      draw_box(ctx, 0, y - Y_MARGIN * 0.5, viewport.w, item_height);
+      draw_box(ctx, 0, y - Y_MARGIN * 0.5, ctx->clip.w, item_height);
       draw_set_color(ctx, ctx->palette->primary_text);
     }
     if (item_ptr->icon) {
@@ -46,15 +45,15 @@ menulist_view(menulist_t *self) {
     y += item_height;
   }
   draw_set_color(ctx, ctx->palette->border);
-  draw_rectangle(ctx, 0, 0, viewport.w, viewport.h);
+  draw_rectangle(ctx, 0, 0, ctx->clip.w, ctx->clip.h);
 }
 
 void
 menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
   switch (msg->tag) {
   case MotionNotify: {
-    rect_t viewport;
-    __auto_type extents = self->ctx.font;
+    __auto_type ctx = &self->ctx;
+    __auto_type extents = &self->ctx.font.extents;
     __auto_type prev_hover = self->hover;
     __auto_type e = &msg->x_event;
 
@@ -62,7 +61,7 @@ menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
     int item_height = extents->height + Y_MARGIN;
     int y = 1 + Y_MARGIN;
     for (int i = 0; i < self->len; i++) {
-      if (e->xmotion.y - viewport.y >= y && e->xmotion.y - viewport.y < y + item_height) {
+      if (e->xmotion.y - ctx->clip.y >= y && e->xmotion.y - ctx->clip.y < y + item_height) {
         self->hover = i;
         goto check_hover;
       }
@@ -84,7 +83,7 @@ menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
     return menulist_view(self);
   }
   case MSG_MEASURE: {
-    __auto_type extents = self->ctx.font;
+    __auto_type extents = &self->ctx.font.extents;
     int item_height = extents->height + Y_MARGIN;
     // TODO: measure max text width
     msg->widget.measure->x = 200;

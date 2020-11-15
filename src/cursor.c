@@ -117,7 +117,7 @@ void scroll_lines(scroll_t *s, int n) {
 }
 
 void scroll_page(draw_context_t *ctx, scroll_t *s, cursor_t *c, int n) {
-  int screen_lines = div(ctx->clip.h, ctx->font->height).quot;
+  int screen_lines = div(ctx->clip.h, ctx->font.extents.height).quot;
   if (n > 0) {
     scroll_lines(s, screen_lines);
   } else {

@@ -8,7 +8,8 @@
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
-#include <X11/Xft/Xft.h>
+#include <cairo.h>
+#include <cairo-xlib.h>
 
 #include "utils.h"
 #include "draw.h"
@@ -18,27 +19,28 @@ int main(int argc, char **argv) {
   int width = 900, height = 500;
   draw_context_ro_t app_ctx;
   __auto_type path = argc < 2 ? "/home/vlad/job/long-glitter-c/tmp/xola.c" : argv[1];
-  app_ctx.display = XOpenDisplay(NULL); exit_if_not(app_ctx.display);
-  XSetWindowAttributes win_attr;
-  __auto_type screen = DefaultScreen(app_ctx.display);
-  app_ctx.window = XCreateWindow(app_ctx.display, DefaultRootWindow(app_ctx.display), 0, 0, width, height, 0, CopyFromParent, InputOutput, CopyFromParent, 0, &win_attr); exit_if_not(app_ctx.window);
-  XSelectInput(app_ctx.display, app_ctx.window, ButtonPressMask|KeyPressMask|ExposureMask);
-  XMapWindow(app_ctx.display, app_ctx.window);
-  draw_init(app_ctx.display);
-  app_ctx.xftdraw = XftDrawCreate(app_ctx.display,app_ctx.window,DefaultVisual(app_ctx.display,0),DefaultColormap(app_ctx.display,0)); exit_if_not(app_ctx.xftdraw);
-  app_ctx.palette = &palette;
-  XWindowAttributes attr;
-  XGetWindowAttributes(app_ctx.display, app_ctx.window, &attr);
-  __auto_type picture_format = XRenderFindVisualFormat(app_ctx.display, attr.visual);
-  XRenderPictureAttributes pa;
-  pa.subwindow_mode = IncludeInferiors;
-  pa.component_alpha = True;
-  app_ctx.picture = XRenderCreatePicture(app_ctx.display, app_ctx.window, picture_format, CPSubwindowMode | CPComponentAlpha, &pa);
-  XGCValues values;
-  values.foreground = WhitePixel(app_ctx.display, screen);
-  values.background = WhitePixel(app_ctx.display, screen);
-  app_ctx.gc = XCreateGC(app_ctx.display, app_ctx.window, (GCForeground | GCBackground), &values);
 
+  XSetWindowAttributes win_attr;
+  app_ctx.display = XOpenDisplay(NULL); exit_if_not(app_ctx.display);
+
+
+  XVisualInfo vinfo;
+  XMatchVisualInfo(app_ctx.display, DefaultScreen(app_ctx.display), 32, TrueColor, &vinfo);
+
+  XSetWindowAttributes attr;
+  attr.colormap = XCreateColormap(app_ctx.display, DefaultRootWindow(app_ctx.display), vinfo.visual, AllocNone);
+  attr.border_pixel = 0;
+  attr.background_pixel = ULONG_MAX;
+
+  app_ctx.window = XCreateWindow(app_ctx.display, DefaultRootWindow(app_ctx.display), 0, 0, width, height, 0, vinfo.depth, InputOutput, vinfo.visual, CWColormap | CWBorderPixel | CWBackPixel, &attr);
+
+  draw_init(app_ctx.display);
+  __auto_type screen = XDefaultScreen(app_ctx.display);
+  __auto_type surface = cairo_xlib_surface_create(app_ctx.display, app_ctx.window, vinfo.visual, width, height);
+  XSelectInput(app_ctx.display, app_ctx.window, ButtonPressMask|KeyPressMask|ExposureMask|ResizeRedirectMask);
+  XMapWindow(app_ctx.display, app_ctx.window);
+  app_ctx.palette = &palette;
+  app_ctx.cairo = cairo_create(surface);
   draw_context_init_t init_ctx = {.ro = &app_ctx, .clip = {0,0,width,height}};
 
   buffer_t buffer;

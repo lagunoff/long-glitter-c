@@ -59,8 +59,8 @@ void input_view(input_t *self) {
   highlighter_args_t hl_args = {.ctx = ctx, .normal = &normal, .input = temp, .len = 0};
 
   input_update_lines(self);
-  draw_set_color(ctx, ctx->background);
-  draw_rect(ctx, ctx->clip);
+  /* draw_set_color(ctx, ctx->background); */
+  /* draw_rect(ctx, ctx->clip); */
 
   for(;;i++) {
     draw_set_color(ctx, ctx->palette->primary_text);
@@ -75,25 +75,34 @@ void input_view(input_t *self) {
     // Highlight the current line
     if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
       draw_set_color(ctx, ctx->palette->current_line_bg);
-      draw_box(ctx, 0, y, ctx->clip.w, ctx->font->height);
+      draw_box(ctx, 0, y, ctx->clip.w, ctx->font.extents.height);
       draw_set_color(ctx, ctx->palette->primary_text);
     }
 
     // Draw the line
-    with_styles(lambda(void _(point_t r, text_style_t *s) {
-      input_set_style(ctx, s);
-      if (r.y - r.x > 0) draw_text(ctx, 0, y + ctx->font->ascent, temp + r.x, r.y - r.x);
-    }));
+    // cairo_set_source_rgb(ctx->cairo, 0, 0, 0);
+    draw_set_color(ctx, ctx->palette->primary_text);
+    draw_text(ctx, 0, y + ctx->font.extents.ascent, temp, 0);
+
+    /* with_styles(lambda(void _(point_t r, text_style_t *s) { */
+    /*   __auto_type len = r.y - r.x; */
+    /*   input_set_style(ctx, s); */
+    /*   if (len > 0) { */
+    /*     char tmp[len + 1]; */
+    /*     strncpy(tmp, temp + r.x, len); */
+    /*     draw_text(ctx, 0, y + ctx->font.extents.ascent, tmp, r.y - r.x); */
+    /*   } */
+    /* })); */
 
     // Draw cursor
     if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
       int cur_x_offset = cursor_offset - begin_offset;
-      XGlyphInfo extents;
+      cairo_text_extents_t extents;
       draw_measure_text(ctx, temp, cur_x_offset, &extents);
-      draw_box(ctx, extents.x, y - 2, CURSOR_LINE_WIDTH, ctx->font->height + 2);
+      draw_box(ctx, extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font.extents.height + 2);
     }
-    y += ctx->font->height;
-    if (y + ctx->font->height >= max_y) break;
+    y += ctx->font.extents.height;
+    if (y + ctx->font.extents.height >= max_y) break;
     // Skip newline symbol
     bs_move(&iter, 1);
     if (eof) break;
@@ -110,7 +119,7 @@ void input_view(input_t *self) {
 
 void input_update_lines(input_t *self) {
   __auto_type ctx = &self->ctx;
-  int lines_len = div(ctx->clip.h + ctx->font->height, ctx->font->height).quot + 1;
+  int lines_len = div(ctx->clip.h + ctx->font.extents.height, ctx->font.extents.height).quot + 1;
 
   if (!self->lines || (lines_len != self->lines_len)) {
     self->lines_len = lines_len;
@@ -124,7 +133,7 @@ bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x,
   __auto_type ctx = &self->ctx;
   int x = screen_x - ctx->clip.x;
   int y = screen_y - ctx->clip.y;
-  int line_y = div(y, ctx->font->height).quot;
+  int line_y = div(y, ctx->font.extents.height).quot;
   int line_offset = self->lines[line_y];
   if (line_offset < 0) return false;
   int minx, maxx, miny, maxy, advance;
@@ -133,7 +142,7 @@ bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x,
   bs_index(&self->contents, iter, line_offset);
   bs_find(iter, lambda(bool _(char c){
     if (c == '\n') return true;
-    // TTF_GlyphMetrics(ctx->font->font, c, &minx, &maxx, &miny, &maxy, &advance);
+    // TTF_GlyphMetrics(ctx->font.font, c, &minx, &maxx, &miny, &maxy, &advance);
     current_x += advance;
     // TODO: better end of line detection
     if (current_x - 18 >= x) return true;

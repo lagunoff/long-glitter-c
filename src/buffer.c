@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <limits.h>
+#include <cairo.h>
 
 #include "buffer.h"
 #include "draw.h"
@@ -27,6 +28,8 @@ void buffer_init(buffer_t *self, draw_context_init_t *ctx, char *path) {
   self->statusbar.ctx = self->ctx;
   statusbar_init(&self->statusbar, self);
   self->show_lines = true;
+
+  draw_set_font(&self->input.ctx, &ctx->ro->palette->monospace_font);
 }
 
 void buffer_free(buffer_t *self) {
@@ -45,15 +48,15 @@ void buffer_view_lines(buffer_t *self) {
   __auto_type ctx = &self->ctx;
   __auto_type line = self->input.scroll.line;
   char temp[64];
-  XGlyphInfo text_size;
+  cairo_text_extents_t text_size;
   int y = 0;
   draw_set_color(ctx, ctx->palette->secondary_text);
   for(;;line++) {
     sprintf(temp, "%d", line + 1);
     draw_measure_text(ctx, temp, strlen(temp), &text_size);
-    draw_text(ctx, self->geometry.lines.w - 12 - text_size.x, y, temp, strlen(temp));
-    y += ctx->font->height;
-    if (y + ctx->font->height >= self->geometry.lines.h) break;
+    draw_text(ctx, self->geometry.lines.w - 12 - text_size.x_advance, y, temp, strlen(temp));
+    y += ctx->font.extents.height;
+    if (y + ctx->font.extents.height >= self->geometry.lines.h) break;
   }
 }
 
@@ -84,7 +87,15 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
 
   switch (msg->tag) {
   case Expose: {
-    return buffer_view(self);
+    draw_set_color(&self->ctx, self->ctx.background);
+    cairo_paint(self->ctx.cairo);
+    buffer_view(self);
+    return;
+  }
+  case ResizeRequest: {
+    self->ctx.clip.w = msg->x_event.xresizerequest.width;
+    self->ctx.clip.h = msg->x_event.xresizerequest.height;
+    return;
   }
     case MSG_FREE: {
       buffer_free(self);

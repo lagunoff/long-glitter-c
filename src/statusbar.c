@@ -19,7 +19,7 @@ void statusbar_init(statusbar_t *self, struct buffer_t *buffer) {
 }
 
 void statusbar_measure(statusbar_t *self, point_t *size) {
-  size->y = self->ctx.font->height + y_padding * 2;
+  size->y = self->ctx.font.extents.height + y_padding * 2;
   size->x = INT_MAX;
 }
 
@@ -42,7 +42,7 @@ void statusbar_view(statusbar_t *self) {
   draw_box(ctx, 0, 0, ctx->clip.w, ctx->clip.h);
 
   draw_set_color(ctx, ctx->palette->primary_text);
-  draw_text(ctx, 8, (ctx->clip.h - ctx->font->height) * 0.5, temp, strlen(temp));
+  draw_text(ctx, 8, (ctx->clip.h - ctx->font.extents.height) * 0.5, temp, strlen(temp));
 }
 
 static char *strchr_last(char *str, int c) {
