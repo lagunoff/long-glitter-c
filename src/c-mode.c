@@ -1,7 +1,7 @@
 #include <stdbool.h>
-
+#if 0
 #include "c-mode.h"
-#include "main.h"
+#include "utils.h"
 
 int c_mode_match_strings(char *input, int input_len, char **arr, int arr_len);
 
@@ -104,7 +104,7 @@ void c_mode_init(c_mode_state_t *ctx) {
   ctx->token = C_MODE_NORMAL;
 }
 
-SDL_Color c_mode_choose_color(draw_context_t *ctx, c_mode_token_t state) {
+SDL_Color c_mode_choose_color(widget_context_t *ctx, c_mode_token_t state) {
   switch (state) {
   case C_MODE_NORMAL: return ctx->palette->primary_text;
   case C_MODE_SINGLE_COMMENT: return ctx->palette->syntax.comment;
@@ -304,3 +304,4 @@ static __attribute__((constructor)) void __init__() {
 
 int c_mode_unittest() {
 }
+#endif

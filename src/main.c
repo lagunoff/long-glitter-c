@@ -1,81 +1,77 @@
 #include <stdlib.h>
-
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <stdio.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <X11/Xlib.h>
+#include <X11/Xatom.h>
+#include <X11/Xutil.h>
+#include <cairo.h>
+#include <cairo-xlib.h>
 
-#include "buff-string.h"
-#include "cursor.h"
+#include "utils.h"
+#include "draw.h"
 #include "buffer.h"
-#include "main.h"
-#include "widget.h"
 
 int main(int argc, char **argv) {
-  buffer_t buf;
-  __auto_type ctx = &buf.ctx;
+  __auto_type path = argc < 2 ? "/home/vlad/job/long-glitter-c/tmp/xola.c" : argv[1];
+  int width = 900, height = 500;
+  XVisualInfo vinfo;
+  XSetWindowAttributes attr;
+  widget_context_init_t ctx;
 
-  char *path = argc < 2 ? "/home/vlad/job/long-glitter-c/tmp/xola.c" : argv[1];
+  ctx.display = XOpenDisplay(NULL); exit_if_not(ctx.display);
+  XMatchVisualInfo(ctx.display, DefaultScreen(ctx.display), 32, TrueColor, &vinfo);
+  attr.colormap = XCreateColormap(ctx.display, DefaultRootWindow(ctx.display), vinfo.visual, AllocNone);
+  attr.border_pixel = 0;
+  attr.background_pixel = ULONG_MAX;
+  ctx.window = XCreateWindow(ctx.display, DefaultRootWindow(ctx.display), 0, 0, width, height, 0, vinfo.depth, InputOutput, vinfo.visual, CWColormap | CWBorderPixel | CWBackPixel, &attr);
+  __auto_type screen = XDefaultScreen(ctx.display);
+  __auto_type surface = cairo_xlib_surface_create(ctx.display, ctx.window, vinfo.visual, width, height);
+  XSelectInput(ctx.display, ctx.window, ButtonPressMask|KeyPressMask|ExposureMask|StructureNotifyMask);
+  XMapWindow(ctx.display, ctx.window);
+  ctx.palette = &palette;
+  ctx.cairo = cairo_create(surface);
+  ctx.clip.x = 0; ctx.clip.y = 0;
+  ctx.clip.w = width; ctx.clip.h = height;
 
-  if (SDL_Init(0) != 0) {
-    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
-  }
+  buffer_t buffer;
+  buffer_init(&buffer, &ctx , path);
 
-  if ((ctx->window = SDL_CreateWindow("Long Glitter", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE)) == NULL) {
-    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
-  }
+  XEvent x_event;
+  char keybuf[8];
+  KeySym key;
 
-  if ((ctx->renderer = SDL_CreateRenderer(ctx->window, -1, 0)) == NULL) {
-    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
-  }
-
-  buffer_init(&buf, path, 14);
-  draw_set_color(ctx, ctx->background);
-  widget_window_set(ctx->window, (widget_t)&buffer_dispatch, (void *)&buf);
-
-  SDL_Event e;
-  SDL_StartTextInput();
-  int keydowns = 0;
-
-  SDL_Window *event_window = NULL;
-  SDL_Renderer *event_renderer = NULL;
-  widget_t root_widget = NULL;
-  void *root_widget_data = NULL;
-
-  void loop(widget_msg_t *msg) {
-    bool do_render = msg->tag == MSG_VIEW;
-    if (do_render) {
-      event_renderer = event_window ? SDL_GetRenderer(event_window) : ctx->renderer;
-      SDL_RenderSetViewport(event_renderer, NULL);
+  void loop(void *user_msg) {
+    if (!user_msg) {
+      switch (x_event.type) {
+      case ConfigureNotify: {
+        if (x_event.xconfigure.width != buffer.ctx.clip.w || x_event.xconfigure.height != buffer.ctx.clip.h) {
+          buffer.ctx.clip.w = x_event.xconfigure.width;
+          buffer.ctx.clip.h = x_event.xconfigure.height;
+          cairo_xlib_surface_set_size(surface, buffer.ctx.clip.w, buffer.ctx.clip.h);
+          loop(&msg_layout);
+        }
+        return;
+      }
+      case Expose: {
+        draw_set_color(&buffer.ctx, buffer.ctx.background);
+        cairo_paint(buffer.ctx.cairo);
+        break;
+      }}
     }
-    event_window = NULL;
-    root_widget(root_widget_data, msg, (yield_t)&loop);
-    if (do_render) SDL_RenderPresent(event_renderer);
+    buffer_dispatch(&buffer, user_msg ? user_msg : &x_event, (yield_t)&loop);
   }
 
-  while (SDL_WaitEvent(&e) == 1) {
-    if (e.type == SDL_QUIT) break;
-    event_window = widget_get_event_window(&e);
-    if (event_window == NULL) continue;
-    widget_window_get(event_window, &root_widget, &root_widget_data);
-    if (!root_widget || !root_widget_data) continue;
-
-    widget_msg_t msg[4];
-    msg[0] = msg_sdl_event(&e);
-    loop(msg);
-    continue;
+  while (1) {
+    XNextEvent(ctx.display, &x_event);
+    loop(NULL);
   }
 
-  buffer_free(&buf);
-  SDL_StopTextInput();
-  SDL_DestroyRenderer(ctx->renderer);
-  SDL_DestroyWindow(ctx->window);
-
+  cairo_destroy(ctx.cairo);
+  cairo_surface_destroy(surface);
+  XCloseDisplay(ctx.display);
   return EXIT_SUCCESS;
 }

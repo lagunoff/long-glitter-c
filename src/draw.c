@@ -1,14 +1,10 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <SDL2_gfxPrimitives.h>
-
 #include "draw.h"
 #include "widget.h"
 
-typedef union {
-  SDL_Color color;
-  Uint32 uint32;
-} color_to_uint32_t;
+#include <stdlib.h>
+#include <stdio.h>
+#include <cairo.h>
+#include <ctype.h>
 
 struct hex_color {
   char r1;
@@ -19,115 +15,63 @@ struct hex_color {
   char b2;
 } __attribute__((packed));
 
-void draw_text(draw_context_t *ctx, int x, int y, char *text) {
-  if (text[0] == '\0') return;
-  SDL_Rect rect;
-  SDL_Surface *surface = TTF_RenderUTF8_Blended(ctx->font->font, text, ctx->foreground);
-  if (!surface) {
-    fprintf(stderr, SDL_GetError());
-    exit(1);
-  }
-  SDL_Texture *texture = SDL_CreateTextureFromSurface(ctx->renderer, surface);
-  if (!texture) {
-    fprintf(stderr, SDL_GetError());
-    exit(1);
-  }
-  rect.x = x;
-  rect.y = y;
-  rect.w = surface->w;
-  rect.h = surface->h;
-  SDL_FreeSurface(surface);
-  SDL_RenderCopy(ctx->renderer, texture, NULL, &rect);
-  SDL_DestroyTexture(texture);
-}
+cairo_font_options_t *default_options;
+cairo_matrix_t identity_matrix;
 
-void draw_glyph(draw_context_t *ctx, int x, int y, int ch, TTF_Font *font) {
-  SDL_Rect rect;
-  SDL_Surface *surface = TTF_RenderGlyph_Blended(font, ch, ctx->foreground);
-  if (!surface) {
-    fprintf(stderr, SDL_GetError());
-    exit(1);
-  }
-  SDL_Texture *texture = SDL_CreateTextureFromSurface(ctx->renderer, surface);
-  if (!texture) {
-    fprintf(stderr, SDL_GetError());
-    exit(1);
-  }
-  rect.x = x;
-  rect.y = y;
-  rect.w = surface->w;
-  rect.h = surface->h;
-  SDL_FreeSurface(surface);
-  SDL_RenderCopy(ctx->renderer, texture, NULL, &rect);
-  SDL_DestroyTexture(texture);
-}
-
-void draw_init_font(draw_font_t *self, char *path, int font_size) {
-  self->font_size = font_size;
-  self->font = TTF_OpenFont(path, font_size);
-  int unused;
-  TTF_SizeText(self->font, "X", &self->X_width, &unused);
-  self->X_height = TTF_FontLineSkip(self->font);
-  self->ascent = TTF_FontAscent(self->font);
-  if (self->font == NULL) {
-    fprintf(stderr, "Cannot open font file\n");
-    exit(1);
-  }
-}
-
-SDL_Color draw_rgba(double r, double g, double b, double a) {
-  SDL_Color color = {r*255, g*255, b*255, a*255};
+color_t draw_rgba(double r, double g, double b, double a) {
+  color_t color = {r, g, b, a};
   return color;
 }
 
-void draw_init_context(draw_context_t *self, draw_font_t *font) {
-  self->palette = &palette;
-  self->font = font;
-  self->background = draw_rgba(1,1,1,1);
+void draw_init_context(widget_context_t *self, widget_context_init_t *init) {
+  self->display = init->display;
+  self->window = init->window;
+  self->cairo = init->cairo;
+  self->palette = init->palette;
+  self->clip = init->clip;
+  self->background = draw_rgba(1, 1, 1, 1);
   self->foreground = self->palette->primary_text;
+  draw_set_font(self, &palette.default_font);
 }
 
-void draw_set_color(draw_context_t *ctx, SDL_Color color) {
-  ctx->foreground = color;
-  SDL_SetRenderDrawColor(ctx->renderer, color.r, color.g, color.b, color.a);
+void draw_set_color(widget_context_t *self, color_t color) {
+  self->foreground = color;
+  cairo_set_source_rgba(self->cairo, color.red, color.green, color.blue, color.alpha);
 }
 
-void draw_measure_text(draw_context_t *ctx, char *text, SDL_Point *size) {
-  TTF_SizeUTF8(ctx->font->font, text, &size->x, &size->y);
+void draw_rectangle(widget_context_t *ctx, int x, int y, int w, int h) {
+
 }
 
-void draw_rectangle(draw_context_t *ctx, Sint16 x, Sint16 y, Sint16 w, Sint16 h) {
-  color_to_uint32_t ctu = {.color = ctx->foreground};
-  rectangleColor(ctx->renderer, x, y, x + w, y + h, ctu.uint32);
+void draw_box(widget_context_t *ctx, int x, int y, int w, int h) {
+  cairo_rectangle(ctx->cairo, x, y, w, h);
+  cairo_fill(ctx->cairo);
 }
 
-void draw_box(draw_context_t *ctx, Sint16 x, Sint16 y, Sint16 w, Sint16 h) {
-  color_to_uint32_t ctu = {.color = ctx->foreground};
-  boxColor(ctx->renderer, x, y, x + w, y + h, ctu.uint32);
+void draw_rect(widget_context_t *ctx, rect_t rect) {
+  cairo_rectangle(ctx->cairo, rect.x, rect.y, rect.w, rect.h);
+  cairo_fill(ctx->cairo);
 }
 
-void draw_set_color_rgba(draw_context_t *ctx, double r, double g, double b, double a) {
-  draw_set_color(ctx, draw_rgba(r, g, b, a));
+void draw_set_color_rgba(widget_context_t *ctx, double r, double g, double b, double a) {
 }
 
-void draw_free_font(draw_font_t *self) {
-  TTF_CloseFont(self->font);
-}
+color_t draw_rgb_hex(char *str) {
+  __auto_type view_hex = (struct hex_color *)str;
+  color_t color;
+  auto int hexval(char c);
+  color.red = (hexval(view_hex->r1) * 16 + hexval(view_hex->r2)) / 256;
+  color.green = (hexval(view_hex->g1) * 16 + hexval(view_hex->g2)) / 256;
+  color.blue = (hexval(view_hex->b1) * 16 + hexval(view_hex->b2)) / 256;
+  color.alpha = 1;
+  return color;
 
-SDL_Color draw_rgb_hex(char *str) {
   int hexval(char c) {
     return c >= '0' && c <= '9' ? c - '0' : tolower(c) - 'a' + 10;
   }
-
-  __auto_type view_hex = (struct hex_color *)str;
-  SDL_Color color;
-  color.r = hexval(view_hex->r1) * 16 + hexval(view_hex->r2);
-  color.g = hexval(view_hex->g1) * 16 + hexval(view_hex->g2);
-  color.b = hexval(view_hex->b1) * 16 + hexval(view_hex->b2);
-  return color;
 }
 
-void draw_set_color_hex(draw_context_t *ctx, char *str) {
+void draw_set_color_hex(widget_context_t *ctx, char *str) {
   draw_set_color(ctx, draw_rgb_hex(str));
 }
 
@@ -138,37 +82,71 @@ void draw_github_theme(syntax_theme_t *self) {
   self->keyword = draw_rgb_hex("3a81c3");
   self->builtin = draw_rgb_hex("3a81c3");
   self->string = draw_rgb_hex("2d9574");
-  self->constant = draw_rgb_hex("DD1144");
+  self->constant = draw_rgb_hex("dd1144");
+  self->constant = draw_rgb_hex("3a81c3");
 }
 
 void draw_init_syntax(syntax_theme_t *self) {
   draw_github_theme(self);
 }
 
-static __attribute__((constructor)) void __init__() {
-  if (TTF_Init() != 0) {
-    fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-    return;
+void draw_set_font(widget_context_t *ctx, font_t *font) {
+  cairo_set_scaled_font(ctx->cairo, font->scaled_font);
+  ctx->font = font;
+}
+
+color_t draw_get_color_from_style(widget_context_t *ctx, syntax_style_t style) {
+  switch (style) {
+  case SYNTAX_NORMAL:       return ctx->palette->primary_text;
+  case SYNTAX_PREPROCESSOR: return ctx->palette->syntax.preprocessor;
+  case SYNTAX_COMMENT:      return ctx->palette->syntax.comment;
+  case SYNTAX_KEYWORD:      return ctx->palette->syntax.keyword;
+  case SYNTAX_BUILTIN:      return ctx->palette->syntax.builtin;
+  case SYNTAX_STRING:       return ctx->palette->syntax.string;
+  case SYNTAX_CONSTANT:     return ctx->palette->syntax.constant;
+  case SYNTAX_IDENTIFIER:   return ctx->palette->syntax.identifier;
+  case SYNTAX_TYPE:         return ctx->palette->syntax.type;
   }
+}
+
+static __attribute__((constructor)) void __init__() {
   palette.primary_text = draw_rgba(0,0,0,0.87);
-  palette.secondary_text = draw_rgba(0,0,0,0.17);
+  palette.secondary_text = draw_rgba(0,0,0,0.54);
   palette.current_line_bg = draw_rgba(0.0, 0.0, 0, 0.06);
   palette.selection_bg = draw_rgba(0, 0, 0, 0.09);
   palette.default_bg = draw_rgba(1, 1, 1, 1);
   palette.ui_bg = draw_rgba(1, 1, 1, 1);
   palette.border = draw_rgba(0, 0, 0, 0.09);
   palette.hover = draw_rgba(0, 0, 0, 0.06);
-  palette.default_font_path = "/home/vlad/job/long-glitter-c/assets/NotoSans-Regular.ttf";
-  palette.monospace_font_path = "/home/vlad/job/long-glitter-c/assets/Hack-Regular.ttf";
-  draw_init_font(&palette.default_font, palette.default_font_path, 16);
-  draw_init_font(&palette.small_font, palette.default_font_path, 14);
-  draw_init_font(&palette.fontawesome_font, "/home/vlad/job/long-glitter-c/assets/la-solid-900.ttf", 20);
   draw_init_syntax(&palette.syntax);
+  default_options = cairo_font_options_create();
+  cairo_matrix_init_identity(&identity_matrix);
+
+  palette.default_font.family = "Arial";
+  cairo_matrix_init_scale(&palette.default_font.matrix, 16, 16);
+  palette.default_font.slant = CAIRO_FONT_SLANT_NORMAL;
+  palette.default_font.weight = CAIRO_FONT_WEIGHT_NORMAL;
+  palette.default_font.face = cairo_toy_font_face_create(palette.default_font.family, palette.default_font.slant, palette.default_font.weight);
+  palette.default_font.scaled_font = cairo_scaled_font_create(palette.default_font.face, &palette.default_font.matrix, &identity_matrix, default_options);
+  cairo_scaled_font_extents(palette.default_font.scaled_font, &palette.default_font.extents);
+
+  palette.small_font.family = "sans-serif";
+  cairo_matrix_init_scale(&palette.small_font.matrix, 14, 14);
+  palette.small_font.slant = CAIRO_FONT_SLANT_NORMAL;
+  palette.small_font.weight = CAIRO_FONT_WEIGHT_NORMAL;
+  palette.small_font.face = cairo_toy_font_face_create(palette.small_font.family, palette.small_font.slant, palette.small_font.weight);
+  palette.small_font.scaled_font = cairo_scaled_font_create(palette.small_font.face, &palette.small_font.matrix, &identity_matrix, default_options);
+  cairo_scaled_font_extents(palette.small_font.scaled_font, &palette.small_font.extents);
+
+  palette.monospace_font.family = "Hack";
+  cairo_matrix_init_scale(&palette.monospace_font.matrix, 16, 16);
+  palette.monospace_font.slant = CAIRO_FONT_SLANT_NORMAL;
+  palette.monospace_font.weight = CAIRO_FONT_WEIGHT_NORMAL;
+  palette.monospace_font.face = cairo_toy_font_face_create(palette.monospace_font.family, palette.monospace_font.slant, palette.monospace_font.weight);
+  palette.monospace_font.scaled_font = cairo_scaled_font_create(palette.monospace_font.face, &palette.monospace_font.matrix, &identity_matrix, default_options);
+  cairo_scaled_font_extents(palette.monospace_font.scaled_font, &palette.monospace_font.extents);
 }
 
 static __attribute__((destructor)) void __free__() {
-  draw_free_font(&palette.default_font);
-  draw_free_font(&palette.small_font);
-  draw_free_font(&palette.fontawesome_font);
-  TTF_Quit();
+  cairo_font_options_destroy(default_options);
 }

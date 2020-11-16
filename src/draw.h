@@ -1,75 +1,110 @@
 #pragma once
-#include <SDL2/SDL_ttf.h>
-#include <SDL2/SDL.h>
+#include <stdint.h>
+#include <X11/Xlib.h>
+#include <X11/Xft/Xft.h>
+#include <cairo.h>
+
+#include "utils.h"
 
 struct widget_t;
 
-typedef struct {
-  TTF_Font *font;
-  int       font_size;
-  int       X_width;
-  int       X_height;
-  int       ascent;
-} draw_font_t;
+typedef enum {
+  SYNTAX_NORMAL,
+  SYNTAX_PREPROCESSOR,
+  SYNTAX_COMMENT,
+  SYNTAX_KEYWORD,
+  SYNTAX_BUILTIN,
+  SYNTAX_STRING,
+  SYNTAX_CONSTANT,
+  SYNTAX_IDENTIFIER,
+  SYNTAX_TYPE,
+} syntax_style_t;
 
 typedef struct {
-  SDL_Color preprocessor;
-  SDL_Color comment;
-  SDL_Color keyword;
-  SDL_Color builtin;
-  SDL_Color string;
-  SDL_Color constant;
-  SDL_Color identifier;
+  double red, green, blue, alpha;
+} color_t;
+
+typedef struct {
+  // Arguments
+  char                *family;
+  cairo_font_slant_t   slant;
+  cairo_font_weight_t  weight;
+  cairo_matrix_t       matrix;
+  // Cached data
+  cairo_font_extents_t extents;
+  cairo_font_face_t   *face;
+  cairo_scaled_font_t *scaled_font;
+} font_t;
+
+typedef struct {
+  color_t preprocessor;
+  color_t comment;
+  color_t keyword;
+  color_t builtin;
+  color_t string;
+  color_t constant;
+  color_t identifier;
+  color_t type;
 } syntax_theme_t;
 
 typedef struct {
-  SDL_Color primary_text;
-  SDL_Color secondary_text;
-  SDL_Color selection_bg;
-  SDL_Color default_bg;
-  SDL_Color current_line_bg;
-  SDL_Color ui_bg;
-  SDL_Color border;
-  SDL_Color hover;
+  color_t primary_text;
+  color_t secondary_text;
+  color_t selection_bg;
+  color_t default_bg;
+  color_t current_line_bg;
+  color_t ui_bg;
+  color_t border;
+  color_t hover;
+  font_t  default_font;
+  font_t  small_font;
+  font_t  monospace_font;
+  font_t  fontawesome_font;
   syntax_theme_t syntax;
-  draw_font_t    default_font;
-  draw_font_t    small_font;
-  draw_font_t    fontawesome_font;
-  char          *default_font_path;
-  char          *monospace_font_path;
-} draw_palette_t;
+} palette_t;
 
 typedef struct {
-  SDL_Renderer   *renderer;
-  SDL_Window     *window;
-  draw_palette_t *palette;
-} draw_context_ro_t;
+  Display   *display;
+  Window     window;
+  cairo_t   *cairo;
+  palette_t *palette;
+  rect_t     clip;
+} widget_context_init_t;
 
 typedef struct {
   // ro fields
-  SDL_Renderer   *renderer;
-  SDL_Window     *window;
-  draw_palette_t *palette;
+  Display   *display;
+  Window     window;
+  cairo_t   *cairo;
+  palette_t *palette;
   // rw fields
-  SDL_Color       foreground;
-  SDL_Color       background;
-  draw_font_t    *font;
-} draw_context_t;
+  rect_t     clip;
+  font_t    *font;
+  color_t    foreground;
+  color_t    background;
+} widget_context_t;
 
-draw_palette_t palette;
+palette_t palette;
 
+void draw_init_context(widget_context_t *self, widget_context_init_t *data);
+color_t draw_rgba(double r, double g, double b, double a);
+color_t draw_rgb_hex(char *str);
+void draw_set_color(widget_context_t *ctx, color_t color);
+void draw_set_color_rgba(widget_context_t *ctx, double r, double g, double b, double a);
+void draw_set_color_hex(widget_context_t *ctx, char *str);
+void draw_rectangle(widget_context_t *ctx, int x, int y, int w, int h);
+void draw_box(widget_context_t *ctx, int x, int y, int w, int h);
+void draw_rect(widget_context_t *ctx, rect_t rect);
+void draw_set_font(widget_context_t *ctx, font_t *font);
+color_t draw_get_color_from_style(widget_context_t *ctx, syntax_style_t style);
 
-SDL_Color draw_rgba(double r, double g, double b, double a);
-SDL_Color draw_rgb_hex(char *str);
-void draw_set_color(draw_context_t *ctx, SDL_Color color);
-void draw_set_color_rgba(draw_context_t *ctx, double r, double g, double b, double a);
-void draw_set_color_hex(draw_context_t *ctx, char *str);
-void draw_text(draw_context_t *ctx, int x, int y, char *text);
-void draw_glyph(draw_context_t *ctx, int x, int y, int ch, TTF_Font *font);
-void draw_rectangle(draw_context_t *ctx, Sint16 x, Sint16 y, Sint16 w, Sint16 h);
-void draw_box(draw_context_t *ctx, Sint16 x, Sint16 y, Sint16 w, Sint16 h);
-void draw_measure_text(draw_context_t *ctx, char *text, SDL_Point *size);
-void draw_init_font(draw_font_t *self, char *path, int font_size);
-void draw_free_font(draw_font_t *self);
-void draw_init_palette(draw_palette_t *self);
-void draw_init_context(draw_context_t *self, draw_font_t *font);
+__inline__ __attribute__((always_inline)) void
+draw_text(widget_context_t *ctx, int x, int y, const char *text, int len) {
+  cairo_move_to(ctx->cairo, x, y);
+  cairo_show_text(ctx->cairo, text);
+}
+
+__inline__ __attribute__((always_inline)) void
+draw_measure_text(widget_context_t *ctx, char *text, int len, cairo_text_extents_t *extents) {
+  cairo_text_extents(ctx->cairo, text, extents);
+}

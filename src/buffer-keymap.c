@@ -3,8 +3,9 @@
 #include <fcntl.h>
 
 #include "buffer.h"
-#include "main.h"
+#include "utils.h"
 
+#if 0
 #define SCROLL_JUMP 8
 #define MODIFY_CURSOR(f) {                                        \
   cursor_t old_cursor = self->cursor;                        \
@@ -449,3 +450,4 @@ buffer_context_menu_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     buffer_dispatch(self, (void *)msg, yield);
   }
 }
+#endif

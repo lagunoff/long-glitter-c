@@ -1,6 +1,4 @@
 #pragma once
-
-#include <SDL2/SDL.h>
 #include <stdbool.h>
 
 #include "buff-string.h"
@@ -9,37 +7,42 @@
 #include "widget.h"
 #include "menulist.h"
 #include "statusbar.h"
-#include "c-mode.h"
 #include "input.h"
 
 typedef struct {
-  SDL_Window   *window;
-  SDL_Renderer *renderer;
-} command_palette_t;
-
-typedef struct {
-  SDL_Rect textarea;
-  SDL_Rect statusbar;
-  SDL_Rect lines;
+  rect_t textarea;
+  rect_t statusbar;
 } buffer_geometry_t;
 
 struct buffer_t {
-  draw_context_t  ctx;
-  char           *path;
-  int             fd;
-  buffer_geometry_t geometry;
-  bool            show_lines;
+  widget_context_t ctx;
+  char          *path;
+  int            fd;
+  bool           show_lines;
   // Children widgets
-  input_t         input;
-  menulist_t      context_menu;
-  statusbar_t     statusbar;
+  menulist_t     context_menu;
+  input_t        input;
+  statusbar_t    statusbar;
+  rect_t         lines;
 };
 typedef struct buffer_t buffer_t;
 
-typedef enum {
-  BUFFER_CONTEXT_MENU = MSG_USER,
-  BUFFER_INPUT,
-} buffer_msg_tag_t;
+typedef union {
+  widget_msg_t widget;
+  XEvent       x_event;
+  struct {
+    enum {
+      BUFFER_CONTEXT_MENU = MSG_LAST,
+      BUFFER_INPUT,
+    } tag;
+    union {
+      menulist_msg_t context_menu;
+      input_msg_t    input;
+    };
+  };
+} buffer_msg_t;
+
+typedef typeof(((buffer_msg_t *)0)->tag) buffer_msg_tag_t;
 
 typedef union {
   menulist_item_t menulist_item;
@@ -51,18 +54,7 @@ typedef union {
   };
 } buffer_context_menu_item_t __attribute__((__transparent_union__));
 
-typedef union {
-  widget_msg_t widget;
-  struct {
-    buffer_msg_tag_t tag;
-    union {
-      menulist_msg_t context_menu;
-      input_msg_t    input;
-    };
-  };
-} buffer_msg_t;
-
-void buffer_init(buffer_t *self, char *path, int font_size);
+void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path);
 void buffer_free(buffer_t *self);
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield);
 

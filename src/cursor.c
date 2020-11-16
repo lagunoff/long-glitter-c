@@ -1,6 +1,7 @@
 #include <ctype.h>
+
 #include "cursor.h"
-#include "main.h"
+#include "utils.h"
 #include "buff-string.h"
 #include "buffer.h"
 
@@ -115,14 +116,8 @@ void scroll_lines(scroll_t *s, int n) {
   }
 }
 
-void scroll_page(
-  scroll_t    *s,
-  cursor_t    *c,
-  draw_font_t *font,
-  int          height,
-  int          n
-) {
-  int screen_lines = div(height, font->X_height).quot;
+void scroll_page(widget_context_t *ctx, scroll_t *s, cursor_t *c, int n) {
+  int screen_lines = div(ctx->clip.h, ctx->font->extents.height).quot;
   if (n > 0) {
     scroll_lines(s, screen_lines);
   } else {

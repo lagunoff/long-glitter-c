@@ -26,11 +26,4 @@ void cursor_forward_word(cursor_t *c);
 void scroll_lines(scroll_t *s, int n);
 void backward_paragraph(cursor_t *c);
 void forward_paragraph(cursor_t *c);
-
-void scroll_page(
-  scroll_t    *s,
-  cursor_t    *c,
-  draw_font_t *font,
-  int          height,
-  int          n
-);
+void scroll_page(widget_context_t *ctx, scroll_t *s, cursor_t *c, int n);

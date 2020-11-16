@@ -23,6 +23,6 @@ typedef struct {
 highlighter_t c_mode_highlighter;
 
 void c_mode_init(c_mode_state_t *self);
-SDL_Color c_mode_choose_color(draw_context_t *self, c_mode_token_t tok);
+SDL_Color c_mode_choose_color(widget_context_t *self, c_mode_token_t tok);
 void c_mode_highlight(c_mode_state_t *self, highlighter_args_t *args, highlighter_cb_t cb);
 void c_mode_fast_forward(c_mode_state_t *self, char *input, int len);
