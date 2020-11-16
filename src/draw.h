@@ -56,63 +56,55 @@ typedef struct {
   color_t ui_bg;
   color_t border;
   color_t hover;
-  font_t       default_font;
-  font_t       small_font;
-  font_t       monospace_font;
-  font_t       fontawesome_font;
+  font_t  default_font;
+  font_t  small_font;
+  font_t  monospace_font;
+  font_t  fontawesome_font;
   syntax_theme_t syntax;
-} draw_palette_t;
+} palette_t;
 
 typedef struct {
-  Display        *display;
-  Window          window;
-  Picture         picture;
-  cairo_t        *cairo;
-  draw_palette_t *palette;
-} draw_context_ro_t;
-
-typedef struct {
-  draw_context_ro_t *ro;
-  rect_t             clip;
-} draw_context_init_t;
+  Display   *display;
+  Window     window;
+  cairo_t   *cairo;
+  palette_t *palette;
+  rect_t     clip;
+} widget_context_init_t;
 
 typedef struct {
   // ro fields
-  Display        *display;
-  Window          window;
-  Picture         picture;
-  cairo_t        *cairo;
-  draw_palette_t *palette;
+  Display   *display;
+  Window     window;
+  cairo_t   *cairo;
+  palette_t *palette;
   // rw fields
-  rect_t          clip;
-  font_t          font;
+  rect_t     clip;
+  font_t    *font;
   color_t    foreground;
   color_t    background;
-} draw_context_t;
+} widget_context_t;
 
-draw_palette_t palette;
+palette_t palette;
 
-void draw_init_context(draw_context_t *self, draw_context_init_t *data);
+void draw_init_context(widget_context_t *self, widget_context_init_t *data);
 color_t draw_rgba(double r, double g, double b, double a);
 color_t draw_rgb_hex(char *str);
-void draw_set_color(draw_context_t *ctx, color_t color);
-void draw_set_color_rgba(draw_context_t *ctx, double r, double g, double b, double a);
-void draw_set_color_hex(draw_context_t *ctx, char *str);
-void draw_rectangle(draw_context_t *ctx, int x, int y, int w, int h);
-void draw_box(draw_context_t *ctx, int x, int y, int w, int h);
-void draw_rect(draw_context_t *ctx, rect_t rect);
-void draw_set_font(draw_context_t *ctx, font_t *font);
-color_t draw_get_color_from_style(draw_context_t *ctx, syntax_style_t style);
-void draw_init(Display *dpy);
-void draw_free(Display *dpy);
+void draw_set_color(widget_context_t *ctx, color_t color);
+void draw_set_color_rgba(widget_context_t *ctx, double r, double g, double b, double a);
+void draw_set_color_hex(widget_context_t *ctx, char *str);
+void draw_rectangle(widget_context_t *ctx, int x, int y, int w, int h);
+void draw_box(widget_context_t *ctx, int x, int y, int w, int h);
+void draw_rect(widget_context_t *ctx, rect_t rect);
+void draw_set_font(widget_context_t *ctx, font_t *font);
+color_t draw_get_color_from_style(widget_context_t *ctx, syntax_style_t style);
 
 __inline__ __attribute__((always_inline)) void
-draw_text(draw_context_t *ctx, int x, int y, const char *text, int len) {
+draw_text(widget_context_t *ctx, int x, int y, const char *text, int len) {
   cairo_move_to(ctx->cairo, x, y);
   cairo_show_text(ctx->cairo, text);
 }
 
 __inline__ __attribute__((always_inline)) void
-draw_measure_text(draw_context_t *ctx, char *text, int len, cairo_text_extents_t *extents) {
+draw_measure_text(widget_context_t *ctx, char *text, int len, cairo_text_extents_t *extents) {
   cairo_text_extents(ctx->cairo, text, extents);
 }

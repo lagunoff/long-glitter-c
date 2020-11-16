@@ -104,7 +104,7 @@ void c_mode_init(c_mode_state_t *ctx) {
   ctx->token = C_MODE_NORMAL;
 }
 
-SDL_Color c_mode_choose_color(draw_context_t *ctx, c_mode_token_t state) {
+SDL_Color c_mode_choose_color(widget_context_t *ctx, c_mode_token_t state) {
   switch (state) {
   case C_MODE_NORMAL: return ctx->palette->primary_text;
   case C_MODE_SINGLE_COMMENT: return ctx->palette->syntax.comment;

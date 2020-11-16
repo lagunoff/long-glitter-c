@@ -38,7 +38,7 @@ typedef void (*style_on_t)(text_style_t *style);
 typedef void (*style_off_t)(text_style_t *style);
 
 typedef struct {
-  draw_context_t *ctx;
+  widget_context_t *ctx;
   text_style_t   *normal;
   char           *input;
   int             len;
@@ -51,7 +51,7 @@ typedef struct {
 } syntax_highlighter_t;
 
 typedef struct {
-  draw_context_t ctx;
+  widget_context_t ctx;
   buff_string_t *contents;
   XftFont       *font;
   cursor_style_t cursor_style;
@@ -95,11 +95,11 @@ typedef union {
   };
 } input_msg_t;
 
-void input_init(input_t *self, draw_context_init_t *ctx, buff_string_t *content);
+void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *content);
 void input_free(input_t *self);
 void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield);
 bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int x, int y, bool x_adjust);
-void input_set_style(draw_context_t *ctx, text_style_t *style);
+void input_set_style(widget_context_t *ctx, text_style_t *style);
 point_t selection_get_range(selection_t *self, cursor_t *cursor);
 
 syntax_highlighter_t noop_highlighter;

@@ -8,13 +8,13 @@
 typedef struct {
   enum {
     MSG_NOOP = LASTEvent,
-    MSG_VIEW,
     MSG_FREE,
     MSG_MEASURE,
+    MSG_LAYOUT,
     MSG_LAST,
   } tag;
   union {
-    point_t *measure;
+    point_t measure;
   };
 } widget_msg_t;
 
@@ -24,11 +24,7 @@ typedef void (*widget_t)(void *self, widget_msg_t *msg, yield_t yield);
 widget_msg_t msg_noop;
 widget_msg_t msg_free;
 widget_msg_t msg_view;
-
-inline widget_msg_t msg_measure(point_t *result) {
-  widget_msg_t msg = {.tag = MSG_MEASURE, .measure = result};
-  return msg;
-}
+widget_msg_t msg_layout;
 
 void widget_close_window(Window window);
 void noop_yield(void *msg);

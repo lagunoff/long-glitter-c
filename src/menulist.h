@@ -11,7 +11,7 @@ typedef struct {
 } menulist_item_t;
 
 typedef struct {
-  draw_context_t   ctx;
+  widget_context_t   ctx;
   menulist_item_t *items; //! aligned by value of 'alignment' field
   int              len;
   int              alignement; //! sizeof(specific_item_t)

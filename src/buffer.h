@@ -12,19 +12,18 @@
 typedef struct {
   rect_t textarea;
   rect_t statusbar;
-  rect_t lines;
 } buffer_geometry_t;
 
 struct buffer_t {
-  draw_context_t ctx;
+  widget_context_t ctx;
   char          *path;
   int            fd;
-  buffer_geometry_t geometry;
   bool           show_lines;
   // Children widgets
-  input_t        input;
   menulist_t     context_menu;
+  input_t        input;
   statusbar_t    statusbar;
+  rect_t         lines;
 };
 typedef struct buffer_t buffer_t;
 
@@ -55,7 +54,7 @@ typedef union {
   };
 } buffer_context_menu_item_t __attribute__((__transparent_union__));
 
-void buffer_init(buffer_t *self, draw_context_init_t *ctx, char *path);
+void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path);
 void buffer_free(buffer_t *self);
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield);
 

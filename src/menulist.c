@@ -8,7 +8,7 @@ static int Y_MARGIN = 12;
 
 void
 menulist_init(menulist_t *self, menulist_item_t *items, int len, int alignement) {
-  self->ctx.font = palette.small_font;
+  self->ctx.font = &self->ctx.palette->small_font;
   self->items = items;
   self->len = len;
   self->alignement = alignement;
@@ -22,7 +22,7 @@ menulist_free(menulist_t *self) {
 void
 menulist_view(menulist_t *self) {
   __auto_type ctx = &self->ctx;
-  __auto_type extents = &self->ctx.font.extents;
+  __auto_type extents = &self->ctx.font->extents;
   draw_set_color(ctx, ctx->palette->ui_bg);
 
   int item_height = extents->height + Y_MARGIN;
@@ -51,9 +51,12 @@ menulist_view(menulist_t *self) {
 void
 menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
   switch (msg->tag) {
+  case Expose: {
+    return menulist_view(self);
+  }
   case MotionNotify: {
     __auto_type ctx = &self->ctx;
-    __auto_type extents = &self->ctx.font.extents;
+    __auto_type extents = &ctx->font->extents;
     __auto_type prev_hover = self->hover;
     __auto_type e = &msg->x_event;
 
@@ -79,15 +82,12 @@ menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
   }
   case MSG_FREE: {
   }
-  case MSG_VIEW: {
-    return menulist_view(self);
-  }
   case MSG_MEASURE: {
-    __auto_type extents = &self->ctx.font.extents;
+    __auto_type extents = &self->ctx.font->extents;
     int item_height = extents->height + Y_MARGIN;
     // TODO: measure max text width
-    msg->widget.measure->x = 200;
-    msg->widget.measure->y = self->len * item_height + Y_MARGIN + 2;
+    msg->widget.measure.x = 200;
+    msg->widget.measure.y = self->len * item_height + Y_MARGIN + 2;
     return;
   }
   case MENULIST_DESTROY: {

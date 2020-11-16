@@ -16,7 +16,7 @@ void input_line_selection_range(point_t *line_sel_range, point_t *sel_range, int
 
 static const int CURSOR_LINE_WIDTH = 2;
 
-void input_init(input_t *self, draw_context_init_t *ctx, buff_string_t *content) {
+void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *content) {
   self->contents = content;
 
   self->selection.state = SELECTION_INACTIVE;
@@ -38,7 +38,7 @@ void input_init(input_t *self, draw_context_init_t *ctx, buff_string_t *content)
 void input_free(input_t *self) {
 }
 
-void input_set_style(draw_context_t *ctx, text_style_t *style) {
+void input_set_style(widget_context_t *ctx, text_style_t *style) {
   draw_set_color(ctx, draw_get_color_from_style(ctx, style->syntax));
 }
 
@@ -75,14 +75,14 @@ void input_view(input_t *self) {
     // Highlight the current line
     if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
       draw_set_color(ctx, ctx->palette->current_line_bg);
-      draw_box(ctx, 0, y, ctx->clip.w, ctx->font.extents.height);
+      draw_box(ctx, ctx->clip.x, y, ctx->clip.w, ctx->font->extents.height);
       draw_set_color(ctx, ctx->palette->primary_text);
     }
 
     // Draw the line
     // cairo_set_source_rgb(ctx->cairo, 0, 0, 0);
     draw_set_color(ctx, ctx->palette->primary_text);
-    draw_text(ctx, 0, y + ctx->font.extents.ascent, temp, 0);
+    draw_text(ctx, ctx->clip.x, y + ctx->font->extents.ascent, temp, 0);
 
     /* with_styles(lambda(void _(point_t r, text_style_t *s) { */
     /*   __auto_type len = r.y - r.x; */
@@ -90,7 +90,7 @@ void input_view(input_t *self) {
     /*   if (len > 0) { */
     /*     char tmp[len + 1]; */
     /*     strncpy(tmp, temp + r.x, len); */
-    /*     draw_text(ctx, 0, y + ctx->font.extents.ascent, tmp, r.y - r.x); */
+    /*     draw_text(ctx, 0, y + ctx->font->extents.ascent, tmp, r.y - r.x); */
     /*   } */
     /* })); */
 
@@ -99,10 +99,10 @@ void input_view(input_t *self) {
       int cur_x_offset = cursor_offset - begin_offset;
       cairo_text_extents_t extents;
       draw_measure_text(ctx, temp, cur_x_offset, &extents);
-      draw_box(ctx, extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font.extents.height + 2);
+      draw_box(ctx, extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font->extents.height + 2);
     }
-    y += ctx->font.extents.height;
-    if (y + ctx->font.extents.height >= max_y) break;
+    y += ctx->font->extents.height;
+    if (y + ctx->font->extents.height >= max_y) break;
     // Skip newline symbol
     bs_move(&iter, 1);
     if (eof) break;
@@ -119,7 +119,7 @@ void input_view(input_t *self) {
 
 void input_update_lines(input_t *self) {
   __auto_type ctx = &self->ctx;
-  int lines_len = div(ctx->clip.h + ctx->font.extents.height, ctx->font.extents.height).quot + 1;
+  int lines_len = div(ctx->clip.h + ctx->font->extents.height, ctx->font->extents.height).quot + 1;
 
   if (!self->lines || (lines_len != self->lines_len)) {
     self->lines_len = lines_len;
@@ -133,7 +133,7 @@ bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x,
   __auto_type ctx = &self->ctx;
   int x = screen_x - ctx->clip.x;
   int y = screen_y - ctx->clip.y;
-  int line_y = div(y, ctx->font.extents.height).quot;
+  int line_y = div(y, ctx->font->extents.height).quot;
   int line_offset = self->lines[line_y];
   if (line_offset < 0) return false;
   int minx, maxx, miny, maxy, advance;
@@ -142,7 +142,6 @@ bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x,
   bs_index(&self->contents, iter, line_offset);
   bs_find(iter, lambda(bool _(char c){
     if (c == '\n') return true;
-    // TTF_GlyphMetrics(ctx->font.font, c, &minx, &maxx, &miny, &maxy, &advance);
     current_x += advance;
     // TODO: better end of line detection
     if (current_x - 18 >= x) return true;
@@ -155,17 +154,15 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   auto void yield_context_menu(void *msg);
 
   switch (msg->tag) {
-  case MSG_FREE: {
-    input_free(self);
-    return;
+  case Expose: {
+    return input_view(self);
   }
-  case MSG_VIEW: {
-    input_view(self);
-    return;
+  case MSG_FREE: {
+    return input_free(self);
   }
   case MSG_MEASURE: {
-    msg->widget.measure->x = INT_MAX;
-    msg->widget.measure->y = INT_MAX;
+    msg->widget.measure.x = INT_MAX;
+    msg->widget.measure.y = INT_MAX;
     return;
   }
   case INPUT_CUT: {
@@ -207,7 +204,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       return;
     }
     menulist_dispatch(&self->context_menu, &msg->context_menu, &yield_context_menu);
-    if (msg->context_menu.tag == MSG_VIEW) {
+    if (msg->context_menu.tag == Expose) {
       // SDL_RenderPresent(self->context_menu.ctx.renderer);
     }
     return;
