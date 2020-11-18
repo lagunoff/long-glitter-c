@@ -13,7 +13,7 @@
 
 #include "utils.h"
 #include "draw.h"
-#include "buffer.h"
+#include "tabs.h"
 
 int main(int argc, char **argv) {
   __auto_type path = argc < 2 ? "/home/vlad/job/long-glitter-c/tmp/xola.c" : argv[1];
@@ -42,8 +42,9 @@ int main(int argc, char **argv) {
   ctx.clip.x = 0; ctx.clip.y = 0;
   ctx.clip.w = width; ctx.clip.h = height;
 
-  buffer_t buffer;
-  buffer_init(&buffer, &ctx , path);
+  tabs_t buffer;
+  tabs_init(&buffer, &ctx , path);
+  tabs_msg_t layout = {.tag = MSG_LAYOUT};
 
   XEvent x_event;
   char keybuf[8];
@@ -67,9 +68,10 @@ int main(int argc, char **argv) {
         break;
       }}
     }
-    buffer_dispatch(&buffer, user_msg ? user_msg : &x_event, (yield_t)&loop);
+    tabs_dispatch(&buffer, user_msg ? user_msg : &x_event, (yield_t)&loop);
   }
 
+  tabs_dispatch(&buffer, &layout, &loop);
   while (1) {
     XNextEvent(ctx.display, &x_event);
     loop(NULL);

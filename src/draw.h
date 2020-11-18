@@ -115,3 +115,10 @@ inline_always void
 draw_measure_text(widget_context_t *ctx, char *text, int len, cairo_text_extents_t *extents) {
   cairo_text_extents(ctx->cairo, text, extents);
 }
+
+inline_always void
+draw_line(widget_context_t *ctx, int x1, int y1, int x2, int y2) {
+  cairo_move_to(ctx->cairo, x1, y1);
+  cairo_line_to(ctx->cairo, x2, y2);
+  cairo_stroke(ctx->cairo);
+}

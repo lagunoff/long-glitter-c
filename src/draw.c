@@ -42,7 +42,8 @@ void draw_set_color(widget_context_t *self, color_t color) {
 }
 
 void draw_rectangle(widget_context_t *ctx, int x, int y, int w, int h) {
-
+  cairo_rectangle(ctx->cairo, x, y, w, h);
+  cairo_fill(ctx->cairo);
 }
 
 void draw_box(widget_context_t *ctx, int x, int y, int w, int h) {

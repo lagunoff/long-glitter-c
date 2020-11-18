@@ -58,7 +58,7 @@ void input_view(input_t *self) {
   __auto_type max_y = ctx->clip.y + ctx->clip.h;
 
   char temp[1024 * 16]; // Maximum line length — 16kb
-  int y = 0; // y coordinate of the top-left corner of the text
+  int y = ctx->clip.y; // y coordinate of the top-left corner of the text
   int i = 0; // Index of the line
   point_t line_sel_range;
   text_style_t normal = {.syntax = SYNTAX_NORMAL, .selected = false};
@@ -253,6 +253,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     __auto_type is_ctrl = xkey->state & ControlMask;
     __auto_type is_alt = xkey->state & Mod1Mask;
     __auto_type is_altshift = (xkey->state & Mod1Mask) && (xkey->state & ShiftMask);
+
     if (keysym == XK_Up || (keysym == XK_p && is_ctrl)) {
       MODIFY_CURSOR(cursor_up);
       return yield(&msg_view);

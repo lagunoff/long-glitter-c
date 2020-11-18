@@ -29,8 +29,6 @@ void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
   statusbar_init(&self->statusbar, self);
   self->show_lines = true;
   draw_set_font(&self->input.ctx, &ctx->palette->monospace_font);
-  buffer_msg_t layout = {.tag = MSG_LAYOUT};
-  buffer_dispatch(self, &layout, &noop_yield);
 }
 
 void buffer_free(buffer_t *self) {
@@ -62,7 +60,7 @@ void buffer_view_lines(buffer_t *self) {
     draw_measure_text(ctx, temp, strlen(temp), &text_size);
     draw_text(ctx, self->lines.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp, strlen(temp));
     y += ctx->font->extents.height;
-    if (y + ctx->font->extents.height >= self->lines.h) break;
+    if (y + ctx->font->extents.height >= self->lines.y + self->lines.h) break;
   }
 }
 

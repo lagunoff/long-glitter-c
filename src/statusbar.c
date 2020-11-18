@@ -10,7 +10,6 @@
 #include "draw.h"
 #include "utils.h"
 
-static char *strchr_last(char *str, int c);
 static int y_padding = 6;
 
 void statusbar_init(statusbar_t *self, struct buffer_t *buffer) {
@@ -46,11 +45,4 @@ void statusbar_dispatch(statusbar_t *self, statusbar_msg_t *msg, yield_t yield) 
     msg->measure.x = INT_MAX;
     return;
   }}
-}
-
-static char *strchr_last(char *str, int c) {
-  char *result = NULL;
-  for(int i = 0; str[i]; i++)
-    if (str[i] == c) result = str + i;
-  return result;
 }
