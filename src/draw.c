@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <cairo.h>
 #include <ctype.h>
+#include <X11/Xcursor/Xcursor.h>
 
 struct hex_color {
   char r1;
@@ -29,6 +30,7 @@ void draw_init_context(widget_context_t *self, widget_context_init_t *init) {
   self->cairo = init->cairo;
   self->palette = init->palette;
   self->clip = init->clip;
+  self->xic = init->xic;
   self->background = draw_rgba(1, 1, 1, 1);
   self->foreground = self->palette->primary_text;
   draw_set_font(self, &palette.default_font);
@@ -53,7 +55,9 @@ void draw_rect(widget_context_t *ctx, rect_t rect) {
   cairo_fill(ctx->cairo);
 }
 
-void draw_set_color_rgba(widget_context_t *ctx, double r, double g, double b, double a) {
+void draw_set_color_rgba(widget_context_t *self, double r, double g, double b, double a) {
+  self->foreground = draw_rgba(r, g, b, a);
+  cairo_set_source_rgba(self->cairo, r, g, b, a);
 }
 
 color_t draw_rgb_hex(char *str) {
@@ -107,6 +111,15 @@ color_t draw_get_color_from_style(widget_context_t *ctx, syntax_style_t style) {
   case SYNTAX_IDENTIFIER:   return ctx->palette->syntax.identifier;
   case SYNTAX_TYPE:         return ctx->palette->syntax.type;
   }
+}
+
+void draw_init(Display *display) {
+  palette.arrow = XcursorLibraryLoadCursor(display, "arrow");
+  palette.xterm = XcursorLibraryLoadCursor(display, "xterm");
+  palette.hand1 = XcursorLibraryLoadCursor(display, "hand1");
+}
+
+void draw_free(Display *display) {
 }
 
 static __attribute__((constructor)) void __init__() {

@@ -5,16 +5,19 @@
 #include "draw.h"
 #include "utils.h"
 
-typedef struct {
-  enum {
-    MSG_NOOP = LASTEvent,
-    MSG_FREE,
-    MSG_MEASURE,
-    MSG_LAYOUT,
-    MSG_LAST,
-  } tag;
-  union {
-    point_t measure;
+typedef union {
+  XEvent x_event;
+  struct {
+    enum {
+      MSG_NOOP = LASTEvent,
+      MSG_FREE,
+      MSG_MEASURE,
+      MSG_LAYOUT,
+      MSG_LAST,
+    } tag;
+    union {
+      point_t measure;
+    };
   };
 } widget_msg_t;
 

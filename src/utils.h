@@ -12,6 +12,7 @@
 #define assert0(exp) if (!(exp)) { fprintf(stderr, "%s %s:%d | ASSERTION FAILED: " #exp "\n", __FUNCTION__, __FILE__, __LINE__); raise(SIGINT); }
 #define exit_if_not(e) if (!e) { fprintf(stderr, "%s:%d | exit_if_not()\n", __FILE__, __LINE__); return EXIT_FAILURE; }
 #define inline_always __inline__ __attribute__((always_inline))
+#define swap(a, b) {__auto_type temp = a; a = b; b = temp;}
 
 typedef struct {
   int x;
@@ -24,3 +25,5 @@ typedef struct {
   int w;
   int h;
 } rect_t;
+
+void noop();

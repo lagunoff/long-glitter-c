@@ -17,6 +17,7 @@ let
       nixpkgs.xorg.libXcursor
       nixpkgs.xorg.libXrender
       nixpkgs.xorg.libXft
+      nixpkgs.xorg.libXmu
       nixpkgs.wayland
       nixpkgs.wayland-protocols
       nixpkgs.cairo

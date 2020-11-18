@@ -50,10 +50,13 @@ void buffer_view(buffer_t *self) {
 void buffer_view_lines(buffer_t *self) {
   __auto_type ctx = &self->ctx;
   __auto_type line = self->input.scroll.line;
+  __auto_type color = ctx->palette->secondary_text;
+  color.alpha = .18;
   char temp[64];
   cairo_text_extents_t text_size;
   int y = self->lines.y;
-  draw_set_color(ctx, ctx->palette->secondary_text);
+
+  draw_set_color(ctx, color);
   for(;;line++) {
     sprintf(temp, "%d", line + 1);
     draw_measure_text(ctx, temp, strlen(temp), &text_size);
@@ -66,16 +69,28 @@ void buffer_view_lines(buffer_t *self) {
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   auto void yield_context_menu(void *msg);
   auto void yield_input(void *msg);
+  auto void yield_statusbar(void *msg);
   __auto_type ctx = &self->ctx;
 
   switch (msg->tag) {
   case Expose: {
-    buffer_view(self);
+    return buffer_view(self);
+  }
+  case MotionNotify: {
     return;
   }
+  case KeyPress: {
+    // TODO: event has to be redirected only to focused subwidget
+    return yield_input(msg);
+  }
+  case SelectionRequest: {
+    return yield_input(msg);
+  }
+  case SelectionNotify: {
+    return yield_input(msg);
+  }
   case MSG_FREE: {
-    buffer_free(self);
-    return;
+    return buffer_free(self);
   }
   case MSG_LAYOUT: {
     statusbar_msg_t measure = {.tag = MSG_MEASURE};
@@ -96,8 +111,8 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     self->statusbar.ctx.clip.w = ctx->clip.w;
     self->statusbar.ctx.clip.h = measure.measure.y;
 
-    statusbar_dispatch(&self->statusbar, (void *)msg, &noop_yield);
-    input_dispatch(&self->input, (void *)msg, &yield_input);
+    yield_statusbar(msg);
+    yield_input(msg);
     return;
   }
   case MSG_MEASURE: {
@@ -106,7 +121,16 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     return;
   }
   case BUFFER_INPUT: {
-    return input_dispatch(&self->input, &msg->input, &yield_input);
+    __auto_type prev_offset = bs_offset(&self->input.cursor.pos);
+    input_dispatch(&self->input, &msg->input, &yield_input);
+    __auto_type next_offset = bs_offset(&self->input.cursor.pos);
+    if (prev_offset != next_offset) {
+      statusbar_dispatch(&self->statusbar, &msg_view, &noop_yield);
+    }
+    return;
+  }
+  case BUFFER_STATUSBAR: {
+    return statusbar_dispatch(&self->statusbar, &msg->statusbar, &yield_statusbar);
   }
   case BUFFER_CONTEXT_MENU: {
     if (msg->context_menu.tag == MENULIST_ITEM_CLICKED) {
@@ -134,6 +158,10 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   }
   void yield_input(void *msg) {
     buffer_msg_t buffer_msg = {.tag = BUFFER_INPUT, .input = *(input_msg_t *)msg};
+    yield(&buffer_msg);
+  }
+  void yield_statusbar(void *msg) {
+    buffer_msg_t buffer_msg = {.tag = BUFFER_STATUSBAR, .input = *(statusbar_msg_t *)msg};
     yield(&buffer_msg);
   }
 }

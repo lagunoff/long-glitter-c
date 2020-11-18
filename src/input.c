@@ -1,18 +1,23 @@
+#include <fcntl.h>
+#include <limits.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <limits.h>
+#include <X11/Xatom.h>
+#include <X11/Xmu/Atoms.h>
 
-#include "input.h"
 #include "draw.h"
+#include "input.h"
 #include "utils.h"
 #include "widget.h"
+
+#define SCROLL_JUMP 8
 
 void input_view_lines(input_t *self);
 void input_update_lines(input_t *self);
 void input_line_selection_range(point_t *line_sel_range, point_t *sel_range, int begin_offset, int end_offset);
+static void cursor_modified(input_t *self,cursor_t *prev);
 
 static const int CURSOR_LINE_WIDTH = 2;
 
@@ -32,10 +37,11 @@ void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *conten
   self->lines_len = 0;
   self->syntax_hl = &noop_highlighter;
   self->context_menu.ctx = self->ctx;
-  //  self->ibeam_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
+  self->x_selection = NULL;
 }
 
 void input_free(input_t *self) {
+  if (self->x_selection) free(self->x_selection);
 }
 
 void input_set_style(widget_context_t *ctx, text_style_t *style) {
@@ -59,8 +65,8 @@ void input_view(input_t *self) {
   highlighter_args_t hl_args = {.ctx = ctx, .normal = &normal, .input = temp, .len = 0};
 
   input_update_lines(self);
-  /* draw_set_color(ctx, ctx->background); */
-  /* draw_rect(ctx, ctx->clip); */
+  draw_set_color(&self->ctx, self->ctx.background);
+  draw_rect(&self->ctx, self->ctx.clip);
 
   for(;;i++) {
     draw_set_color(ctx, ctx->palette->primary_text);
@@ -97,9 +103,10 @@ void input_view(input_t *self) {
     // Draw cursor
     if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
       int cur_x_offset = cursor_offset - begin_offset;
+      temp[cur_x_offset] = '\0';
       cairo_text_extents_t extents;
       draw_measure_text(ctx, temp, cur_x_offset, &extents);
-      draw_box(ctx, extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font->extents.height + 2);
+      draw_box(ctx, ctx->clip.x + extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font->extents.height + 2);
     }
     y += ctx->font->extents.height;
     if (y + ctx->font->extents.height >= max_y) break;
@@ -149,9 +156,11 @@ bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x,
   }));
   return true;
 }
+XEvent respond;
 
 void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   auto void yield_context_menu(void *msg);
+  __auto_type ctx = &self->ctx;
 
   switch (msg->tag) {
   case Expose: {
@@ -165,29 +174,277 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     msg->widget.measure.y = INT_MAX;
     return;
   }
-  case INPUT_CUT: {
-    __auto_type mark_1 = self->selection.mark_1;
-    __auto_type mark_2 = self->cursor.pos;
-    if (mark_1.global_index > mark_2.global_index) {
-      __auto_type tmp = mark_1;
-      mark_1 = mark_2;
-      mark_2 = tmp;
-    }
-    __auto_type len = mark_2.global_index - mark_1.global_index;
-    __auto_type mark_1_temp = mark_1;
-    char temp[len + 1];
-    bs_take(&mark_1_temp, temp, len);
-    // SDL_SetClipboardText(temp);
-    self->contents = bs_insert(
-      self->contents,
-      mark_1.global_index,
-      "", len,
-      BS_RIGHT,
-      &self->cursor.pos,
-      &self->scroll.pos, NULL
+  case SelectionNotify: {
+    __auto_type pty = XInternAtom(ctx->display, "XCLIP_OUT", false);
+    unsigned long pty_size, pty_items;
+    int pty_format;
+    unsigned char *clipboard = NULL;
+    Atom pty_type;
+    XGetWindowProperty(
+      ctx->display,
+      ctx->window,
+      pty,0,0,False,
+      AnyPropertyType,
+      &pty_type, &pty_format, &pty_items, &pty_size, &clipboard
     );
-    self->selection.state = SELECTION_INACTIVE;
-    yield(&msg_view);
+    XFree(clipboard);
+    XGetWindowProperty(
+      ctx->display,
+      ctx->window,
+      pty, 0, (long)pty_size, False,
+      AnyPropertyType,
+      &pty_type, &pty_format, &pty_items, &pty_size, &clipboard
+    );
+    XDeleteProperty(ctx->display, ctx->window, pty);
+    if (clipboard) {
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        clipboard, 0, BS_LEFT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
+      XFree(clipboard);
+      return yield(&msg_view);
+    }
+    return;
+  }
+  case SelectionRequest: {
+    // Copy self->x_selection into the clipboard
+    __auto_type targets = XInternAtom(ctx->display, "TARGETS", false);
+    __auto_type req = &msg->x_event.xselectionrequest;
+
+    if (req->target == targets) {
+      Atom types[2] = { targets, XA_UTF8_STRING(ctx->display) };
+      XChangeProperty(
+        ctx->display,
+        req->requestor,
+        req->property,
+        XA_ATOM,
+        32, PropModeReplace, (unsigned char *) types,
+        (int) (sizeof(types) / sizeof(Atom))
+      );
+    } else {
+      XChangeProperty(
+        ctx->display,
+        req->requestor,
+        req->property,
+        req->target,
+        8, PropModeReplace,
+        self->x_selection,strlen(self->x_selection) + 1
+      );
+    }
+
+    respond.type = SelectionNotify;
+    respond.xselection.property = req->property;
+    respond.xselection.display = req->display;
+    respond.xselection.requestor = req->requestor;
+    respond.xselection.selection = req->selection;
+    respond.xselection.time = req->time;
+    respond.xselection.target = req->target;
+
+    XSendEvent(ctx->display, req->requestor, 0, 0, &respond);
+    XFlush(ctx->display);
+    return;
+  }
+  case KeyPress: {
+    __auto_type xkey = &msg->x_event.xkey;
+    __auto_type keysym = XLookupKeysym(xkey, 0);
+    __auto_type is_ctrl = xkey->state & ControlMask;
+    __auto_type is_alt = xkey->state & Mod1Mask;
+    __auto_type is_altshift = (xkey->state & Mod1Mask) && (xkey->state & ShiftMask);
+    if (keysym == XK_Up || (keysym == XK_p && is_ctrl)) {
+      MODIFY_CURSOR(cursor_up);
+      return yield(&msg_view);
+    } else if (keysym == XK_Down || (keysym == XK_n && is_ctrl)) {
+      MODIFY_CURSOR(cursor_down);
+      return yield(&msg_view);
+    } else if (keysym == XK_Left || (keysym == XK_b && is_ctrl)) {
+      MODIFY_CURSOR(cursor_left);
+      return yield(&msg_view);
+    } else if (keysym == XK_Right || (keysym == XK_f && is_ctrl)) {
+      MODIFY_CURSOR(cursor_right);
+      return yield(&msg_view);
+    } else if (keysym == XK_f && is_alt) {
+      MODIFY_CURSOR(cursor_forward_word);
+      return yield(&msg_view);
+    } else if (keysym == XK_b && is_alt) {
+      MODIFY_CURSOR(cursor_backward_word);
+      return yield(&msg_view);
+    } else if (keysym == XK_e && is_ctrl) {
+      MODIFY_CURSOR(cursor_eol);
+      return yield(&msg_view);
+    } else if (keysym == XK_a && is_ctrl) {
+      MODIFY_CURSOR(cursor_bol);
+      return yield(&msg_view);
+    } else if (keysym == XK_v && is_ctrl || keysym == XK_Page_Down) {
+      scroll_page(&self->ctx, &self->scroll, &self->cursor, 1);
+      return yield(&msg_view);
+    } else if (keysym == XK_v && is_alt || keysym == XK_Page_Up) {
+      scroll_page(&self->ctx, &self->scroll, &self->cursor, -1);
+      return yield(&msg_view);
+    } else if (keysym == XK_bracketleft && is_altshift) {
+      MODIFY_CURSOR(backward_paragraph);
+      return yield(&msg_view);
+    } else if (keysym == XK_bracketright && is_altshift) {
+      MODIFY_CURSOR(forward_paragraph);
+      return yield(&msg_view);
+    } else if (keysym == XK_k && is_ctrl) {
+      __auto_type iter = self->cursor.pos;
+      bs_find(&iter, lambda(bool _(char c) { return c == '\n'; }));
+      __auto_type curr_offset = bs_offset(&self->cursor.pos);
+      __auto_type iter_offset = bs_offset(&iter);
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "", MAX(iter_offset - curr_offset, 1),
+        BS_RIGHT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
+      return yield(&msg_view);
+    } else if (keysym == XK_BackSpace && is_alt) {
+      __auto_type iter = self->cursor.pos;
+      bs_backward_word(&iter);
+      __auto_type curr_offset = bs_offset(&self->cursor.pos);
+      __auto_type iter_offset = bs_offset(&iter);
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "", MAX(curr_offset - iter_offset, 1),
+        BS_LEFT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
+      return yield(&msg_view);
+    } else if (keysym == XK_d && is_alt) {
+      __auto_type iter = self->cursor.pos;
+      bs_forward_word(&iter);
+      __auto_type curr_offset = bs_offset(&self->cursor.pos);
+      __auto_type iter_offset = bs_offset(&iter);
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "", MAX(iter_offset - curr_offset, 1),
+        BS_RIGHT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
+      return yield(&msg_view);
+    } else if (keysym == XK_comma && is_altshift) {
+      MODIFY_CURSOR(cursor_begin);
+      return yield(&msg_view);
+    } else if ((keysym == XK_Delete) || (keysym == XK_d && is_ctrl)) {
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "", 1,
+        BS_RIGHT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
+      return yield(&msg_view);
+    } else if (keysym == XK_BackSpace) {
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "", 1,
+        BS_LEFT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
+      return yield(&msg_view);
+    } else if (keysym == XK_Return) {
+      self->contents = bs_insert(
+        self->contents,
+        self->cursor.pos.global_index,
+        "\n", 0,
+        BS_LEFT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
+      return yield(&msg_view);
+    } else if (keysym == XK_slash && is_ctrl) {
+      self->contents = bs_insert_undo(self->contents, &self->cursor.pos, &self->scroll.pos, NULL);
+      return yield(&msg_view);
+    } else if (keysym == XK_space && is_ctrl) {
+      self->selection.state = SELECTION_COMPLETE;
+      self->selection.mark_1 = self->cursor.pos;
+      self->selection.mark_2 = self->cursor.pos;
+      return yield(&msg_view);
+    } else if (keysym == XK_g && is_ctrl) {
+      self->selection.state = SELECTION_INACTIVE;
+      self->selection.mark_1 = self->cursor.pos;
+      return yield(&msg_view);
+    } else if (keysym == XK_w && is_ctrl) {
+      input_msg_t next_msg = {.tag = INPUT_CUT};
+      return yield(&next_msg);
+    } else if (keysym == XK_w && is_alt) {
+      input_msg_t next_msg = {.tag = INPUT_COPY};
+      return yield(&next_msg);
+    } else if (keysym == XK_y && is_ctrl) {
+      input_msg_t next_msg = {.tag = INPUT_PASTE};
+      return yield(&next_msg);
+    } else {
+      char buffer[32];
+      KeySym ignore;
+      Status return_status;
+      Xutf8LookupString(self->ctx.xic, xkey, buffer, 32, &ignore, &return_status);
+      if (strlen(buffer)) {
+        self->contents = bs_insert(
+          self->contents,
+          self->cursor.pos.global_index,
+          buffer, 0,
+          BS_LEFT,
+          &self->cursor.pos,
+          &self->scroll.pos, NULL
+        );
+        return yield(&msg_view);
+      }
+      return;
+    }
+    return;
+  }
+  case INPUT_CUT: {
+    if (self->selection.state == SELECTION_COMPLETE) {
+      __auto_type mark_1 = self->selection.mark_1;
+      __auto_type mark_2 = self->cursor.pos;
+      if (mark_1.global_index > mark_2.global_index) swap(mark_1, mark_2);
+      __auto_type len = mark_2.global_index - mark_1.global_index;
+      __auto_type mark_1_temp = mark_1;
+      self->x_selection = realloc(self->x_selection, len + 1);
+      bs_take(&mark_1, self->x_selection, len);
+      XSetSelectionOwner(ctx->display, XA_PRIMARY, ctx->window, CurrentTime);
+      self->contents = bs_insert(
+        self->contents,
+        mark_1.global_index,
+        "", len,
+        BS_RIGHT,
+        &self->cursor.pos,
+        &self->scroll.pos, NULL
+      );
+      self->selection.state = SELECTION_INACTIVE;
+      return yield(&msg_view);
+    }
+    return;
+  }
+  case INPUT_COPY: {
+    if (self->selection.state == SELECTION_COMPLETE) {
+      __auto_type mark_1 = self->selection.mark_1;
+      __auto_type mark_2 = self->cursor.pos;
+      if (mark_1.global_index > mark_2.global_index) swap(mark_1, mark_2);
+      __auto_type len = mark_2.global_index - mark_1.global_index;
+      self->x_selection = realloc(self->x_selection, len + 1);
+      bs_take(&mark_1, self->x_selection, len);
+      XSetSelectionOwner(ctx->display, XA_PRIMARY, ctx->window, CurrentTime);
+      self->selection.state = SELECTION_INACTIVE;
+      return yield(&msg_view);
+    }
+    return;
+  }
+  case INPUT_PASTE: {
+    __auto_type pty = XInternAtom(ctx->display, "XCLIP_OUT", false);
+    XConvertSelection(ctx->display, XA_PRIMARY, XA_UTF8_STRING(ctx->display), pty, ctx->window, CurrentTime);
     return;
   }
   case INPUT_CONTEXT_MENU: {
@@ -234,9 +491,6 @@ point_t selection_get_range(selection_t *selection, cursor_t *cursor) {
   return result;
 }
 
-int input_unittest() {
-}
-
 void input_line_selection_range(point_t *line_sel_range, point_t *sel_range, int begin_offset, int end_offset) {
   __auto_type line_len = end_offset - begin_offset;
   line_sel_range->x = -1;
@@ -251,7 +505,47 @@ void input_line_selection_range(point_t *line_sel_range, point_t *sel_range, int
   }
 }
 
-void noop() {}
+static void cursor_modified(input_t *self,cursor_t *prev) {
+  int next_offset = bs_offset(&self->cursor.pos);
+  int prev_offset = bs_offset(&prev->pos);
+  int scroll_offset = bs_offset(&self->scroll.pos);
+  int diff = next_offset - prev_offset;
+  int screen_lines = div(self->ctx.clip.h, self->ctx.font->extents.height).quot;
+
+  int count_lines() {
+    buff_string_iter_t iter = self->cursor.pos;
+    int lines=0;
+    int i = next_offset;
+    if (next_offset > scroll_offset) {
+      bs_find_back(&iter, lambda(bool _(char c) {
+        if (c=='\n') lines++;
+        i--;
+        if (i==scroll_offset) return true;
+        return false;
+      }));
+    } else {
+      bs_find(&iter, lambda(bool _(char c) {
+        if (c=='\n') lines--;
+        i++;
+        if (i==scroll_offset) return true;
+        return false;
+      }));
+    }
+    return lines;
+  }
+  int lines = count_lines();
+
+  if (diff > 0) {
+    if (lines > screen_lines) {
+      scroll_lines(&self->scroll, lines - screen_lines + SCROLL_JUMP);
+    }
+  } else {
+    if (lines < 0) {
+      scroll_lines(&self->scroll, lines - SCROLL_JUMP - 1);
+    }
+  }
+}
+
 void noop_highlight(void *self, highlighter_args_t *args, highlighter_t hl) {
   point_t range = {0, args->len};
   hl(range, args->normal);
