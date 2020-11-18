@@ -5,4 +5,4 @@ EXTRA_ARGS="-j -outputdir=$DIR/../out"
 make --silent -f $DIR/envrc.mk $DIR/../.envrc || exit 1;
 source $DIR/../.envrc
 
-$CC $(pkg-config --cflags --libs cairo x11 xext xcursor xrender xft) -Wno-format -Wno-format-security -Wno-cpp "$@"
+$CC $(pkg-config --cflags --libs cairo x11 xext xcursor xrender xft xmu) -Wno-format -Wno-format-security -Wno-cpp "$@"

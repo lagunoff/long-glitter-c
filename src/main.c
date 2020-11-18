@@ -27,11 +27,16 @@ int main(int argc, char **argv) {
   attr.colormap = XCreateColormap(ctx.display, DefaultRootWindow(ctx.display), vinfo.visual, AllocNone);
   attr.border_pixel = 0;
   attr.background_pixel = ULONG_MAX;
-  ctx.window = XCreateWindow(ctx.display, DefaultRootWindow(ctx.display), 0, 0, width, height, 0, vinfo.depth, InputOutput, vinfo.visual, CWColormap | CWBorderPixel | CWBackPixel, &attr);
+  ctx.window = XCreateWindow(ctx.display, DefaultRootWindow(ctx.display), 0, 0, width, height, 0, vinfo.depth, 0, vinfo.visual, CWColormap | CWBorderPixel | CWBackPixel, &attr);
   __auto_type screen = XDefaultScreen(ctx.display);
   __auto_type surface = cairo_xlib_surface_create(ctx.display, ctx.window, vinfo.visual, width, height);
-  XSelectInput(ctx.display, ctx.window, ButtonPressMask|KeyPressMask|ExposureMask|StructureNotifyMask);
+  XSelectInput(ctx.display, ctx.window, ButtonPressMask|KeyPressMask|ExposureMask|StructureNotifyMask|PointerMotionHintMask|KeyPressMask|PropertyChangeMask);
   XMapWindow(ctx.display, ctx.window);
+  draw_init(ctx.display);
+
+  XIM xim = XOpenIM(ctx.display, 0, 0, 0);
+  ctx.xic = XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing, NULL);
+
   ctx.palette = &palette;
   ctx.cairo = cairo_create(surface);
   ctx.clip.x = 0; ctx.clip.y = 0;
@@ -70,6 +75,7 @@ int main(int argc, char **argv) {
     loop(NULL);
   }
 
+  draw_free(ctx.display);
   cairo_destroy(ctx.cairo);
   cairo_surface_destroy(surface);
   XCloseDisplay(ctx.display);

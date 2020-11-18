@@ -34,10 +34,12 @@ typedef union {
     enum {
       BUFFER_CONTEXT_MENU = MSG_LAST,
       BUFFER_INPUT,
+      BUFFER_STATUSBAR,
     } tag;
     union {
       menulist_msg_t context_menu;
       input_msg_t    input;
+      statusbar_msg_t statusbar;
     };
   };
 } buffer_msg_t;

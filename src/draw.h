@@ -60,6 +60,9 @@ typedef struct {
   font_t  small_font;
   font_t  monospace_font;
   font_t  fontawesome_font;
+  Cursor  arrow;
+  Cursor  xterm;
+  Cursor  hand1;
   syntax_theme_t syntax;
 } palette_t;
 
@@ -69,6 +72,7 @@ typedef struct {
   cairo_t   *cairo;
   palette_t *palette;
   rect_t     clip;
+  XIC        xic;
 } widget_context_init_t;
 
 typedef struct {
@@ -77,6 +81,7 @@ typedef struct {
   Window     window;
   cairo_t   *cairo;
   palette_t *palette;
+  XIC        xic;
   // rw fields
   rect_t     clip;
   font_t    *font;
@@ -97,14 +102,16 @@ void draw_box(widget_context_t *ctx, int x, int y, int w, int h);
 void draw_rect(widget_context_t *ctx, rect_t rect);
 void draw_set_font(widget_context_t *ctx, font_t *font);
 color_t draw_get_color_from_style(widget_context_t *ctx, syntax_style_t style);
+void draw_init(Display *display);
+void draw_free(Display *display);
 
-__inline__ __attribute__((always_inline)) void
+inline_always void
 draw_text(widget_context_t *ctx, int x, int y, const char *text, int len) {
   cairo_move_to(ctx->cairo, x, y);
   cairo_show_text(ctx->cairo, text);
 }
 
-__inline__ __attribute__((always_inline)) void
+inline_always void
 draw_measure_text(widget_context_t *ctx, char *text, int len, cairo_text_extents_t *extents) {
   cairo_text_extents(ctx->cairo, text, extents);
 }

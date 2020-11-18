@@ -9,6 +9,12 @@
 #include "menulist.h"
 #include "utils.h"
 
+#define MODIFY_CURSOR(f) {                                   \
+  cursor_t old_cursor = self->cursor;                        \
+  f(&self->cursor);                                               \
+  cursor_modified(self, &old_cursor);                        \
+}
+
 typedef enum {
   SELECTION_INACTIVE,
   SELECTION_DRAGGING_MOUSE,
@@ -65,6 +71,8 @@ typedef struct {
   int            lines_len;
   syntax_highlighter_t *syntax_hl;
   char           syntax_hl_inst[16];
+  Cursor         x_cursor;
+  char          *x_selection;
 } input_t;
 
 typedef enum {
