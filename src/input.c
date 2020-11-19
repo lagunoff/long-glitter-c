@@ -45,7 +45,11 @@ void input_free(input_t *self) {
 }
 
 void input_set_style(widget_context_t *ctx, text_style_t *style) {
-  draw_set_color(ctx, draw_get_color_from_style(ctx, style->syntax));
+  if (style->selected) {
+    draw_set_color_rgba(ctx, 0, 1, 0, 1);
+  } else {
+    draw_set_color(ctx, draw_get_color_from_style(ctx, style->syntax));
+  }
 }
 
 void input_view(input_t *self) {
@@ -62,7 +66,7 @@ void input_view(input_t *self) {
   int i = 0; // Index of the line
   point_t line_sel_range;
   text_style_t normal = {.syntax = SYNTAX_NORMAL, .selected = false};
-  highlighter_args_t hl_args = {.ctx = ctx, .normal = &normal, .input = temp, .len = 0};
+  highlighter_args_t hl_args = {.ctx = ctx, .normal = &normal, .input = temp, .len = strlen(temp)};
 
   input_update_lines(self);
   draw_set_color(&self->ctx, self->ctx.background);
@@ -77,6 +81,7 @@ void input_view(input_t *self) {
     hl_args.len = line_len;
     input_line_selection_range(&line_sel_range, &sel_range, begin_offset, end_offset);
     self->lines[i] = begin_offset;
+    fprintf(stderr, "line_sel_range: %d %d\n", line_sel_range.x, line_sel_range.y);
 
     // Highlight the current line
     if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
@@ -87,18 +92,22 @@ void input_view(input_t *self) {
 
     // Draw the line
     // cairo_set_source_rgb(ctx->cairo, 0, 0, 0);
-    draw_set_color(ctx, ctx->palette->primary_text);
-    draw_text(ctx, ctx->clip.x, y + ctx->font->extents.ascent, temp, 0);
-
-    /* with_styles(lambda(void _(point_t r, text_style_t *s) { */
-    /*   __auto_type len = r.y - r.x; */
-    /*   input_set_style(ctx, s); */
-    /*   if (len > 0) { */
-    /*     char tmp[len + 1]; */
-    /*     strncpy(tmp, temp + r.x, len); */
-    /*     draw_text(ctx, 0, y + ctx->font->extents.ascent, tmp, r.y - r.x); */
-    /*   } */
-    /* })); */
+    /* draw_set_color(ctx, ctx->palette->primary_text); */
+    /* draw_text(ctx, ctx->clip.x, y + ctx->font->extents.ascent, temp, 0); */
+    int x = ctx->clip.x;
+    with_styles(lambda(void _(point_t r, text_style_t *s) {
+      __auto_type len = r.y - r.x;
+      if (len > 0) {
+        cairo_text_extents_t extents;
+        char tmp[len + 1];
+        strncpy(tmp, temp + r.x, len);
+        tmp[len] = '\0';
+        draw_measure_text(ctx, tmp, r.y - r.x, &extents);
+        input_set_style(ctx, s);
+        draw_text(ctx, x, y + ctx->font->extents.ascent, tmp, r.y - r.x);
+        x += extents.x_advance;
+      }
+    }));
 
     // Draw cursor
     if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
@@ -369,7 +378,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       self->contents = bs_insert_undo(self->contents, &self->cursor.pos, &self->scroll.pos, NULL);
       return yield(&msg_view);
     } else if (keysym == XK_space && is_ctrl) {
-      self->selection.state = SELECTION_COMPLETE;
+      self->selection.state = SELECTION_DRAGGING_KEYBOARD;
       self->selection.mark_1 = self->cursor.pos;
       self->selection.mark_2 = self->cursor.pos;
       return yield(&msg_view);
@@ -496,13 +505,18 @@ void input_line_selection_range(point_t *line_sel_range, point_t *sel_range, int
   __auto_type line_len = end_offset - begin_offset;
   line_sel_range->x = -1;
   line_sel_range->y = -1;
-  if (sel_range->x >= begin_offset && sel_range->x < end_offset) {
-    line_sel_range->x = begin_offset - sel_range->x;
-    line_sel_range->y = MIN(begin_offset - sel_range->y, line_len);
+  if (sel_range->x <= begin_offset && sel_range->y >= end_offset) {
+    line_sel_range->x = 0;
+    line_sel_range->y = line_len;
+    return;
   }
-  if (sel_range->y >= begin_offset && sel_range->y < end_offset) {
-    line_sel_range->y = begin_offset - sel_range->y;
-    line_sel_range->y = MAX(begin_offset - sel_range->x, 0);
+  if (sel_range->x >= begin_offset && sel_range->x <= end_offset) {
+    line_sel_range->x = sel_range->x - begin_offset;
+    line_sel_range->y = MIN(sel_range->y - begin_offset, line_len);
+  }
+  if (sel_range->y >= begin_offset && sel_range->y <= end_offset) {
+    line_sel_range->x = MAX(sel_range->x - begin_offset, 0);
+    line_sel_range->y = sel_range->y - begin_offset;
   }
 }
 

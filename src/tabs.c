@@ -23,11 +23,12 @@ void tabs_view(tabs_t *self) {
     buffer_dispatch(&self->active->buffer, (buffer_msg_t *)&msg_view, &noop_yield);
   }
   // Draw tabs
-  draw_set_color_rgba(ctx, 0.95, 0.95, 0.95, 1);
+  draw_set_color_rgba(ctx, 0.97, 0.97, 0.97, 1);
   draw_rect(ctx, self->tabs_clip);
   draw_set_color(ctx, ctx->palette->border);
-  cairo_set_line_width(ctx->cairo, 1);
-  draw_line(ctx, self->tabs_clip.x - 0.5, self->tabs_clip.y + self->tabs_clip.h - 1.5, self->tabs_clip.x + self->tabs_clip.w - 0.5, self->tabs_clip.y + self->tabs_clip.h - 1.5);
+  cairo_set_antialias(ctx->cairo, CAIRO_ANTIALIAS_NONE);
+  cairo_set_line_width(ctx->cairo, 1.0);
+  draw_line(ctx, self->tabs_clip.x, self->tabs_clip.y + self->tabs_clip.h - 1, self->tabs_clip.x + self->tabs_clip.w, self->tabs_clip.y + self->tabs_clip.h - 1);
   int x = self->tabs_clip.x;
   int y_text = self->tabs_clip.y + (self->tabs_clip.h - ctx->font->extents.ascent) * 0.5 + ctx->font->extents.ascent;
   for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
@@ -37,6 +38,8 @@ void tabs_view(tabs_t *self) {
     draw_measure_text(ctx, fname, 0, &extents);
     draw_set_color_rgba(ctx, 1, 1, 1, 1);
     draw_rectangle(ctx, x, self->tabs_clip.y, x + extents.x_advance + x_padding * 2, self->tabs_clip.h);
+    draw_set_color(ctx, ctx->palette->border);
+    draw_line(ctx, x + extents.x_advance + x_padding * 2, self->tabs_clip.y, x + extents.x_advance + x_padding * 2, self->tabs_clip.y + self->tabs_clip.h);
     draw_set_color(ctx, ctx->palette->secondary_text);
     draw_text(ctx, x + x_padding, y_text, fname, 0);
   }

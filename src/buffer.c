@@ -53,9 +53,13 @@ void buffer_view_lines(buffer_t *self) {
   char temp[64];
   cairo_text_extents_t text_size;
   int y = self->lines.y;
+  draw_set_color(&self->ctx, self->ctx.background);
+  draw_rect(&self->ctx, self->lines);
 
   draw_set_color(ctx, color);
-  for(;;line++) {
+  for(int i = 0; i < self->input.lines_len; line++, i++) {
+    // File content ended, dont draw line numbers
+    if (self->input.lines[i] == -1) break;
     sprintf(temp, "%d", line + 1);
     draw_measure_text(ctx, temp, strlen(temp), &text_size);
     draw_text(ctx, self->lines.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp, strlen(temp));
@@ -79,6 +83,14 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   }
   case KeyPress: {
     // TODO: event has to be redirected only to focused subwidget
+    __auto_type xkey = &msg->x_event.xkey;
+    __auto_type keysym = XLookupKeysym(xkey, 0);
+    if (keysym == XK_F10) {
+      self->show_lines = !self->show_lines;
+      buffer_msg_t next_msg = {.tag=MSG_LAYOUT};
+      yield(&next_msg);
+      return yield(&msg_view);
+    }
     return yield_input(msg);
   }
   case SelectionRequest: {

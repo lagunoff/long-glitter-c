@@ -17,7 +17,7 @@
 
 int main(int argc, char **argv) {
   __auto_type path = argc < 2 ? "/home/vlad/job/long-glitter-c/tmp/xola.c" : argv[1];
-  int width = 900, height = 500;
+  int width = 800, height = 800;
   XVisualInfo vinfo;
   XSetWindowAttributes attr;
   widget_context_init_t ctx;

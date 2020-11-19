@@ -112,16 +112,20 @@ point_t selection_get_range(selection_t *self, cursor_t *cursor);
 
 syntax_highlighter_t noop_highlighter;
 
-__inline__ __attribute__((always_inline)) void
+inline_always void
 input_highlight_range(style_on_t on, style_off_t off, point_t range, highlighter_inv_t inv_hl, highlighter_t hl) {
   inv_hl(lambda(void _(point_t r, text_style_t *s) {
-    if (r.x >= range.x) {
+    if (r.x >= range.y) {
+      off(s); hl(r, s);
+    } else if (r.y <= range.x) {
+      off(s); hl(r, s);
+    } else if (r.x >= range.x) {
       if (r.y <= range.y) {
         on(s); hl(r, s);
       } else {
         point_t p1; point_t p2;
-        p1.x = r.x; p1.y = range.x;
-        p2.x = range.x; p2.y = r.y;
+        p1.x = r.x; p1.y = range.y;
+        p2.x = range.y; p2.y = r.y;
         on(s); hl(p1, s);
         off(s); hl(p2, s);
       }
