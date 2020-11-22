@@ -13,11 +13,13 @@ void tabs_init(tabs_t *self, widget_context_init_t *ctx, char *path) {
 }
 
 void tabs_free(tabs_t *self) {
+  for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
+    buffer_free(&iter->buffer);
+  }
 }
 
 void tabs_view(tabs_t *self) {
   __auto_type ctx = &self->ctx;
-
   // Draw contents
   if (self->active) {
     buffer_dispatch(&self->active->buffer, (buffer_msg_t *)&msg_view, &noop_yield);

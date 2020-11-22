@@ -71,6 +71,7 @@ void input_view(input_t *self) {
   highlighter_args_t hl_args = {.ctx = ctx, .normal = &normal, .input = temp, .len = strlen(temp)};
 
   input_update_lines(self);
+  draw_set_font(&self->ctx, self->ctx.font);
   draw_set_color(&self->ctx, self->ctx.background);
   draw_rect(&self->ctx, self->ctx.clip);
 

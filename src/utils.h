@@ -13,6 +13,7 @@
 #define exit_if_not(e) if (!e) { fprintf(stderr, "%s:%d | exit_if_not()\n", __FILE__, __LINE__); return EXIT_FAILURE; }
 #define inline_always __inline__ __attribute__((always_inline))
 #define swap(a, b) {__auto_type temp = a; a = b; b = temp;}
+#define match(ty, a, body) ({ ty _(it) { switch(it) body;}; _(a); })
 
 typedef struct {
   int x;

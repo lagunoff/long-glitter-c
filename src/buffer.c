@@ -22,15 +22,15 @@ void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
   self->path = path;
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
-  input_init(&self->input, ctx, new_bytes(mmaped, st.st_size), buffer_choose_syntax_highlighter(path));
-  self->input.ctx.font = &ctx->palette->monospace_font;
+  self->ctx.font = &ctx->palette->monospace_font;
   draw_init_context(&self->ctx, ctx);
+  input_init(&self->input, ctx, new_bytes(mmaped, st.st_size), buffer_choose_syntax_highlighter(path));
   self->context_menu.ctx = self->ctx;
   self->context_menu.ctx.window = 0;
   self->statusbar.ctx = self->ctx;
   statusbar_init(&self->statusbar, self);
   self->show_lines = true;
-  draw_set_font(&self->input.ctx, &ctx->palette->monospace_font);
+  draw_set_font(&self->input.ctx, &self->ctx.palette->monospace_font);
 }
 
 syntax_highlighter_t *buffer_choose_syntax_highlighter(char *path) {
@@ -47,12 +47,6 @@ void buffer_free(buffer_t *self) {
   close(self->fd);
 }
 
-void buffer_view(buffer_t *self) {
-  buffer_view_lines(self);
-  input_dispatch(&self->input, (input_msg_t *)&msg_view, &noop_yield);
-  statusbar_dispatch(&self->statusbar, (statusbar_msg_t *)&msg_view, &noop_yield);
-}
-
 void buffer_view_lines(buffer_t *self) {
   __auto_type ctx = &self->ctx;
   __auto_type line = self->input.scroll.line;
@@ -64,13 +58,14 @@ void buffer_view_lines(buffer_t *self) {
   draw_set_color(&self->ctx, self->ctx.background);
   draw_rect(&self->ctx, self->lines);
 
+  draw_set_font(&self->ctx, &self->ctx.palette->monospace_font);
   draw_set_color(ctx, color);
   for(int i = 0; i < self->input.lines_len; line++, i++) {
     // File content ended, dont draw line numbers
     if (self->input.lines[i] == -1) break;
     sprintf(temp, "%d", line + 1);
     draw_measure_text(ctx, temp, strlen(temp), &text_size);
-    draw_text(ctx, self->lines.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp, strlen(temp));
+    draw_text(ctx, self->lines.x + self->lines.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp, strlen(temp));
     y += ctx->font->extents.height;
     if (y + ctx->font->extents.height >= self->lines.y + self->lines.h) break;
   }
@@ -84,7 +79,10 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
 
   switch (msg->tag) {
   case Expose: {
-    return buffer_view(self);
+    if (self->show_lines) buffer_view_lines(self);
+    input_dispatch(&self->input, (input_msg_t *)&msg_view, &noop_yield);
+    statusbar_dispatch(&self->statusbar, (statusbar_msg_t *)&msg_view, &noop_yield);
+    return;
   }
   case MotionNotify: {
     return;
