@@ -27,4 +27,6 @@ typedef struct {
 } rect_t;
 
 void noop();
+char *basename(char *str);
+char *extension(char *str);
 char *strchr_last(char *str, int c);

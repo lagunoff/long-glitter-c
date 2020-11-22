@@ -11,8 +11,10 @@
 #include "statusbar.h"
 #include "utils.h"
 #include "widget.h"
+#include "c-mode.h"
 
 void buffer_view_lines(buffer_t *self);
+syntax_highlighter_t *buffer_choose_syntax_highlighter(char *path);
 
 void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
   struct stat st;
@@ -20,7 +22,7 @@ void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
   self->path = path;
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
-  input_init(&self->input, ctx, new_bytes(mmaped, st.st_size));
+  input_init(&self->input, ctx, new_bytes(mmaped, st.st_size), buffer_choose_syntax_highlighter(path));
   self->input.ctx.font = &ctx->palette->monospace_font;
   draw_init_context(&self->ctx, ctx);
   self->context_menu.ctx = self->ctx;
@@ -29,6 +31,12 @@ void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
   statusbar_init(&self->statusbar, self);
   self->show_lines = true;
   draw_set_font(&self->input.ctx, &ctx->palette->monospace_font);
+}
+
+syntax_highlighter_t *buffer_choose_syntax_highlighter(char *path) {
+  __auto_type ext = extension(path); if (!ext) return &noop_highlighter;
+  if (strcmp(ext, "c") == 0 || strcmp(ext, "h") == 0) return &c_mode_highlighter;
+  return &noop_highlighter;
 }
 
 void buffer_free(buffer_t *self) {

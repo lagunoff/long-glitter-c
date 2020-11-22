@@ -62,13 +62,12 @@ void draw_set_color_rgba(widget_context_t *self, double r, double g, double b, d
 }
 
 color_t draw_rgb_hex(char *str) {
-  __auto_type view_hex = (struct hex_color *)str;
-  color_t color;
   auto int hexval(char c);
-  color.red = (hexval(view_hex->r1) * 16 + hexval(view_hex->r2)) / 256;
-  color.green = (hexval(view_hex->g1) * 16 + hexval(view_hex->g2)) / 256;
-  color.blue = (hexval(view_hex->b1) * 16 + hexval(view_hex->b2)) / 256;
-  color.alpha = 1;
+  __auto_type view_hex = (struct hex_color *)str;
+  double red = hexval(view_hex->r1) * 16 + hexval(view_hex->r2);
+  double green = hexval(view_hex->g1) * 16 + hexval(view_hex->g2);
+  double blue = hexval(view_hex->b1) * 16 + hexval(view_hex->b2);
+  color_t color = {red / 255.0, green / 255.0, blue / 255.0, 1};
   return color;
 
   int hexval(char c) {
@@ -88,7 +87,7 @@ void draw_github_theme(syntax_theme_t *self) {
   self->builtin = draw_rgb_hex("3a81c3");
   self->string = draw_rgb_hex("2d9574");
   self->constant = draw_rgb_hex("dd1144");
-  self->constant = draw_rgb_hex("3a81c3");
+  self->type = draw_rgb_hex("3a81c3");
 }
 
 void draw_init_syntax(syntax_theme_t *self) {
@@ -127,7 +126,7 @@ static __attribute__((constructor)) void __init__() {
   palette.primary_text = draw_rgba(0,0,0,0.87);
   palette.secondary_text = draw_rgba(0,0,0,0.54);
   palette.current_line_bg = draw_rgba(0.0, 0.0, 0, 0.06);
-  palette.selection_bg = draw_rgba(0, 0, 0, 0.09);
+  palette.selection_bg = draw_rgba(0.0, 0.0, 0, 1);
   palette.default_bg = draw_rgba(1, 1, 1, 1);
   palette.ui_bg = draw_rgba(1, 1, 1, 1);
   palette.border = draw_rgba(0, 0, 0, 0.09);

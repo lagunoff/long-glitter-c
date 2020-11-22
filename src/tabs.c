@@ -32,7 +32,7 @@ void tabs_view(tabs_t *self) {
   int x = self->tabs_clip.x;
   int y_text = self->tabs_clip.y + (self->tabs_clip.h - ctx->font->extents.ascent) * 0.5 + ctx->font->extents.ascent;
   for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
-    char *fname = strchr_last(iter->buffer.path, '/');
+    char *fname = basename(iter->buffer.path);
     int x_padding = 16;
     cairo_text_extents_t extents;
     draw_measure_text(ctx, fname, 0, &extents);

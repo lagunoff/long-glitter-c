@@ -21,7 +21,7 @@ static void cursor_modified(input_t *self,cursor_t *prev);
 
 static const int CURSOR_LINE_WIDTH = 2;
 
-void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *content) {
+void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *content, syntax_highlighter_t *hl) {
   self->contents = content;
 
   self->selection.state = SELECTION_INACTIVE;
@@ -35,7 +35,8 @@ void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *conten
   self->cursor.x0 = 0;
   self->lines = NULL;
   self->lines_len = 0;
-  self->syntax_hl = &noop_highlighter;
+  self->syntax_hl = hl;
+  hl->reset(&self->syntax_hl_inst);
   self->context_menu.ctx = self->ctx;
   self->x_selection = NULL;
 }
@@ -46,7 +47,7 @@ void input_free(input_t *self) {
 
 void input_set_style(widget_context_t *ctx, text_style_t *style) {
   if (style->selected) {
-    draw_set_color_rgba(ctx, 0, 1, 0, 1);
+    draw_set_color_rgba(ctx, 1,1,1,1);
   } else {
     draw_set_color(ctx, draw_get_color_from_style(ctx, style->syntax));
   }
@@ -60,6 +61,7 @@ void input_view(input_t *self) {
   __auto_type scroll_offset = bs_offset(&self->scroll.pos);
   __auto_type sel_range = selection_get_range(&self->selection, &self->cursor);
   __auto_type max_y = ctx->clip.y + ctx->clip.h;
+  __auto_type syntax_hl_inst = self->syntax_hl_inst;
 
   char temp[1024 * 16]; // Maximum line length — 16kb
   int y = ctx->clip.y; // y coordinate of the top-left corner of the text
@@ -81,7 +83,6 @@ void input_view(input_t *self) {
     hl_args.len = line_len;
     input_line_selection_range(&line_sel_range, &sel_range, begin_offset, end_offset);
     self->lines[i] = begin_offset;
-    fprintf(stderr, "line_sel_range: %d %d\n", line_sel_range.x, line_sel_range.y);
 
     // Highlight the current line
     if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
@@ -103,6 +104,10 @@ void input_view(input_t *self) {
         strncpy(tmp, temp + r.x, len);
         tmp[len] = '\0';
         draw_measure_text(ctx, tmp, r.y - r.x, &extents);
+        if (s->selected) {
+          draw_set_color(ctx, ctx->palette->selection_bg);
+          draw_box(ctx, x, y, extents.x_advance, ctx->font->extents.height);
+        }
         input_set_style(ctx, s);
         draw_text(ctx, x, y + ctx->font->extents.ascent, tmp, r.y - r.x);
         x += extents.x_advance;
@@ -129,7 +134,7 @@ void input_view(input_t *self) {
 
   void selection_on(text_style_t *s) {s->selected = true;}
   void selection_off(text_style_t *s) {s->selected = false;}
-  void with_styles_1(highlighter_t hl) {self->syntax_hl->highlight(self->syntax_hl_inst, &hl_args, hl);}
+  void with_styles_1(highlighter_t hl) {self->syntax_hl->highlight(syntax_hl_inst, &hl_args, hl);}
   void with_styles(highlighter_t hl) {input_highlight_range(&selection_on, &selection_off, line_sel_range, &with_styles_1, hl);}
 }
 
@@ -343,6 +348,9 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       return yield(&msg_view);
     } else if (keysym == XK_comma && is_altshift) {
       MODIFY_CURSOR(cursor_begin);
+      return yield(&msg_view);
+    } else if (keysym == XK_period && is_altshift) {
+      MODIFY_CURSOR(cursor_end);
       return yield(&msg_view);
     } else if ((keysym == XK_Delete) || (keysym == XK_d && is_ctrl)) {
       self->contents = bs_insert(
