@@ -57,7 +57,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   case Expose: {
     return tabs_view(self);
   }
-  case MSG_FREE: {
+  case Widget_Free: {
     return tabs_free(self);
   }
   case MotionNotify: {
@@ -72,7 +72,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   case SelectionNotify: {
     return yield_active((buffer_msg_t *)msg);
   }
-  case MSG_LAYOUT: {
+  case Widget_Layout: {
     __auto_type tabs_height = 36;
     __auto_type iter = self->tabs.first;
     rect_t tab_content_clip = {ctx->clip.x, ctx->clip.y + tabs_height, ctx->clip.w, ctx->clip.h - tabs_height};
@@ -85,10 +85,10 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     self->tabs_clip.w = ctx->clip.w; self->tabs_clip.h = tabs_height;
     return;
   }
-  case TABS_ACTIVE: {
+  case Tabs_Active: {
     return yield_active(&msg->active);
   }
-  case TABS_KEY: {
+  case Tabs_Key: {
     __auto_type iter = self->tabs.first;
     for(; iter; iter = iter->next) {
       if (iter->key == msg->key.key) break;
@@ -100,11 +100,11 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
 
   void yield_active(buffer_msg_t *buffer_msg) {
     if (!self->active) return;
-    tabs_msg_t next_msg = {.tag=TABS_KEY, .key={.key=self->active->key, .msg=*buffer_msg}};
+    tabs_msg_t next_msg = {.tag=Tabs_Key, .key={.key=self->active->key, .msg=*buffer_msg}};
     return yield(&next_msg);
   }
   void yield_key(buffer_msg_t *buffer_msg) {
-    tabs_msg_t next_msg = {.tag=TABS_KEY, .key={.key=current_key, .msg=*buffer_msg}};
+    tabs_msg_t next_msg = {.tag=Tabs_Key, .key={.key=current_key, .msg=*buffer_msg}};
     yield(&next_msg);
   }
 }

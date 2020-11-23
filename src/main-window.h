@@ -17,7 +17,7 @@ typedef union {
   widget_msg_t widget;
   struct {
     enum {
-      MainWindow_Sidebar = MSG_LAST,
+      MainWindow_Sidebar = Widget_Last,
       MainWindow_Content,
     } tag;
     union {

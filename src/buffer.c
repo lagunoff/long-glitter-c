@@ -93,7 +93,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     __auto_type keysym = XLookupKeysym(xkey, 0);
     if (keysym == XK_F10) {
       self->show_lines = !self->show_lines;
-      buffer_msg_t next_msg = {.tag=MSG_LAYOUT};
+      buffer_msg_t next_msg = {.tag=Widget_Layout};
       yield(&next_msg);
       return yield(&msg_view);
     }
@@ -105,11 +105,11 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   case SelectionNotify: {
     return yield_input(msg);
   }
-  case MSG_FREE: {
+  case Widget_Free: {
     return buffer_free(self);
   }
-  case MSG_LAYOUT: {
-    statusbar_msg_t measure = {.tag = MSG_MEASURE};
+  case Widget_Layout: {
+    statusbar_msg_t measure = {.tag = Widget_Measure};
     statusbar_dispatch(&self->statusbar, &measure, &noop_yield);
 
     self->lines.x = ctx->clip.x;
@@ -131,12 +131,12 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     yield_input(msg);
     return;
   }
-  case MSG_MEASURE: {
+  case Widget_Measure: {
     msg->widget.measure.x = INT_MAX;
     msg->widget.measure.y = INT_MAX;
     return;
   }
-  case BUFFER_INPUT: {
+  case Buffer_Input: {
     __auto_type prev_offset = bs_offset(&self->input.cursor.pos);
     input_dispatch(&self->input, &msg->input, &yield_input);
     __auto_type next_offset = bs_offset(&self->input.cursor.pos);
@@ -145,18 +145,18 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     }
     return;
   }
-  case BUFFER_STATUSBAR: {
+  case Buffer_Statusbar: {
     return statusbar_dispatch(&self->statusbar, &msg->statusbar, &yield_statusbar);
   }
-  case BUFFER_CONTEXT_MENU: {
-    if (msg->context_menu.tag == MENULIST_ITEM_CLICKED) {
+  case Buffer_ContextMenu: {
+    if (msg->context_menu.tag == Menulist_ItemClicked) {
       buffer_msg_t next_msg = {.tag = msg->context_menu.item_clicked->action};
       yield(&next_msg);
       widget_close_window(self->context_menu.ctx.window);
       self->context_menu.ctx.window = 0;
       return;
     }
-    if (msg->context_menu.tag == MENULIST_DESTROY) {
+    if (msg->context_menu.tag == Menulist_Destroy) {
       widget_close_window(self->context_menu.ctx.window);
       self->context_menu.ctx.window = 0;
       return;
@@ -169,15 +169,15 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   }}
 
   void yield_context_menu(void *msg) {
-    buffer_msg_t buffer_msg = {.tag = BUFFER_CONTEXT_MENU, .context_menu = *(menulist_msg_t *)msg};
+    buffer_msg_t buffer_msg = {.tag = Buffer_ContextMenu, .context_menu = *(menulist_msg_t *)msg};
     yield(&buffer_msg);
   }
   void yield_input(void *msg) {
-    buffer_msg_t buffer_msg = {.tag = BUFFER_INPUT, .input = *(input_msg_t *)msg};
+    buffer_msg_t buffer_msg = {.tag = Buffer_Input, .input = *(input_msg_t *)msg};
     yield(&buffer_msg);
   }
   void yield_statusbar(void *msg) {
-    buffer_msg_t buffer_msg = {.tag = BUFFER_STATUSBAR, .input = *(statusbar_msg_t *)msg};
+    buffer_msg_t buffer_msg = {.tag = Buffer_Statusbar, .input = *(statusbar_msg_t *)msg};
     yield(&buffer_msg);
   }
 }

@@ -76,10 +76,10 @@ typedef struct {
 } input_t;
 
 typedef enum {
-  INPUT_CONTEXT_MENU = MSG_LAST,
-  INPUT_CUT,
-  INPUT_COPY,
-  INPUT_PASTE,
+  Input_ContextMenu = Widget_Last,
+  Input_Cut,
+  Input_Copy,
+  Input_Paste,
 } input_msg_tag_t;
 
 typedef union {

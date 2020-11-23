@@ -53,7 +53,7 @@ typedef union {
   widget_msg_t widget;
   struct {
     enum {
-      TreePanel_DirectoryToggle = MSG_LAST,
+      TreePanel_DirectoryToggle = Widget_Last,
     } tag;
     union {
       tree_t *directory_toggle;

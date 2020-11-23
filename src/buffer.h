@@ -31,9 +31,9 @@ typedef union {
   widget_msg_t widget;
   struct {
     enum {
-      BUFFER_CONTEXT_MENU = MSG_LAST,
-      BUFFER_INPUT,
-      BUFFER_STATUSBAR,
+      Buffer_ContextMenu = Widget_Last,
+      Buffer_Input,
+      Buffer_Statusbar,
     } tag;
     union {
       menulist_msg_t context_menu;

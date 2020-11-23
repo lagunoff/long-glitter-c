@@ -28,7 +28,7 @@ void bs_index(buff_string_t **str, buff_string_iter_t *iter, int i) {
 
 buff_string_t *new_bytes(char *str, int len) {
   buff_string_t *s = malloc(sizeof(buff_string_t));
-  s->tag = BS_BYTES;
+  s->tag = BuffString_Bytes;
   s->bytes.bytes = str;
   s->bytes.len = len;
   return s;
@@ -36,7 +36,7 @@ buff_string_t *new_bytes(char *str, int len) {
 
 buff_string_t *new_splice(int start, int len, int deleted, buff_string_t *base) {
   buff_string_t *s = malloc(sizeof(buff_string_t));
-  s->tag = BS_SPLICE;
+  s->tag = BuffString_Splice;
   s->splice.bytes = malloc(MAX(len, 1));
   s->splice.len = len;
   s->splice.deleted = deleted;
@@ -55,12 +55,12 @@ buff_string_t *new_splice_str(char *str, int start, int deleted, buff_string_t *
 void bs_free(buff_string_t *str, void (*free_last) (bs_bytes_t *)) {
   while (1) {
     switch (str->tag) {
-    case BS_BYTES: {
+    case BuffString_Bytes: {
       free_last(&str->bytes);
       free(str);
       return;
     }
-    case BS_SPLICE: {
+    case BuffString_Splice: {
       buff_string_t *base = str->splice.base;
       free(str->splice.bytes);
       free(str);
@@ -89,17 +89,17 @@ bool bs_iterate(
   while (1) {
     switch (local_state) {
     case MOVING_INSIDE: {
-      if (dir == BS_RIGHT) {
+      if (dir == BuffString_Right) {
         if (iter->local_index >= iter->end) goto to_looking_next;
         bool is_stop = p(iter->bytes[iter->local_index]);
-        if (is_stop && last_inc == BS_DONT_INCREMENT) goto stopped;
+        if (is_stop && last_inc == BuffString_DontIncrement) goto stopped;
         iter->local_index++;
         iter->global_index++;
         if (is_stop) goto stopped;
       } else {
         if (iter->local_index <= iter->begin) goto to_looking_next;
         bool is_stop = p(iter->bytes[iter->local_index - 1]);
-        if (is_stop && last_inc == BS_DONT_INCREMENT) goto stopped;
+        if (is_stop && last_inc == BuffString_DontIncrement) goto stopped;
         iter->local_index--;
         iter->global_index--;
         if (is_stop) goto stopped;
@@ -108,26 +108,26 @@ bool bs_iterate(
     }
     case LOOKING_NEXT: {
       switch (str->tag) {
-      case BS_BYTES: {
-        if (dir == BS_RIGHT && iter->local_index >= MIN(str->bytes.len, iter->end)) goto eof;
-        if (dir == BS_LEFT && iter->local_index <= 0) goto eof;
+      case BuffString_Bytes: {
+        if (dir == BuffString_Right && iter->local_index >= MIN(str->bytes.len, iter->end)) goto eof;
+        if (dir == BuffString_Left && iter->local_index <= 0) goto eof;
         iter->bytes = str->bytes.bytes;
         iter->begin = iter->begin;
         iter->end = MIN(iter->end, str->bytes.len);
         local_state = MOVING_INSIDE;
         continue;
       }
-      case BS_SPLICE: {
-        if (dir == BS_RIGHT && iter->local_index >= str->splice.start + str->splice.len
-            || dir == BS_LEFT && iter->local_index > str->splice.start + str->splice.len) {
+      case BuffString_Splice: {
+        if (dir == BuffString_Right && iter->local_index >= str->splice.start + str->splice.len
+            || dir == BuffString_Left && iter->local_index > str->splice.start + str->splice.len) {
           iter->local_index += str->splice.deleted - str->splice.len;
           iter->begin += str->splice.deleted - str->splice.len;
           iter->end += str->splice.deleted - str->splice.len;
           str = str->splice.base;
           continue;
         }
-        if (dir == BS_RIGHT && iter->local_index < str->splice.start
-            || dir == BS_LEFT && iter->local_index <= str->splice.start) {
+        if (dir == BuffString_Right && iter->local_index < str->splice.start
+            || dir == BuffString_Left && iter->local_index <= str->splice.start) {
           iter->end = MIN(iter->end, str->splice.start);
           str = str->splice.base;
           continue;
@@ -150,11 +150,11 @@ bool bs_iterate(
 }
 
 bool bs_find(buff_string_iter_t *iter, bool (*p)(char)) {
-  return bs_iterate(iter, BS_RIGHT, BS_DONT_INCREMENT, p);
+  return bs_iterate(iter, BuffString_Right, BuffString_DontIncrement, p);
 }
 
 bool bs_find_back(buff_string_iter_t *iter, bool (*p)(char)) {
-  return bs_iterate(iter, BS_LEFT, BS_DO_INCREMENT, p);
+  return bs_iterate(iter, BuffString_Left, BuffString_DoIncrement, p);
 }
 
 bool bs_takewhile(buff_string_iter_t *iter, char *dest, bool (*p)(char)) {
@@ -202,17 +202,17 @@ void bs_begin(buff_string_iter_t *iter, buff_string_t **str) {
 void bs_end(buff_string_iter_t *iter, buff_string_t **str) {
   iter->str=str;
   iter->global_index = 0;
-  bs_iterate(iter, BS_RIGHT, BS_DONT_INCREMENT, lambda(bool _(char c) {return false;}));
+  bs_iterate(iter, BuffString_Right, BuffString_DontIncrement, lambda(bool _(char c) {return false;}));
 }
 
 bool bs_move(buff_string_iter_t *iter, int dx) {
   if (dx >= 0) {
     int i = 0;
-    return bs_iterate(iter, BS_RIGHT, BS_DONT_INCREMENT, lambda(bool _(char c) {return !(i++ < dx);}));
+    return bs_iterate(iter, BuffString_Right, BuffString_DontIncrement, lambda(bool _(char c) {return !(i++ < dx);}));
   }
   if (dx < 0) {
     int i = 0;
-    return bs_iterate(iter, BS_LEFT, BS_DONT_INCREMENT, lambda(bool _(char c) {return !(i++ < abs(dx));}));
+    return bs_iterate(iter, BuffString_Left, BuffString_DontIncrement, lambda(bool _(char c) {return !(i++ < abs(dx));}));
   }
   return true;
 }
@@ -222,7 +222,7 @@ int bs_offset(buff_string_iter_t *iter) {
 }
 
 buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted, bs_direction_t dir, ...) {
-  int start1 = dir == BS_RIGHT ? start : start - deleted;
+  int start1 = dir == BuffString_Right ? start : start - deleted;
   // TODO: Check for right bound
   if (start1 < 0) return base;
   buff_string_t *splice = new_splice_str(str, start1, deleted, base);
@@ -240,7 +240,7 @@ buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted,
 
 buff_string_t *bs_insert_undo(buff_string_t *base, ...) {
   switch (base->tag) {
-  case BS_SPLICE: {
+  case BuffString_Splice: {
     __auto_type new = &base->splice;
     va_list iters;
     va_start(iters, base);
@@ -263,7 +263,7 @@ buff_string_t *bs_insert_undo(buff_string_t *base, ...) {
 
 void _bs_insert_insert_fixup(buff_string_iter_t *iter, buff_string_t *new, bs_direction_t dir) {
   if (new->splice.start <= iter->global_index) {
-    int dx = new->splice.len - (dir == BS_LEFT ? new->splice.deleted : 0);
+    int dx = new->splice.len - (dir == BuffString_Left ? new->splice.deleted : 0);
     bs_move(iter, dx);
   }
 }
@@ -287,18 +287,18 @@ void bs_backward_word(buff_string_iter_t *iter) {
 
 char _bs_read_next(buff_string_iter_t *iter, bs_direction_t dir) {
   char ch;
-  bs_iterate(iter, dir, BS_DONT_INCREMENT, lambda(bool _(char c) {ch = c; return true;}));
+  bs_iterate(iter, dir, BuffString_DontIncrement, lambda(bool _(char c) {ch = c; return true;}));
   return ch;
 }
 
 char _bs_current(buff_string_iter_t *iter) {
-  _bs_read_next(iter, BS_RIGHT);
+  _bs_read_next(iter, BuffString_Right);
 }
 
 void bs_unittest() {
   char *s01 = "1234567890abcdefjhijklmnopqrstuvwxyz1234567890";
   char temp[512];
-  buff_string_t str01 = {.tag = BS_BYTES, .bytes = {s01, strlen(s01)}};
+  buff_string_t str01 = {.tag = BuffString_Bytes, .bytes = {s01, strlen(s01)}};
   buff_string_t *_str01 = &str01;
   buff_string_iter_t iter;
   bs_begin(&iter, &_str01);
@@ -321,7 +321,7 @@ void bs_unittest() {
   assert(strcmp(temp, "1234567890")==0);
 
   char *splice02 = "0000000000";
-  buff_string_t str02 = {.tag = BS_SPLICE, .splice = {&str01, 0, 0, strlen(splice02), splice02} };
+  buff_string_t str02 = {.tag = BuffString_Splice, .splice = {&str01, 0, 0, strlen(splice02), splice02} };
   buff_string_t *_str02 = &str02;
 
   bs_begin(&iter, &_str02);

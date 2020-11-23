@@ -16,7 +16,7 @@ static void cursor_fixup_x0(cursor_t *cur) {
 
 void cursor_up(cursor_t *c) {
   buff_string_iter_t i0 = c->pos;
-  bool eof0 = bs_iterate(&i0, BS_LEFT, BS_DO_INCREMENT, lambda(bool _(char c) {
+  bool eof0 = bs_iterate(&i0, BuffString_Left, BuffString_DoIncrement, lambda(bool _(char c) {
     return c=='\n';
   }));
 
@@ -24,7 +24,7 @@ void cursor_up(cursor_t *c) {
 
   buff_string_iter_t i1 = i0;
   int line_len = 0;
-  bs_iterate(&i1, BS_LEFT, BS_DONT_INCREMENT, lambda(bool _(char c) {
+  bs_iterate(&i1, BuffString_Left, BuffString_DontIncrement, lambda(bool _(char c) {
     if (c!='\n') line_len++;
     return c=='\n';
   }));
@@ -34,14 +34,14 @@ void cursor_up(cursor_t *c) {
 
 void cursor_down(cursor_t *c) {
   buff_string_iter_t i0 = c->pos;
-  bool eof0 = bs_iterate(&i0, BS_RIGHT, BS_DO_INCREMENT, lambda(bool _(char c) {
+  bool eof0 = bs_iterate(&i0, BuffString_Right, BuffString_DoIncrement, lambda(bool _(char c) {
     return c=='\n';
   }));
   if (eof0) return;
 
   buff_string_iter_t i1 = i0;
   int line_len = 0;
-  bs_iterate(&i1, BS_RIGHT, BS_DONT_INCREMENT, lambda(bool _(char c) {
+  bs_iterate(&i1, BuffString_Right, BuffString_DontIncrement, lambda(bool _(char c) {
     if (c!='\n') line_len++;
     return c=='\n';
   }));
@@ -60,7 +60,7 @@ void cursor_right(cursor_t *c) {
 }
 
 void cursor_bol(cursor_t *c) {
-  bool eof = bs_iterate(&(c->pos), BS_LEFT, BS_DONT_INCREMENT, lambda(bool _(char c) {
+  bool eof = bs_iterate(&(c->pos), BuffString_Left, BuffString_DontIncrement, lambda(bool _(char c) {
     return c=='\n';
   }));
   cursor_fixup_x0(c);
@@ -97,7 +97,7 @@ void scroll_lines(scroll_t *s, int n) {
   if (n == 0) return;
   if (n > 0) {
     int newlines = 0;
-    bool eof = bs_iterate(&s->pos, BS_RIGHT, BS_DO_INCREMENT, lambda(bool _(char c) {
+    bool eof = bs_iterate(&s->pos, BuffString_Right, BuffString_DoIncrement, lambda(bool _(char c) {
       if (c=='\n') {
         if (!(++newlines < n)) return true;
       }
@@ -106,7 +106,7 @@ void scroll_lines(scroll_t *s, int n) {
     s->line += newlines;
   } else {
     int newlines = -1;
-    bool eof = bs_iterate(&s->pos, BS_LEFT, BS_DONT_INCREMENT, lambda(bool _(char c) {
+    bool eof = bs_iterate(&s->pos, BuffString_Left, BuffString_DontIncrement, lambda(bool _(char c) {
       if (c=='\n') {
         if (!(++newlines < abs(n))) return true;
       }

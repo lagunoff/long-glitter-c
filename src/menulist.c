@@ -80,9 +80,9 @@ menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
     self->hover = -1;
     return yield(&msg_view);
   }
-  case MSG_FREE: {
+  case Widget_Free: {
   }
-  case MSG_MEASURE: {
+  case Widget_Measure: {
     __auto_type extents = &self->ctx.font->extents;
     int item_height = extents->height + Y_MARGIN;
     // TODO: measure max text width
@@ -90,13 +90,13 @@ menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
     msg->widget.measure.y = self->len * item_height + Y_MARGIN + 2;
     return;
   }
-  case MENULIST_DESTROY: {
+  case Menulist_Destroy: {
     return;
   }
-  case MENULIST_PARENT_WINDOW: {
+  case Menulist_DispatchParent: {
     __auto_type e = msg->parent_x_event;
     if (e->type == FocusOut || e->type == ButtonPress) {
-      menulist_msg_t msg = {.tag = MENULIST_DESTROY};
+      menulist_msg_t msg = {.tag = Menulist_Destroy};
       return yield(&msg);
     }
   }}

@@ -181,10 +181,10 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   case Expose: {
     return input_view(self);
   }
-  case MSG_FREE: {
+  case Widget_Free: {
     return input_free(self);
   }
-  case MSG_MEASURE: {
+  case Widget_Measure: {
     msg->widget.measure.x = INT_MAX;
     msg->widget.measure.y = INT_MAX;
     return;
@@ -215,7 +215,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       self->contents = bs_insert(
         self->contents,
         self->cursor.pos.global_index,
-        clipboard, 0, BS_LEFT,
+        clipboard, 0, BuffString_Left,
         &self->cursor.pos,
         &self->scroll.pos, NULL
       );
@@ -314,7 +314,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->contents,
         self->cursor.pos.global_index,
         "", MAX(iter_offset - curr_offset, 1),
-        BS_RIGHT,
+        BuffString_Right,
         &self->cursor.pos,
         &self->scroll.pos, NULL
       );
@@ -328,7 +328,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->contents,
         self->cursor.pos.global_index,
         "", MAX(curr_offset - iter_offset, 1),
-        BS_LEFT,
+        BuffString_Left,
         &self->cursor.pos,
         &self->scroll.pos, NULL
       );
@@ -342,7 +342,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->contents,
         self->cursor.pos.global_index,
         "", MAX(iter_offset - curr_offset, 1),
-        BS_RIGHT,
+        BuffString_Right,
         &self->cursor.pos,
         &self->scroll.pos, NULL
       );
@@ -358,7 +358,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->contents,
         self->cursor.pos.global_index,
         "", 1,
-        BS_RIGHT,
+        BuffString_Right,
         &self->cursor.pos,
         &self->scroll.pos, NULL
       );
@@ -368,7 +368,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->contents,
         self->cursor.pos.global_index,
         "", 1,
-        BS_LEFT,
+        BuffString_Left,
         &self->cursor.pos,
         &self->scroll.pos, NULL
       );
@@ -378,7 +378,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->contents,
         self->cursor.pos.global_index,
         "\n", 0,
-        BS_LEFT,
+        BuffString_Left,
         &self->cursor.pos,
         &self->scroll.pos, NULL
       );
@@ -396,13 +396,13 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       self->selection.mark_1 = self->cursor.pos;
       return yield(&msg_view);
     } else if (keysym == XK_w && is_ctrl) {
-      input_msg_t next_msg = {.tag = INPUT_CUT};
+      input_msg_t next_msg = {.tag = Input_Cut};
       return yield(&next_msg);
     } else if (keysym == XK_w && is_alt) {
-      input_msg_t next_msg = {.tag = INPUT_COPY};
+      input_msg_t next_msg = {.tag = Input_Copy};
       return yield(&next_msg);
     } else if (keysym == XK_y && is_ctrl) {
-      input_msg_t next_msg = {.tag = INPUT_PASTE};
+      input_msg_t next_msg = {.tag = Input_Paste};
       return yield(&next_msg);
     } else {
       char buffer[32];
@@ -414,7 +414,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
           self->contents,
           self->cursor.pos.global_index,
           buffer, 0,
-          BS_LEFT,
+          BuffString_Left,
           &self->cursor.pos,
           &self->scroll.pos, NULL
         );
@@ -424,7 +424,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     }
     return;
   }
-  case INPUT_CUT: {
+  case Input_Cut: {
     if (self->selection.state == SELECTION_COMPLETE) {
       __auto_type mark_1 = self->selection.mark_1;
       __auto_type mark_2 = self->cursor.pos;
@@ -438,7 +438,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->contents,
         mark_1.global_index,
         "", len,
-        BS_RIGHT,
+        BuffString_Right,
         &self->cursor.pos,
         &self->scroll.pos, NULL
       );
@@ -447,7 +447,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     }
     return;
   }
-  case INPUT_COPY: {
+  case Input_Copy: {
     if (self->selection.state == SELECTION_COMPLETE) {
       __auto_type mark_1 = self->selection.mark_1;
       __auto_type mark_2 = self->cursor.pos;
@@ -461,20 +461,20 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     }
     return;
   }
-  case INPUT_PASTE: {
+  case Input_Paste: {
     __auto_type pty = XInternAtom(ctx->display, "XCLIP_OUT", false);
     XConvertSelection(ctx->display, XA_PRIMARY, XA_UTF8_STRING(ctx->display), pty, ctx->window, CurrentTime);
     return;
   }
-  case INPUT_CONTEXT_MENU: {
-    if (msg->context_menu.tag == MENULIST_ITEM_CLICKED) {
+  case Input_ContextMenu: {
+    if (msg->context_menu.tag == Menulist_ItemClicked) {
       input_msg_t next_msg = {.tag = msg->context_menu.item_clicked->action};
       yield(&next_msg);
       widget_close_window(self->context_menu.ctx.window);
       self->context_menu.ctx.window = 0;
       return;
     }
-    if (msg->context_menu.tag == MENULIST_DESTROY) {
+    if (msg->context_menu.tag == Menulist_Destroy) {
       widget_close_window(self->context_menu.ctx.window);
       self->context_menu.ctx.window = 0;
       return;
@@ -487,7 +487,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   }}
 
   void yield_context_menu(void *msg) {
-    input_msg_t input_msg = {.tag = INPUT_CONTEXT_MENU, .context_menu = *(menulist_msg_t *)msg};
+    input_msg_t input_msg = {.tag = Input_ContextMenu, .context_menu = *(menulist_msg_t *)msg};
     yield(&input_msg);
   }
 }

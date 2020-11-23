@@ -65,7 +65,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
     draw_rect(ctx, ctx->clip);
     return go(0, 0, &self->tree);
   }
-  case MSG_FREE: {
+  case Widget_Free: {
     return tree_panel_free(self);
   }
   case MotionNotify: {
@@ -150,7 +150,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
     }}
     return;
   }
-  case MSG_LAYOUT: {
+  case Widget_Layout: {
     return;
   }}
 }

@@ -30,7 +30,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     }
     return;
   }
-  case MSG_FREE: {
+  case Widget_Free: {
     return main_window_free(self);
   }
   case MotionNotify: {
@@ -58,7 +58,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     __auto_type keysym = XLookupKeysym(xkey, 0);
     if (keysym == XK_F4) {
       self->show_sidebar = !self->show_sidebar;
-      buffer_msg_t next_msg = {.tag=MSG_LAYOUT};
+      buffer_msg_t next_msg = {.tag=Widget_Layout};
       yield(&next_msg);
       return yield(&msg_view);
     }
@@ -76,7 +76,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
   case MainWindow_Sidebar: {
     return tree_panel_dispatch(&self->sidebar, &msg->sidebar, (yield_t)&yield_sidebar);
   }
-  case MSG_LAYOUT: {
+  case Widget_Layout: {
     __auto_type sidebar_width = self->show_sidebar ? 280 : 0;
     rect_t content_clip = {ctx->clip.x + sidebar_width, ctx->clip.y, ctx->clip.w - sidebar_width, ctx->clip.h};
     rect_t tree_panel_clip = {ctx->clip.x, ctx->clip.y, sidebar_width, ctx->clip.h};

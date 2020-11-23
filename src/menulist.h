@@ -24,9 +24,9 @@ typedef union {
 
   struct {
     enum {
-      MENULIST_PARENT_WINDOW = MSG_LAST,
-      MENULIST_ITEM_CLICKED,
-      MENULIST_DESTROY,
+      Menulist_DispatchParent = Widget_Last,
+      Menulist_ItemClicked,
+      Menulist_Destroy,
     } tag;
 
     union {

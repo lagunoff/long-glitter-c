@@ -2,13 +2,13 @@
 #include <stdbool.h>
 
 typedef enum {
-  BS_RIGHT,
-  BS_LEFT,
+  BuffString_Right,
+  BuffString_Left,
 } bs_direction_t;
 
 typedef enum {
-  BS_DO_INCREMENT,
-  BS_DONT_INCREMENT,
+  BuffString_DoIncrement,
+  BuffString_DontIncrement,
 } bs_last_increment_policy_t;
 
 struct buff_string_t;
@@ -36,8 +36,8 @@ typedef struct {
 //! research on how to represent strings in text editors
 struct buff_string_t {
   enum {
-    BS_SPLICE,
-    BS_BYTES,
+    BuffString_Splice,
+    BuffString_Bytes,
   } tag;
   union {
     bs_splice_t splice;

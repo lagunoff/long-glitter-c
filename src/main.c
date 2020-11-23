@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
 
   main_window_t buffer;
   main_window_init(&buffer, &ctx);
-  main_window_msg_t layout = {.tag = MSG_LAYOUT};
+  main_window_msg_t layout = {.tag = Widget_Layout};
 
   XEvent x_event;
   char keybuf[8];

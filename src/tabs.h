@@ -27,8 +27,8 @@ typedef union {
   widget_msg_t widget;
   struct {
     enum {
-      TABS_ACTIVE = MSG_LAST,
-      TABS_KEY,
+      Tabs_Active = Widget_Last,
+      Tabs_Key,
     } tag;
     union {
       buffer_msg_t active;

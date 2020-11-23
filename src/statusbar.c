@@ -26,7 +26,7 @@ void statusbar_dispatch(statusbar_t *self, statusbar_msg_t *msg, yield_t yield) 
     char temp[128];
     char *last_slash = strchr_last(self->buffer->path, '/');
     last_slash = last_slash ? last_slash + 1 : self->buffer->path;
-    bool is_saved = self->buffer->input.contents->tag == BS_BYTES;
+    bool is_saved = self->buffer->input.contents->tag == BuffString_Bytes;
     char sel[64] = {[0] = '\0'};
     __auto_type sel_range = selection_get_range(&buff->input.selection, &buff->input.cursor);
     if (sel_range.x != -1 && sel_range.y != -1) {
@@ -40,7 +40,7 @@ void statusbar_dispatch(statusbar_t *self, statusbar_msg_t *msg, yield_t yield) 
     draw_set_color(ctx, ctx->palette->primary_text);
     draw_text(ctx, ctx->clip.x + 8, ctx->clip.y + (ctx->clip.h - ctx->font->extents.height) * 0.5 + ctx->font->extents.ascent, temp);
   }
-  case MSG_MEASURE: {
+  case Widget_Measure: {
     msg->measure.y = self->ctx.font->extents.height + y_padding * 2;
     msg->measure.x = INT_MAX;
     return;

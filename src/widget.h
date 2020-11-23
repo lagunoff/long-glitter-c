@@ -9,11 +9,11 @@ typedef union {
   XEvent x_event;
   struct {
     enum {
-      MSG_NOOP = LASTEvent,
-      MSG_FREE,
-      MSG_MEASURE,
-      MSG_LAYOUT,
-      MSG_LAST,
+      Widget_Noop = LASTEvent,
+      Widget_Free,
+      Widget_Measure,
+      Widget_Layout,
+      Widget_Last,
     } tag;
     union {
       point_t measure;
