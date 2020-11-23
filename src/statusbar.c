@@ -38,7 +38,7 @@ void statusbar_dispatch(statusbar_t *self, statusbar_msg_t *msg, yield_t yield) 
     draw_rect(ctx, ctx->clip);
 
     draw_set_color(ctx, ctx->palette->primary_text);
-    draw_text(ctx, ctx->clip.x + 8, ctx->clip.y + (ctx->clip.h - ctx->font->extents.height) * 0.5 + ctx->font->extents.ascent, temp, strlen(temp));
+    draw_text(ctx, ctx->clip.x + 8, ctx->clip.y + (ctx->clip.h - ctx->font->extents.height) * 0.5 + ctx->font->extents.ascent, temp);
   }
   case MSG_MEASURE: {
     msg->measure.y = self->ctx.font->extents.height + y_padding * 2;

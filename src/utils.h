@@ -31,3 +31,10 @@ void noop();
 char *basename(char *str);
 char *extension(char *str);
 char *strchr_last(char *str, int c);
+
+inline_always bool
+rect_is_inside(rect_t rect, int x, int y) {
+  if (x < rect.x || x >= rect.x + rect.w) return false;
+  if (y < rect.y || y >= rect.y + rect.h) return false;
+  return true;
+}

@@ -94,7 +94,6 @@ typedef union {
 
 typedef union {
   widget_msg_t widget;
-  XEvent       x_event;
   struct {
     input_msg_tag_t tag;
     union {

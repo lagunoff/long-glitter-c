@@ -106,13 +106,13 @@ void draw_init(Display *display);
 void draw_free(Display *display);
 
 inline_always void
-draw_text(widget_context_t *ctx, int x, int y, const char *text, int len) {
+draw_text(widget_context_t *ctx, int x, int y, const char *text) {
   cairo_move_to(ctx->cairo, x, y);
   cairo_show_text(ctx->cairo, text);
 }
 
 inline_always void
-draw_measure_text(widget_context_t *ctx, char *text, int len, cairo_text_extents_t *extents) {
+draw_measure_text(widget_context_t *ctx, char *text, cairo_text_extents_t *extents) {
   cairo_text_extents(ctx->cairo, text, extents);
 }
 

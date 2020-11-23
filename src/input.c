@@ -104,13 +104,13 @@ void input_view(input_t *self) {
         char tmp[len + 1];
         strncpy(tmp, temp + r.x, len);
         tmp[len] = '\0';
-        draw_measure_text(ctx, tmp, r.y - r.x, &extents);
+        draw_measure_text(ctx, tmp, &extents);
         if (s->selected) {
           draw_set_color(ctx, ctx->palette->selection_bg);
           draw_box(ctx, x, y, extents.x_advance, ctx->font->extents.height);
         }
         input_set_style(ctx, s);
-        draw_text(ctx, x, y + ctx->font->extents.ascent, tmp, r.y - r.x);
+        draw_text(ctx, x, y + ctx->font->extents.ascent, tmp);
         x += extents.x_advance;
       }
     }));
@@ -120,7 +120,7 @@ void input_view(input_t *self) {
       int cur_x_offset = cursor_offset - begin_offset;
       temp[cur_x_offset] = '\0';
       cairo_text_extents_t extents;
-      draw_measure_text(ctx, temp, cur_x_offset, &extents);
+      draw_measure_text(ctx, temp, &extents);
       draw_box(ctx, ctx->clip.x + extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font->extents.height + 2);
     }
     y += ctx->font->extents.height;
@@ -227,7 +227,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   case SelectionRequest: {
     // Copy self->x_selection into the clipboard
     __auto_type targets = XInternAtom(ctx->display, "TARGETS", false);
-    __auto_type req = &msg->x_event.xselectionrequest;
+    __auto_type req = &msg->widget.x_event.xselectionrequest;
 
     if (req->target == targets) {
       Atom types[2] = { targets, XA_UTF8_STRING(ctx->display) };
@@ -263,7 +263,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     return;
   }
   case KeyPress: {
-    __auto_type xkey = &msg->x_event.xkey;
+    __auto_type xkey = &msg->widget.x_event.xkey;
     __auto_type keysym = XLookupKeysym(xkey, 0);
     __auto_type is_ctrl = xkey->state & ControlMask;
     __auto_type is_alt = xkey->state & Mod1Mask;

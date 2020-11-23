@@ -37,13 +37,13 @@ void tabs_view(tabs_t *self) {
     char *fname = basename(iter->buffer.path);
     int x_padding = 16;
     cairo_text_extents_t extents;
-    draw_measure_text(ctx, fname, 0, &extents);
+    draw_measure_text(ctx, fname, &extents);
     draw_set_color_rgba(ctx, 1, 1, 1, 1);
     draw_rectangle(ctx, x, self->tabs_clip.y, x + extents.x_advance + x_padding * 2, self->tabs_clip.h);
     draw_set_color(ctx, ctx->palette->border);
     draw_line(ctx, x + extents.x_advance + x_padding * 2, self->tabs_clip.y, x + extents.x_advance + x_padding * 2, self->tabs_clip.y + self->tabs_clip.h);
     draw_set_color(ctx, ctx->palette->secondary_text);
-    draw_text(ctx, x + x_padding, y_text, fname, 0);
+    draw_text(ctx, x + x_padding, y_text, fname);
   }
 }
 

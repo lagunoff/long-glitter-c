@@ -14,7 +14,7 @@ dist/long-glitter: $(patsubst src/%.c,dist/%.o,$(SRCS))
 
 dist/long-glitter-release: src/*.c src/*.h
 	$(CC) $(filter-out src/dev.c src/sexp.c, $(wildcard src/*.c)) -o $@ -ffunction-sections -fdata-sections -O3
-	-s -R .comment -R .gnu.version $@ --strip-unneeded
+	strip -R .comment -R .gnu.version $@ --strip-unneeded
 
 dist/assets:
 	ln -s $(realpath assets) dist/assets

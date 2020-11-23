@@ -4,7 +4,7 @@ void main_window_init(main_window_t *self, widget_context_init_t *ctx) {
   draw_init_context(&self->ctx, ctx);
   self->show_sidebar = true;
   tabs_init(&self->content, ctx, "/home/vlad/job/long-glitter-c/tmp/xola.c");
-  tree_panel_init(&self->sidebar, ctx, "/home/vlad/job/long-glitter-c/tmp/");
+  tree_panel_init(&self->sidebar, ctx, "/home/vlad/job/long-glitter-c/tmp");
 }
 
 void main_window_free(main_window_t *self) {
@@ -34,7 +34,24 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     return main_window_free(self);
   }
   case MotionNotify: {
-    return yield_content((tabs_msg_t *)msg);
+    __auto_type motion = &msg->widget.x_event.xmotion;
+    if (rect_is_inside(self->content.ctx.clip, motion->x, motion->y)) {
+      return yield_content((tabs_msg_t *)msg);
+    }
+    if (rect_is_inside(self->sidebar.ctx.clip, motion->x, motion->y)) {
+      return yield_sidebar((tree_panel_msg_t *)msg);
+    }
+    return;
+  }
+  case ButtonPress: {
+    __auto_type button = &msg->widget.x_event.xbutton;
+    if (rect_is_inside(self->content.ctx.clip, button->x, button->y)) {
+      return yield_content((tabs_msg_t *)msg);
+    }
+    if (rect_is_inside(self->sidebar.ctx.clip, button->x, button->y)) {
+      return yield_sidebar((tree_panel_msg_t *)msg);
+    }
+    return;
   }
   case KeyPress: {
     __auto_type xkey = &msg->widget.x_event.xkey;
@@ -57,7 +74,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     return tabs_dispatch(&self->content, &msg->content, (yield_t)&yield_content);
   }
   case MainWindow_Sidebar: {
-    return; // tabs_dispatch(&self->content, (tabs_msg_t *)msg, &yield_content);
+    return tree_panel_dispatch(&self->sidebar, &msg->sidebar, (yield_t)&yield_sidebar);
   }
   case MSG_LAYOUT: {
     __auto_type sidebar_width = self->show_sidebar ? 280 : 0;

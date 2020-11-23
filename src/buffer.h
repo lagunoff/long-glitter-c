@@ -29,7 +29,6 @@ typedef struct buffer_t buffer_t;
 
 typedef union {
   widget_msg_t widget;
-  XEvent       x_event;
   struct {
     enum {
       BUFFER_CONTEXT_MENU = MSG_LAST,

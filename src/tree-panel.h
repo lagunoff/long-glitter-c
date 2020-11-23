@@ -2,6 +2,11 @@
 #include "draw.h"
 #include "widget.h"
 
+typedef struct {
+  struct directory_list_node_t *first;
+  struct directory_list_node_t *last;
+} directory_list_t;
+
 typedef struct tree_t {
   enum {
     Tree_File,
@@ -9,13 +14,20 @@ typedef struct tree_t {
   } tag;
   union {
     struct {
+      rect_t  clip;
+      char   *path;
+    } common;
+
+    struct {
+      rect_t      clip;
       char       *path;
       struct stat st;
     } file;
+
     struct {
-      char          *path;
-      int            len;
-      struct tree_t *contents;
+      rect_t           clip;
+      char            *path;
+      directory_list_t items;
       enum {
         Tree_Closed,
         Tree_Expanded,
@@ -24,10 +36,17 @@ typedef struct tree_t {
   };
 } tree_t;
 
+typedef struct directory_list_node_t {
+  struct directory_list_node_t *next;
+  struct directory_list_node_t *prev;
+  struct tree_t item;
+} directory_list_node_t;
+
 typedef struct {
   widget_context_t ctx;
   char            *path;
   tree_t           tree;
+  tree_t          *hover;
 } tree_panel_t;
 
 typedef union {
@@ -37,7 +56,7 @@ typedef union {
       TreePanel_DirectoryToggle = MSG_LAST,
     } tag;
     union {
-      char *directory_toggle;
+      tree_t *directory_toggle;
     };
   };
 } tree_panel_msg_t;

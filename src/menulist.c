@@ -41,7 +41,7 @@ menulist_view(menulist_t *self) {
       // draw_glyph(ctx, 8, y - Y_MARGIN * 0.5 + (item_height - palette.fontawesome_font.ascent) * 0.5 - 1, item_ptr->icon, palette.fontawesome_font.font);
       draw_set_color(ctx, palette.primary_text);
     }
-    draw_text(ctx, X_PADDING + 1, y, item_ptr->title, strlen(item_ptr->title));
+    draw_text(ctx, X_PADDING + 1, y, item_ptr->title);
     y += item_height;
   }
   draw_set_color(ctx, ctx->palette->border);

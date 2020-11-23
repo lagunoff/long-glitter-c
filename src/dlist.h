@@ -36,6 +36,27 @@ dlist_insert_before(
 }
 
 static inline void
+dlist_insert_after(
+  dlist_head_t *head,
+  dlist_node_t *new,
+  dlist_node_t *anchor
+) {
+  new->prev = anchor;
+  if (anchor) {
+    __auto_type next = anchor->next;
+    anchor->next = new;
+    new->next = next;
+    if (next) next->prev = new;
+  } else {
+    new->next = head->first;
+    if (head->first) head->first->next = new;
+    head->first = new;
+  }
+
+  if (head->last == anchor) head->last = new;
+}
+
+static inline void
 dlist_delete(
   dlist_head_t *head,
   dlist_node_t *deleted
