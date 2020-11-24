@@ -2,7 +2,7 @@
 #include <X11/Xlib.h>
 
 #include "cursor.h"
-#include "draw.h"
+#include "graphics.h"
 #include "widget.h"
 
 struct buffer_t;

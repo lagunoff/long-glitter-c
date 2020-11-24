@@ -3,16 +3,11 @@
 
 #include "buff-string.h"
 #include "cursor.h"
-#include "draw.h"
+#include "graphics.h"
 #include "widget.h"
 #include "menulist.h"
 #include "statusbar.h"
 #include "input.h"
-
-typedef struct {
-  rect_t textarea;
-  rect_t statusbar;
-} buffer_geometry_t;
 
 struct buffer_t {
   widget_context_t ctx;
@@ -22,7 +17,6 @@ struct buffer_t {
   // Children widgets
   menulist_t     context_menu;
   input_t        input;
-  statusbar_t    statusbar;
   rect_t         lines;
 };
 typedef struct buffer_t buffer_t;
@@ -33,12 +27,10 @@ typedef union {
     enum {
       Buffer_ContextMenu = Widget_Last,
       Buffer_Input,
-      Buffer_Statusbar,
     } tag;
     union {
       menulist_msg_t context_menu;
       input_msg_t    input;
-      statusbar_msg_t statusbar;
     };
   };
 } buffer_msg_t;
@@ -61,4 +53,3 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield);
 
 void buffer_dispatch_sdl(buffer_t *self, buffer_msg_t *msg, yield_t yield, yield_t yield_cm);
 bool buffer_iter_screen_xy(buffer_t *self, buff_string_iter_t *iter, int x, int y, bool x_adjust);
-void buffer_get_geometry(buffer_t *self, buffer_geometry_t *geometry);

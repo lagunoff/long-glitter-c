@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <X11/Xlib.h>
 
-#include "draw.h"
+#include "graphics.h"
 #include "utils.h"
 
 typedef union {

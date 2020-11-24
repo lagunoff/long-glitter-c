@@ -1,4 +1,4 @@
-#include "draw.h"
+#include "graphics.h"
 #include "widget.h"
 
 #include <stdlib.h>
@@ -19,49 +19,49 @@ struct hex_color {
 cairo_font_options_t *default_options;
 cairo_matrix_t identity_matrix;
 
-color_t draw_rgba(double r, double g, double b, double a) {
+color_t gx_rgba(double r, double g, double b, double a) {
   color_t color = {r, g, b, a};
   return color;
 }
 
-void draw_init_context(widget_context_t *self, widget_context_init_t *init) {
+void gx_init_context(widget_context_t *self, widget_context_init_t *init) {
   self->display = init->display;
   self->window = init->window;
   self->cairo = init->cairo;
   self->palette = init->palette;
   self->clip = init->clip;
   self->xic = init->xic;
-  self->background = draw_rgba(1, 1, 1, 1);
+  self->background = gx_rgba(1, 1, 1, 1);
   self->foreground = self->palette->primary_text;
-  draw_set_font(self, &palette.default_font);
+  gx_set_font(self, &palette.default_font);
 }
 
-void draw_set_color(widget_context_t *self, color_t color) {
+void gx_set_color(widget_context_t *self, color_t color) {
   self->foreground = color;
   cairo_set_source_rgba(self->cairo, color.red, color.green, color.blue, color.alpha);
 }
 
-void draw_rectangle(widget_context_t *ctx, int x, int y, int w, int h) {
+void gx_rectangle(widget_context_t *ctx, int x, int y, int w, int h) {
   cairo_rectangle(ctx->cairo, x, y, w, h);
   cairo_fill(ctx->cairo);
 }
 
-void draw_box(widget_context_t *ctx, int x, int y, int w, int h) {
+void gx_box(widget_context_t *ctx, int x, int y, int w, int h) {
   cairo_rectangle(ctx->cairo, x, y, w, h);
   cairo_fill(ctx->cairo);
 }
 
-void draw_rect(widget_context_t *ctx, rect_t rect) {
+void gx_rect(widget_context_t *ctx, rect_t rect) {
   cairo_rectangle(ctx->cairo, rect.x, rect.y, rect.w, rect.h);
   cairo_fill(ctx->cairo);
 }
 
-void draw_set_color_rgba(widget_context_t *self, double r, double g, double b, double a) {
-  self->foreground = draw_rgba(r, g, b, a);
+void gx_set_color_rgba(widget_context_t *self, double r, double g, double b, double a) {
+  self->foreground = gx_rgba(r, g, b, a);
   cairo_set_source_rgba(self->cairo, r, g, b, a);
 }
 
-color_t draw_rgb_hex(char *str) {
+color_t gx_rgb_hex(char *str) {
   auto int hexval(char c);
   __auto_type view_hex = (struct hex_color *)str;
   double red = hexval(view_hex->r1) * 16 + hexval(view_hex->r2);
@@ -75,63 +75,63 @@ color_t draw_rgb_hex(char *str) {
   }
 }
 
-void draw_set_color_hex(widget_context_t *ctx, char *str) {
-  draw_set_color(ctx, draw_rgb_hex(str));
+void gx_set_color_hex(widget_context_t *ctx, char *str) {
+  gx_set_color(ctx, gx_rgb_hex(str));
 }
 
-void draw_github_theme(syntax_theme_t *self) {
-  self->preprocessor = draw_rgb_hex("445588");
-  self->identifier = draw_rgb_hex("ba2f59");
-  self->comment = draw_rgb_hex("b8b6b1");
-  self->keyword = draw_rgb_hex("3a81c3");
-  self->builtin = draw_rgb_hex("3a81c3");
-  self->string = draw_rgb_hex("2d9574");
-  self->constant = draw_rgb_hex("dd1144");
-  self->type = draw_rgb_hex("3a81c3");
+void gx_github_theme(syntax_theme_t *self) {
+  self->preprocessor = gx_rgb_hex("445588");
+  self->identifier = gx_rgb_hex("ba2f59");
+  self->comment = gx_rgb_hex("b8b6b1");
+  self->keyword = gx_rgb_hex("3a81c3");
+  self->builtin = gx_rgb_hex("3a81c3");
+  self->string = gx_rgb_hex("2d9574");
+  self->constant = gx_rgb_hex("dd1144");
+  self->type = gx_rgb_hex("3a81c3");
 }
 
-void draw_init_syntax(syntax_theme_t *self) {
-  draw_github_theme(self);
+void gx_init_syntax(syntax_theme_t *self) {
+  gx_github_theme(self);
 }
 
-void draw_set_font(widget_context_t *ctx, font_t *font) {
+void gx_set_font(widget_context_t *ctx, font_t *font) {
   cairo_set_scaled_font(ctx->cairo, font->scaled_font);
   ctx->font = font;
 }
 
-color_t draw_get_color_from_style(widget_context_t *ctx, syntax_style_t style) {
+color_t gx_get_color_from_style(widget_context_t *ctx, syntax_style_t style) {
   switch (style) {
-  case SYNTAX_NORMAL:       return ctx->palette->primary_text;
-  case SYNTAX_PREPROCESSOR: return ctx->palette->syntax.preprocessor;
-  case SYNTAX_COMMENT:      return ctx->palette->syntax.comment;
-  case SYNTAX_KEYWORD:      return ctx->palette->syntax.keyword;
-  case SYNTAX_BUILTIN:      return ctx->palette->syntax.builtin;
-  case SYNTAX_STRING:       return ctx->palette->syntax.string;
-  case SYNTAX_CONSTANT:     return ctx->palette->syntax.constant;
-  case SYNTAX_IDENTIFIER:   return ctx->palette->syntax.identifier;
-  case SYNTAX_TYPE:         return ctx->palette->syntax.type;
+  case Syntax_Normal:       return ctx->palette->primary_text;
+  case Syntax_Preprocessor: return ctx->palette->syntax.preprocessor;
+  case Syntax_Comment:      return ctx->palette->syntax.comment;
+  case Syntax_Keyword:      return ctx->palette->syntax.keyword;
+  case Syntax_Builtin:      return ctx->palette->syntax.builtin;
+  case Syntax_String:       return ctx->palette->syntax.string;
+  case Syntax_Constant:     return ctx->palette->syntax.constant;
+  case Syntax_Identifier:   return ctx->palette->syntax.identifier;
+  case Syntax_Type:         return ctx->palette->syntax.type;
   }
 }
 
-void draw_init(Display *display) {
+void gx_init(Display *display) {
   palette.arrow = XcursorLibraryLoadCursor(display, "arrow");
   palette.xterm = XcursorLibraryLoadCursor(display, "xterm");
   palette.hand1 = XcursorLibraryLoadCursor(display, "hand1");
 }
 
-void draw_free(Display *display) {
+void gx_free(Display *display) {
 }
 
 static __attribute__((constructor)) void __init__() {
-  palette.primary_text = draw_rgba(0,0,0,0.87);
-  palette.secondary_text = draw_rgba(0,0,0,0.54);
-  palette.current_line_bg = draw_rgb_hex("e4f6d4");
-  palette.selection_bg = draw_rgb_hex("dfe2e7");
-  palette.default_bg = draw_rgba(0.97, 0.97, 0.97, 1);
-  palette.ui_bg = draw_rgba(1, 1, 1, 1);
-  palette.border = draw_rgba(0, 0, 0, 0.09);
-  palette.hover = draw_rgba(0, 0, 0, 0.06);
-  draw_init_syntax(&palette.syntax);
+  palette.primary_text = gx_rgba(0,0,0,0.87);
+  palette.secondary_text = gx_rgba(0,0,0,0.54);
+  palette.current_line_bg = gx_rgb_hex("e4f6d4");
+  palette.selection_bg = gx_rgb_hex("dfe2e7");
+  palette.default_bg = gx_rgba(0.97, 0.97, 0.97, 1);
+  palette.ui_bg = gx_rgba(1, 1, 1, 1);
+  palette.border = gx_rgba(0, 0, 0, 0.09);
+  palette.hover = gx_rgba(0, 0, 0, 0.06);
+  gx_init_syntax(&palette.syntax);
   default_options = cairo_font_options_create();
   cairo_matrix_init_identity(&identity_matrix);
 

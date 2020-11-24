@@ -7,7 +7,7 @@
 #include <cairo.h>
 
 #include "buffer.h"
-#include "draw.h"
+#include "graphics.h"
 #include "utils.h"
 #include "widget.h"
 #include "c-mode.h"
@@ -22,12 +22,12 @@ void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
   self->ctx.font = &ctx->palette->monospace_font;
-  draw_init_context(&self->ctx, ctx);
+  gx_init_context(&self->ctx, ctx);
   input_init(&self->input, ctx, new_bytes(mmaped, st.st_size), buffer_choose_syntax_highlighter(path));
   self->context_menu.ctx = self->ctx;
   self->context_menu.ctx.window = 0;
   self->show_lines = true;
-  draw_set_font(&self->input.ctx, &self->ctx.palette->monospace_font);
+  gx_set_font(&self->input.ctx, &self->ctx.palette->monospace_font);
 }
 
 syntax_highlighter_t *buffer_choose_syntax_highlighter(char *path) {
@@ -52,17 +52,17 @@ void buffer_view_lines(buffer_t *self) {
   char temp[64];
   cairo_text_extents_t text_size;
   int y = self->lines.y;
-  draw_set_color(&self->ctx, self->ctx.background);
-  draw_rect(&self->ctx, self->lines);
+  gx_set_color(&self->ctx, self->ctx.background);
+  gx_rect(&self->ctx, self->lines);
 
-  draw_set_font(&self->ctx, &self->ctx.palette->monospace_font);
-  draw_set_color(ctx, color);
+  gx_set_font(&self->ctx, &self->ctx.palette->monospace_font);
+  gx_set_color(ctx, color);
   for(int i = 0; i < self->input.lines_len; line++, i++) {
     // File content ended, dont draw line numbers
     if (self->input.lines[i] == -1) break;
     sprintf(temp, "%d", line + 1);
-    draw_measure_text(ctx, temp, &text_size);
-    draw_text(ctx, self->lines.x + self->lines.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp);
+    gx_measure_text(ctx, temp, &text_size);
+    gx_text(ctx, self->lines.x + self->lines.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp);
     y += ctx->font->extents.height;
     if (y + ctx->font->extents.height >= self->lines.y + self->lines.h) break;
   }

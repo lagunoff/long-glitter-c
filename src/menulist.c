@@ -23,29 +23,29 @@ void
 menulist_view(menulist_t *self) {
   __auto_type ctx = &self->ctx;
   __auto_type extents = &self->ctx.font->extents;
-  draw_set_color(ctx, ctx->palette->ui_bg);
+  gx_set_color(ctx, ctx->palette->ui_bg);
 
   int item_height = extents->height + Y_MARGIN;
   int y = 1 + Y_MARGIN;
-  draw_set_color(ctx, ctx->palette->primary_text);
+  gx_set_color(ctx, ctx->palette->primary_text);
   for (int i = 0; i < self->len; i++) {
     uint8_t *ptr8 = (uint8_t *)self->items;
     menulist_item_t *item_ptr = (menulist_item_t *)(ptr8 + i * self->alignement);
     if (i == self->hover) {
-      draw_set_color(ctx, ctx->palette->hover);
-      draw_box(ctx, 0, y - Y_MARGIN * 0.5, ctx->clip.w, item_height);
-      draw_set_color(ctx, ctx->palette->primary_text);
+      gx_set_color(ctx, ctx->palette->hover);
+      gx_box(ctx, 0, y - Y_MARGIN * 0.5, ctx->clip.w, item_height);
+      gx_set_color(ctx, ctx->palette->primary_text);
     }
     if (item_ptr->icon) {
-      draw_set_color(ctx, palette.secondary_text);
-      // draw_glyph(ctx, 8, y - Y_MARGIN * 0.5 + (item_height - palette.fontawesome_font.ascent) * 0.5 - 1, item_ptr->icon, palette.fontawesome_font.font);
-      draw_set_color(ctx, palette.primary_text);
+      gx_set_color(ctx, palette.secondary_text);
+      // gx_glyph(ctx, 8, y - Y_MARGIN * 0.5 + (item_height - palette.fontawesome_font.ascent) * 0.5 - 1, item_ptr->icon, palette.fontawesome_font.font);
+      gx_set_color(ctx, palette.primary_text);
     }
-    draw_text(ctx, X_PADDING + 1, y, item_ptr->title);
+    gx_text(ctx, X_PADDING + 1, y, item_ptr->title);
     y += item_height;
   }
-  draw_set_color(ctx, ctx->palette->border);
-  draw_rectangle(ctx, 0, 0, ctx->clip.w, ctx->clip.h);
+  gx_set_color(ctx, ctx->palette->border);
+  gx_rectangle(ctx, 0, 0, ctx->clip.w, ctx->clip.h);
 }
 
 void

@@ -34,14 +34,14 @@ void p_number(parser_context_t *ctx, parser_result_t *result) {
   }
   success:
   expr = (expr_t*)malloc(sizeof(expr_t));
-  expr->tag = EXP_LITERAL;
-  expr->literal.tag = LITERAL_NUMBER;
+  expr->tag = Expr_Literal;
+  expr->literal.tag = Literal_Number;
   expr->literal.number.value = minus ? -value : value;
-  result->tag = PARSER_SUCCESS;
+  result->tag = Parser_Success;
   result->success.value = expr;
   return;
   failure:
-  result->tag = PARSER_FAILURE;
+  result->tag = Parser_Failure;
 }
 
 // FIXME: implement escaping
@@ -68,23 +68,23 @@ void p_string(parser_context_t *ctx, parser_result_t *result) {
   }
   success:
   expr = (expr_t*)malloc(sizeof(expr_t));
-  expr->tag = EXP_LITERAL;
-  expr->literal.tag = LITERAL_STRING;
+  expr->tag = Expr_Literal;
+  expr->literal.tag = Literal_String;
   expr->literal.string.len = ctx->offset - initial_offset - 1;
   expr->literal.string.utf8 = (char*)malloc(expr->literal.string.len + 1);
   strncpy(expr->literal.string.utf8, ctx->input + initial_offset + 1, expr->literal.string.len);
-  result->tag = PARSER_SUCCESS;
+  result->tag = Parser_Success;
   result->success.value = expr;
   ctx->offset++;
   return;
   failure:
-  result->tag = PARSER_FAILURE;
+  result->tag = Parser_Failure;
 }
 
 // FIXME: implement escaping
 void p_literal(parser_context_t *ctx, parser_result_t *result) {
   p_number(ctx, result);
-  if (result->tag == PARSER_FAILURE) {
+  if (result->tag == Parser_Failure) {
     p_string(ctx, result);
   }
 }
@@ -97,7 +97,7 @@ void p_space(parser_context_t *ctx, parser_result_t *result) {
     }
   }
   success:
-  result->tag = PARSER_SUCCESS;
+  result->tag = Parser_Success;
   result->success.value = NULL;
 }
 
@@ -125,16 +125,16 @@ void p_indent(parser_context_t *ctx, parser_result_t *result) {
   }
   success:
   expr = (expr_t*)malloc(sizeof(expr_t));
-  expr->tag = EXP_IDENT;
+  expr->tag = Expr_Ident;
   expr->ident.len = ctx->offset - initial_offset;
   expr->ident.utf8 = (char*)malloc(expr->ident.len + 1);
   strncpy(expr->ident.utf8, ctx->input + initial_offset, expr->ident.len);
-  result->tag = PARSER_SUCCESS;
+  result->tag = Parser_Success;
   result->success.value = expr;
   ctx->offset++;
   return;
   failure:
-  result->tag = PARSER_FAILURE;
+  result->tag = Parser_Failure;
 }
 
 void p_infix_operator(parser_context_t *ctx, parser_result_t *result) {
@@ -148,28 +148,28 @@ void p_infix_operator(parser_context_t *ctx, parser_result_t *result) {
     goto success;
   }
   success:
-  result->tag = PARSER_SUCCESS;
+  result->tag = Parser_Success;
   ctx->offset++;
   return;
   failure:
-  result->tag = PARSER_FAILURE;
+  result->tag = Parser_Failure;
 }
 
 void p_expr(parser_context_t *ctx, parser_result_t *result) {
   parser_result_t ignore;
   parser_result_t infix_operator;
   p_space(ctx, &ignore);
-  p_literal(ctx, result); if (result->tag == PARSER_SUCCESS) goto success;
-  p_indent(ctx, result); if (result->tag == PARSER_SUCCESS) goto success;
+  p_literal(ctx, result); if (result->tag == Parser_Success) goto success;
+  p_indent(ctx, result); if (result->tag == Parser_Success) goto success;
  success:
   p_space(ctx, &ignore);
   p_infix_operator(ctx, &infix_operator);
-  if (infix_operator.tag == PARSER_SUCCESS) {
+  if (infix_operator.tag == Parser_Success) {
     parser_result_t right;
     p_expr(ctx, &right);
-    if (result->tag == PARSER_SUCCESS) {
+    if (result->tag == Parser_Success) {
       expr_t *expr = (expr_t*)malloc(sizeof(expr_t));
-      expr->tag = EXP_INFIX;
+      expr->tag = Expr_Infix;
       expr->infix.operator[0] = (intptr_t)infix_operator.success.value;
       expr->infix.operator[1] = '\0';
       expr->infix.left = result->success.value;
@@ -178,7 +178,7 @@ void p_expr(parser_context_t *ctx, parser_result_t *result) {
       return;
     }
   }
-  result->tag = PARSER_SUCCESS;
+  result->tag = Parser_Success;
   return;
 }
 
@@ -191,22 +191,22 @@ int parser_unittest(){
   parser_result_t result;
   p_expr(&ctx, &result);
   inspect(%d, result.tag);
-  if (result.tag == PARSER_SUCCESS) {
+  if (result.tag == Parser_Success) {
     expr_t *ast = success_value(result, expr_t *);
     inspect(%d, ast->tag);
-    if (ast->tag == EXP_LITERAL) {
+    if (ast->tag == Expr_Literal) {
       inspect(%d, ast->literal.tag);
-      if (ast->literal.tag == LITERAL_NUMBER) {
+      if (ast->literal.tag == Literal_Number) {
         inspect(%d, ast->literal.number.value);
       }
-      if (ast->literal.tag == LITERAL_STRING) {
+      if (ast->literal.tag == Literal_String) {
         inspect(%s, ast->literal.string.utf8);
       }
     }
-    if (ast->tag == EXP_IDENT) {
+    if (ast->tag == Expr_Ident) {
       inspect(%s, ast->ident.utf8);
     }
-    if (ast->tag == EXP_INFIX) {
+    if (ast->tag == Expr_Infix) {
       inspect(%s, ast->infix.operator);
     }
   }

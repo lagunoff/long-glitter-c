@@ -4,22 +4,16 @@
 
 #include "buff-string.h"
 #include "cursor.h"
-#include "draw.h"
+#include "graphics.h"
 #include "widget.h"
 #include "menulist.h"
 #include "utils.h"
 
-#define MODIFY_CURSOR(f) {                                   \
-  cursor_t old_cursor = self->cursor;                        \
-  f(&self->cursor);                                               \
-  cursor_modified(self, &old_cursor);                        \
-}
-
 typedef enum {
-  SELECTION_INACTIVE,
-  SELECTION_DRAGGING_MOUSE,
-  SELECTION_DRAGGING_KEYBOARD,
-  SELECTION_COMPLETE,
+  Selection_Inactive,
+  Selection_DraggingMouse,
+  Selection_DraggingKeyboard,
+  Selection_Complete,
 } selection_state_t;
 
 typedef struct {
@@ -28,8 +22,8 @@ typedef struct {
 } text_style_t;
 
 typedef enum {
-  CURSOR_LINE,
-  CURSOR_BLOCK,
+  Cursor_Line,
+  Cursor_Block,
 } cursor_style_t;
 
 typedef struct {

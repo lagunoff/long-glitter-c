@@ -12,7 +12,7 @@
 #include <cairo-xlib.h>
 
 #include "utils.h"
-#include "draw.h"
+#include "graphics.h"
 #include "main-window.h"
 
 int main(int argc, char **argv) {
@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
   __auto_type surface = cairo_xlib_surface_create(ctx.display, ctx.window, vinfo.visual, width, height);
   XSelectInput(ctx.display, ctx.window, ButtonPressMask|KeyPressMask|ExposureMask|StructureNotifyMask|PointerMotionMask|KeyPressMask|PropertyChangeMask|ButtonPress);
   XMapWindow(ctx.display, ctx.window);
-  draw_init(ctx.display);
+  gx_init(ctx.display);
 
   XIM xim = XOpenIM(ctx.display, 0, 0, 0);
   ctx.xic = XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing, NULL);
@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
         return;
       }
       case Expose: {
-        draw_set_color(&buffer.ctx, buffer.ctx.background);
+        gx_set_color(&buffer.ctx, buffer.ctx.background);
         cairo_paint(buffer.ctx.cairo);
         break;
       }}
@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
     loop(NULL);
   }
 
-  draw_free(ctx.display);
+  gx_free(ctx.display);
   cairo_destroy(ctx.cairo);
   cairo_surface_destroy(surface);
   XCloseDisplay(ctx.display);

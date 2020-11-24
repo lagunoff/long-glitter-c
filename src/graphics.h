@@ -9,15 +9,15 @@
 struct widget_t;
 
 typedef enum {
-  SYNTAX_NORMAL,
-  SYNTAX_PREPROCESSOR,
-  SYNTAX_COMMENT,
-  SYNTAX_KEYWORD,
-  SYNTAX_BUILTIN,
-  SYNTAX_STRING,
-  SYNTAX_CONSTANT,
-  SYNTAX_IDENTIFIER,
-  SYNTAX_TYPE,
+  Syntax_Normal,
+  Syntax_Preprocessor,
+  Syntax_Comment,
+  Syntax_Keyword,
+  Syntax_Builtin,
+  Syntax_String,
+  Syntax_Constant,
+  Syntax_Identifier,
+  Syntax_Type,
 } syntax_style_t;
 
 typedef struct {
@@ -30,7 +30,7 @@ typedef struct {
   cairo_font_slant_t   slant;
   cairo_font_weight_t  weight;
   cairo_matrix_t       matrix;
-  // Cached data
+  // Cached results
   cairo_font_extents_t extents;
   cairo_font_face_t   *face;
   cairo_scaled_font_t *scaled_font;
@@ -91,33 +91,33 @@ typedef struct {
 
 palette_t palette;
 
-void draw_init_context(widget_context_t *self, widget_context_init_t *data);
-color_t draw_rgba(double r, double g, double b, double a);
-color_t draw_rgb_hex(char *str);
-void draw_set_color(widget_context_t *ctx, color_t color);
-void draw_set_color_rgba(widget_context_t *ctx, double r, double g, double b, double a);
-void draw_set_color_hex(widget_context_t *ctx, char *str);
-void draw_rectangle(widget_context_t *ctx, int x, int y, int w, int h);
-void draw_box(widget_context_t *ctx, int x, int y, int w, int h);
-void draw_rect(widget_context_t *ctx, rect_t rect);
-void draw_set_font(widget_context_t *ctx, font_t *font);
-color_t draw_get_color_from_style(widget_context_t *ctx, syntax_style_t style);
-void draw_init(Display *display);
-void draw_free(Display *display);
+void gx_init_context(widget_context_t *self, widget_context_init_t *data);
+color_t gx_rgba(double r, double g, double b, double a);
+color_t gx_rgb_hex(char *str);
+void gx_set_color(widget_context_t *ctx, color_t color);
+void gx_set_color_rgba(widget_context_t *ctx, double r, double g, double b, double a);
+void gx_set_color_hex(widget_context_t *ctx, char *str);
+void gx_rectangle(widget_context_t *ctx, int x, int y, int w, int h);
+void gx_box(widget_context_t *ctx, int x, int y, int w, int h);
+void gx_rect(widget_context_t *ctx, rect_t rect);
+void gx_set_font(widget_context_t *ctx, font_t *font);
+color_t gx_get_color_from_style(widget_context_t *ctx, syntax_style_t style);
+void gx_init(Display *display);
+void gx_free(Display *display);
 
 inline_always void
-draw_text(widget_context_t *ctx, int x, int y, const char *text) {
+gx_text(widget_context_t *ctx, int x, int y, const char *text) {
   cairo_move_to(ctx->cairo, x, y);
   cairo_show_text(ctx->cairo, text);
 }
 
 inline_always void
-draw_measure_text(widget_context_t *ctx, char *text, cairo_text_extents_t *extents) {
+gx_measure_text(widget_context_t *ctx, char *text, cairo_text_extents_t *extents) {
   cairo_text_extents(ctx->cairo, text, extents);
 }
 
 inline_always void
-draw_line(widget_context_t *ctx, int x1, int y1, int x2, int y2) {
+gx_line(widget_context_t *ctx, int x1, int y1, int x2, int y2) {
   cairo_move_to(ctx->cairo, x1, y1);
   cairo_line_to(ctx->cairo, x2, y2);
   cairo_stroke(ctx->cairo);

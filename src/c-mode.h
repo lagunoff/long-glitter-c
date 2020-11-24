@@ -1,19 +1,19 @@
 #pragma once
 
 #include "parser.h"
-#include "draw.h"
+#include "graphics.h"
 #include "input.h"
 
 typedef enum {
-  C_MODE_NORMAL,
-  C_MODE_SINGLE_COMMENT,
-  C_MODE_MULTI_COMMENT,
-  C_MODE_KEYWORD,
-  C_MODE_CONTROL_FLOW,
-  C_MODE_TYPES,
-  C_MODE_PREPROCESSOR,
-  C_MODE_STRING,
-  C_MODE_CONSTANT,
+  CMode_Normal,
+  CMode_SingleComment,
+  CMode_MultiComment,
+  CMode_Keyword,
+  CMode_ControlFlow,
+  CMode_Types,
+  CMode_Preprocessor,
+  CMode_String,
+  CMode_Constant,
 } c_mode_token_t;
 
 typedef struct {

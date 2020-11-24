@@ -1,7 +1,7 @@
 #include "main-window.h"
 
 void main_window_init(main_window_t *self, widget_context_init_t *ctx) {
-  draw_init_context(&self->ctx, ctx);
+  gx_init_context(&self->ctx, ctx);
   self->show_sidebar = true;
   tabs_init(&self->content, ctx, "/home/vlad/job/long-glitter-c/tmp/xola.c");
   tree_panel_init(&self->sidebar, ctx, "/home/vlad/job/long-glitter-c/tmp");
@@ -25,7 +25,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     }
     tabs_dispatch(&self->content, (tabs_msg_t *)msg, &noop_yield);
     if (self->show_sidebar) {
-      draw_set_color(ctx, self->ctx.palette->border);
+      gx_set_color(ctx, self->ctx.palette->border);
       cairo_move_to(ctx->cairo, self->sidebar.ctx.clip.x + self->sidebar.ctx.clip.w, self->sidebar.ctx.clip.y);
       cairo_line_to(ctx->cairo, self->sidebar.ctx.clip.x + self->sidebar.ctx.clip.w, self->sidebar.ctx.clip.y + self->sidebar.ctx.clip.h);
       cairo_stroke(ctx->cairo);

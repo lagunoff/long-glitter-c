@@ -104,7 +104,7 @@ static char *c_mode_types[] = {
 
 void c_mode_reset(void *self) {
   __auto_type ctx = (c_mode_state_t *)self;
-  ctx->token = C_MODE_NORMAL;
+  ctx->token = CMode_Normal;
 }
 
 void c_mode_highlight(void *self, highlighter_args_t *args, highlighter_t cb) {
@@ -116,106 +116,106 @@ void c_mode_highlight(void *self, highlighter_args_t *args, highlighter_t cb) {
   for (;;) {
     __auto_type iter = args->input + range.y;
     switch (ctx->token) {
-    case C_MODE_KEYWORD: {
+    case CMode_Keyword: {
       if (keyword_eaten) {
         range.y += keyword_eaten;
-        ctx->token = C_MODE_NORMAL;
+        ctx->token = CMode_Normal;
         goto _continue;
       } else {
         // TODO
       }
       break;
     }
-    case C_MODE_CONTROL_FLOW: {
+    case CMode_ControlFlow: {
       if (keyword_eaten) {
         range.y += keyword_eaten;
-        ctx->token = C_MODE_NORMAL;
+        ctx->token = CMode_Normal;
         goto _continue;
       } else {
         // TODO
       }
       break;
     }
-    case C_MODE_TYPES: {
+    case CMode_Types: {
       if (keyword_eaten) {
         range.y += keyword_eaten;
-        ctx->token = C_MODE_NORMAL;
+        ctx->token = CMode_Normal;
         goto _continue;
       } else {
         // TODO
       }
       break;
     }
-    case C_MODE_CONSTANT: {
+    case CMode_Constant: {
       if (!isdigit(*iter)) {
-        ctx->token = C_MODE_NORMAL;
+        ctx->token = CMode_Normal;
         goto _continue;
       }
       break;
     }
-    case C_MODE_SINGLE_COMMENT: {
+    case CMode_SingleComment: {
       range.y = args->len;
-      ctx->token = C_MODE_NORMAL;
+      ctx->token = CMode_Normal;
       goto _continue;
     }
-    case C_MODE_MULTI_COMMENT: {
+    case CMode_MultiComment: {
       // SEEK END SEQ
       __auto_type curr_char = *iter;
       __auto_type next_char = iter == args->input + args->len ? ' ' : *(iter + 1);
       if (curr_char == '*' && next_char == '/') {
         range.y += 2;
-        ctx->token = C_MODE_NORMAL;
+        ctx->token = CMode_Normal;
         goto _continue;
       }
       break;
     }
-    case C_MODE_STRING: {
+    case CMode_String: {
       __auto_type curr_char = *iter;
       __auto_type prev_char = iter == args->input ? ' ' : *(iter - 1);
       if (curr_char == '"' && prev_char != '\\') {
-        ctx->token = C_MODE_NORMAL;
+        ctx->token = CMode_Normal;
       }
       break;
     }
-    case C_MODE_PREPROCESSOR: {
+    case CMode_Preprocessor: {
       if (!isalnum(*iter)) {
-        ctx->token = C_MODE_NORMAL;
+        ctx->token = CMode_Normal;
         goto _continue;
       }
       break;
     }
-    case C_MODE_NORMAL: {
+    case CMode_Normal: {
       // Lookup for start of other syntax modes
       __auto_type last_char = iter == args->input ? ' ' : *(iter - 1);
       __auto_type curr_char = *iter;
       __auto_type next_char = iter == args->input + args->len ? ' ' : *(iter + 1);
       if (isalnum(last_char)) break;
       if (isdigit(curr_char)) {
-        ctx->token = C_MODE_CONSTANT;
+        ctx->token = CMode_Constant;
         break;
       }
       if (curr_char == '/' && next_char == '/') {
-        ctx->token = C_MODE_SINGLE_COMMENT;
+        ctx->token = CMode_SingleComment;
         goto _continue;
       }
       if (curr_char == '/' && next_char == '*') {
-        ctx->token = C_MODE_MULTI_COMMENT;
+        ctx->token = CMode_MultiComment;
         goto _continue;
       }
       if (curr_char == '#') {
-        ctx->token = C_MODE_PREPROCESSOR;
+        ctx->token = CMode_Preprocessor;
         goto _continue;
       }
       if (curr_char == '"') {
-        ctx->token = C_MODE_STRING;
+        ctx->token = CMode_String;
         goto _continue;
       }
       keyword_eaten = c_mode_match_strings(iter, args->len - (iter - args->input), c_mode_keywords, sizeof(c_mode_keywords)/sizeof(c_mode_keywords[0]));
-      if (keyword_eaten) { ctx->token = C_MODE_KEYWORD; goto _continue; }
+      if (keyword_eaten) { ctx->token = CMode_Keyword; goto _continue; }
       keyword_eaten = c_mode_match_strings(iter, args->len - (iter - args->input), c_mode_control_flow, sizeof(c_mode_control_flow)/sizeof(c_mode_control_flow[0]));
-      if (keyword_eaten) { ctx->token = C_MODE_CONTROL_FLOW; goto _continue; }
+      if (keyword_eaten) { ctx->token = CMode_ControlFlow; goto _continue; }
       keyword_eaten = c_mode_match_strings(iter, args->len - (iter - args->input), c_mode_types, sizeof(c_mode_types)/sizeof(c_mode_types[0]));
-      if (keyword_eaten) { ctx->token = C_MODE_TYPES; goto _continue; }
+      if (keyword_eaten) { ctx->token = CMode_Types; goto _continue; }
       break;
     }}
     _continue:
@@ -258,15 +258,15 @@ int c_mode_match_strings(char *input, int input_len, char **arr, int arr_len) {
 
 syntax_style_t c_mode_token_to_syntax(c_mode_token_t token) {
   switch (token) {
-  case C_MODE_NORMAL: return SYNTAX_NORMAL;
-  case C_MODE_SINGLE_COMMENT: return SYNTAX_COMMENT;
-  case C_MODE_MULTI_COMMENT: return SYNTAX_COMMENT;
-  case C_MODE_KEYWORD: return SYNTAX_KEYWORD;
-  case C_MODE_CONTROL_FLOW: return SYNTAX_BUILTIN;
-  case C_MODE_TYPES: return SYNTAX_TYPE;
-  case C_MODE_PREPROCESSOR: return SYNTAX_PREPROCESSOR;
-  case C_MODE_STRING: return SYNTAX_STRING;
-  case C_MODE_CONSTANT: return SYNTAX_CONSTANT;
+  case CMode_Normal: return Syntax_Normal;
+  case CMode_SingleComment: return Syntax_Comment;
+  case CMode_MultiComment: return Syntax_Comment;
+  case CMode_Keyword: return Syntax_Keyword;
+  case CMode_ControlFlow: return Syntax_Builtin;
+  case CMode_Types: return Syntax_Type;
+  case CMode_Preprocessor: return Syntax_Preprocessor;
+  case CMode_String: return Syntax_String;
+  case CMode_Constant: return Syntax_Constant;
   }
 }
 

@@ -12,7 +12,7 @@ void tree_init(tree_t *self, char *path);
 void tree_free(tree_t *self);
 
 void tree_panel_init(tree_panel_t *self, widget_context_init_t *ctx, char *path) {
-  draw_init_context(&self->ctx, ctx);
+  gx_init_context(&self->ctx, ctx);
   tree_init(&self->tree, path);
   self->hover = NULL;
 }
@@ -32,9 +32,9 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
         __auto_type color = self->hover == tree ? ctx->palette->primary_text : ctx->palette->secondary_text;
         rect_t clip = {ctx->clip.x + 8 + indent * 16, ctx->clip.y + 8 + line * ctx->font->extents.height};
         cairo_text_extents_t extents;
-        draw_set_color(ctx, color);
-        draw_text(ctx, clip.x, clip.y + ctx->font->extents.ascent, name);
-        draw_measure_text(ctx, name, &extents);
+        gx_set_color(ctx, color);
+        gx_text(ctx, clip.x, clip.y + ctx->font->extents.ascent, name);
+        gx_measure_text(ctx, name, &extents);
         clip.w = extents.x_advance;
         clip.h = extents.height;
         tree->file.clip = clip;
@@ -45,9 +45,9 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
         __auto_type color = self->hover == tree ? ctx->palette->primary_text : ctx->palette->secondary_text;
         rect_t clip = {ctx->clip.x + 8 + indent * 16, ctx->clip.y + 8 + (line * ctx->font->extents.height)};
         cairo_text_extents_t extents;
-        draw_set_color(ctx, color);
-        draw_text(ctx, clip.x, clip.y + ctx->font->extents.ascent, name);
-        draw_measure_text(ctx, name, &extents);
+        gx_set_color(ctx, color);
+        gx_text(ctx, clip.x, clip.y + ctx->font->extents.ascent, name);
+        gx_measure_text(ctx, name, &extents);
         clip.w = extents.x_advance;
         clip.h = extents.height;
         tree->directory.clip = clip;
@@ -60,9 +60,9 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
         break;
       }}
     }
-    draw_set_font(ctx, ctx->font);
-    draw_set_color(ctx, ctx->palette->default_bg);
-    draw_rect(ctx, ctx->clip);
+    gx_set_font(ctx, ctx->font);
+    gx_set_color(ctx, ctx->palette->default_bg);
+    gx_rect(ctx, ctx->clip);
     return go(0, 0, &self->tree);
   }
   case Widget_Free: {

@@ -30,10 +30,10 @@ typedef struct {
 
 typedef struct {
   enum {
-    LITERAL_STRING,
-    LITERAL_NUMBER,
-    LITERAL_ARRAY,
-    LITERAL_RECORD,
+    Literal_String,
+    Literal_Number,
+    Literal_Array,
+    Literal_Record,
   } tag;
   union {
     literal_number_t number;
@@ -56,10 +56,10 @@ typedef struct {
 
 struct expr_t {
   enum {
-    EXP_LITERAL,
-    EXP_IDENT,
-    EXP_INFIX,
-    EXP_APPLY,
+    Expr_Literal,
+    Expr_Ident,
+    Expr_Infix,
+    Expr_Apply,
   } tag;
   union {
     literal_t literal;
@@ -87,8 +87,8 @@ typedef struct {
 
 typedef struct {
   enum {
-    PARSER_SUCCESS,
-    PARSER_FAILURE,
+    Parser_Success,
+    Parser_Failure,
   } tag;
   union {
     parser_success_t success;

@@ -8,10 +8,18 @@
 #include <X11/Xmu/Atoms.h>
 #include <X11/cursorfont.h>
 
-#include "draw.h"
+#include "graphics.h"
 #include "input.h"
 #include "utils.h"
 #include "widget.h"
+
+//! Moving cursor can cause it to leave the visible area this macros
+//! restores proper scroll position after cursor movement
+#define modify_cursor(f) {                                   \
+  cursor_t old_cursor = self->cursor;                        \
+  f(&self->cursor);                                          \
+  cursor_modified(self, &old_cursor);                        \
+}
 
 #define SCROLL_JUMP 8
 
@@ -25,11 +33,11 @@ static const int CURSOR_LINE_WIDTH = 2;
 void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *content, syntax_highlighter_t *hl) {
   self->contents = content;
 
-  self->selection.state = SELECTION_INACTIVE;
+  self->selection.state = Selection_Inactive;
   bs_index(&self->contents, &self->selection.mark_1, 0);
   bs_index(&self->contents, &self->selection.mark_2, 0);
 
-  draw_init_context(&self->ctx, ctx);
+  gx_init_context(&self->ctx, ctx);
   self->scroll.line = 0;
   bs_begin(&self->scroll.pos, &self->contents);
   bs_begin(&self->cursor.pos, &self->contents);
@@ -51,9 +59,9 @@ void input_free(input_t *self) {
 void input_set_style(widget_context_t *ctx, text_style_t *style) {
   // Uncomment if you want text inside selection to be white
   if (0 && style->selected) {
-    draw_set_color_rgba(ctx, 1,1,1,1);
+    gx_set_color_rgba(ctx, 1,1,1,1);
   } else {
-    draw_set_color(ctx, draw_get_color_from_style(ctx, style->syntax));
+    gx_set_color(ctx, gx_get_color_from_style(ctx, style->syntax));
   }
 }
 
@@ -71,16 +79,16 @@ void input_view(input_t *self) {
   int y = ctx->clip.y; // y coordinate of the top-left corner of the text
   int i = 0; // Index of the line
   point_t line_sel_range;
-  text_style_t normal = {.syntax = SYNTAX_NORMAL, .selected = false};
+  text_style_t normal = {.syntax = Syntax_Normal, .selected = false};
   highlighter_args_t hl_args = {.ctx = ctx, .normal = &normal, .input = temp, .len = strlen(temp)};
 
   input_update_lines(self);
-  draw_set_font(&self->ctx, self->ctx.font);
-  draw_set_color(&self->ctx, self->ctx.background);
-  draw_rect(&self->ctx, self->ctx.clip);
+  gx_set_font(&self->ctx, self->ctx.font);
+  gx_set_color(&self->ctx, self->ctx.background);
+  gx_rect(&self->ctx, self->ctx.clip);
 
   for(;;i++) {
-    draw_set_color(ctx, ctx->palette->primary_text);
+    gx_set_color(ctx, ctx->palette->primary_text);
     __auto_type begin_offset = bs_offset(&iter);
     __auto_type eof = bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
     __auto_type end_offset = bs_offset(&iter);
@@ -91,15 +99,15 @@ void input_view(input_t *self) {
 
     // Highlight the current line
     if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
-      draw_set_color(ctx, ctx->palette->current_line_bg);
-      draw_box(ctx, ctx->clip.x, y, ctx->clip.w, ctx->font->extents.height);
-      draw_set_color(ctx, ctx->palette->primary_text);
+      gx_set_color(ctx, ctx->palette->current_line_bg);
+      gx_box(ctx, ctx->clip.x, y, ctx->clip.w, ctx->font->extents.height);
+      gx_set_color(ctx, ctx->palette->primary_text);
     }
 
     // Draw the line
     // cairo_set_source_rgb(ctx->cairo, 0, 0, 0);
-    /* draw_set_color(ctx, ctx->palette->primary_text); */
-    /* draw_text(ctx, ctx->clip.x, y + ctx->font->extents.ascent, temp, 0); */
+    /* gx_set_color(ctx, ctx->palette->primary_text); */
+    /* gx_text(ctx, ctx->clip.x, y + ctx->font->extents.ascent, temp, 0); */
     int x = ctx->clip.x;
     with_styles(lambda(void _(point_t r, text_style_t *s) {
       __auto_type len = r.y - r.x;
@@ -108,13 +116,13 @@ void input_view(input_t *self) {
         char tmp[len + 1];
         strncpy(tmp, temp + r.x, len);
         tmp[len] = '\0';
-        draw_measure_text(ctx, tmp, &extents);
+        gx_measure_text(ctx, tmp, &extents);
         if (s->selected) {
-          draw_set_color(ctx, ctx->palette->selection_bg);
-          draw_box(ctx, x, y, extents.x_advance, ctx->font->extents.height);
+          gx_set_color(ctx, ctx->palette->selection_bg);
+          gx_box(ctx, x, y, extents.x_advance, ctx->font->extents.height);
         }
         input_set_style(ctx, s);
-        draw_text(ctx, x, y + ctx->font->extents.ascent, tmp);
+        gx_text(ctx, x, y + ctx->font->extents.ascent, tmp);
         x += extents.x_advance;
       }
     }));
@@ -124,8 +132,8 @@ void input_view(input_t *self) {
       int cur_x_offset = cursor_offset - begin_offset;
       temp[cur_x_offset] = '\0';
       cairo_text_extents_t extents;
-      draw_measure_text(ctx, temp, &extents);
-      draw_box(ctx, ctx->clip.x + extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font->extents.height + 2);
+      gx_measure_text(ctx, temp, &extents);
+      gx_box(ctx, ctx->clip.x + extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font->extents.height + 2);
     }
     y += ctx->font->extents.height;
     if (y + ctx->font->extents.height >= max_y) break;
@@ -282,28 +290,28 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     __auto_type is_altshift = (xkey->state & Mod1Mask) && (xkey->state & ShiftMask);
 
     if (keysym == XK_Up || (keysym == XK_p && is_ctrl)) {
-      MODIFY_CURSOR(cursor_up);
+      modify_cursor(cursor_up);
       return yield(&msg_view);
     } else if (keysym == XK_Down || (keysym == XK_n && is_ctrl)) {
-      MODIFY_CURSOR(cursor_down);
+      modify_cursor(cursor_down);
       return yield(&msg_view);
     } else if (keysym == XK_Left || (keysym == XK_b && is_ctrl)) {
-      MODIFY_CURSOR(cursor_left);
+      modify_cursor(cursor_left);
       return yield(&msg_view);
     } else if (keysym == XK_Right || (keysym == XK_f && is_ctrl)) {
-      MODIFY_CURSOR(cursor_right);
+      modify_cursor(cursor_right);
       return yield(&msg_view);
     } else if (keysym == XK_f && is_alt) {
-      MODIFY_CURSOR(cursor_forward_word);
+      modify_cursor(cursor_forward_word);
       return yield(&msg_view);
     } else if (keysym == XK_b && is_alt) {
-      MODIFY_CURSOR(cursor_backward_word);
+      modify_cursor(cursor_backward_word);
       return yield(&msg_view);
     } else if (keysym == XK_e && is_ctrl) {
-      MODIFY_CURSOR(cursor_eol);
+      modify_cursor(cursor_eol);
       return yield(&msg_view);
     } else if (keysym == XK_a && is_ctrl) {
-      MODIFY_CURSOR(cursor_bol);
+      modify_cursor(cursor_bol);
       return yield(&msg_view);
     } else if (keysym == XK_v && is_ctrl || keysym == XK_Page_Down) {
       scroll_page(&self->ctx, &self->scroll, &self->cursor, 1);
@@ -312,10 +320,10 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       scroll_page(&self->ctx, &self->scroll, &self->cursor, -1);
       return yield(&msg_view);
     } else if (keysym == XK_bracketleft && is_altshift) {
-      MODIFY_CURSOR(backward_paragraph);
+      modify_cursor(backward_paragraph);
       return yield(&msg_view);
     } else if (keysym == XK_bracketright && is_altshift) {
-      MODIFY_CURSOR(forward_paragraph);
+      modify_cursor(forward_paragraph);
       return yield(&msg_view);
     } else if (keysym == XK_k && is_ctrl) {
       __auto_type iter = self->cursor.pos;
@@ -360,10 +368,10 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       );
       return yield(&msg_view);
     } else if (keysym == XK_comma && is_altshift) {
-      MODIFY_CURSOR(cursor_begin);
+      modify_cursor(cursor_begin);
       return yield(&msg_view);
     } else if (keysym == XK_period && is_altshift) {
-      MODIFY_CURSOR(cursor_end);
+      modify_cursor(cursor_end);
       return yield(&msg_view);
     } else if ((keysym == XK_Delete) || (keysym == XK_d && is_ctrl)) {
       self->contents = bs_insert(
@@ -399,12 +407,12 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       self->contents = bs_insert_undo(self->contents, &self->cursor.pos, &self->scroll.pos, NULL);
       return yield(&msg_view);
     } else if (keysym == XK_space && is_ctrl) {
-      self->selection.state = SELECTION_DRAGGING_KEYBOARD;
+      self->selection.state = Selection_DraggingKeyboard;
       self->selection.mark_1 = self->cursor.pos;
       self->selection.mark_2 = self->cursor.pos;
       return yield(&msg_view);
     } else if (keysym == XK_g && is_ctrl) {
-      self->selection.state = SELECTION_INACTIVE;
+      self->selection.state = Selection_Inactive;
       self->selection.mark_1 = self->cursor.pos;
       return yield(&msg_view);
     } else if (keysym == XK_w && is_ctrl) {
@@ -437,7 +445,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     return;
   }
   case Input_Cut: {
-    if (self->selection.state == SELECTION_COMPLETE) {
+    if (self->selection.state == Selection_Complete) {
       __auto_type mark_1 = self->selection.mark_1;
       __auto_type mark_2 = self->cursor.pos;
       if (mark_1.global_index > mark_2.global_index) swap(mark_1, mark_2);
@@ -454,13 +462,13 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         &self->cursor.pos,
         &self->scroll.pos, NULL
       );
-      self->selection.state = SELECTION_INACTIVE;
+      self->selection.state = Selection_Inactive;
       return yield(&msg_view);
     }
     return;
   }
   case Input_Copy: {
-    if (self->selection.state == SELECTION_COMPLETE) {
+    if (self->selection.state == Selection_Complete) {
       __auto_type mark_1 = self->selection.mark_1;
       __auto_type mark_2 = self->cursor.pos;
       if (mark_1.global_index > mark_2.global_index) swap(mark_1, mark_2);
@@ -468,7 +476,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       self->x_selection = realloc(self->x_selection, len + 1);
       bs_take(&mark_1, self->x_selection, len);
       XSetSelectionOwner(ctx->display, XA_PRIMARY, ctx->window, CurrentTime);
-      self->selection.state = SELECTION_INACTIVE;
+      self->selection.state = Selection_Inactive;
       return yield(&msg_view);
     }
     return;
@@ -507,12 +515,12 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
 point_t selection_get_range(selection_t *selection, cursor_t *cursor) {
   point_t result;
   result.x
-    = selection->state != SELECTION_INACTIVE ? bs_offset(&selection->mark_1)
+    = selection->state != Selection_Inactive ? bs_offset(&selection->mark_1)
     : -1;
   result.y
-    = selection->state == SELECTION_COMPLETE ? bs_offset(&selection->mark_2)
-    : selection->state == SELECTION_DRAGGING_KEYBOARD ? bs_offset(&cursor->pos)
-    : selection->state == SELECTION_DRAGGING_MOUSE ? bs_offset(&cursor->pos)
+    = selection->state == Selection_Complete ? bs_offset(&selection->mark_2)
+    : selection->state == Selection_DraggingKeyboard ? bs_offset(&cursor->pos)
+    : selection->state == Selection_DraggingMouse ? bs_offset(&cursor->pos)
     : -1;
   if (result.x > result.y) {
     __auto_type temp = result.x;

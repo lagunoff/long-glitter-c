@@ -1,6 +1,6 @@
 #pragma once
 
-#include "draw.h"
+#include "graphics.h"
 #include "buff-string.h"
 
 typedef struct {

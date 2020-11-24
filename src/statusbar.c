@@ -7,13 +7,13 @@
 
 #include "statusbar.h"
 #include "buffer.h"
-#include "draw.h"
+#include "graphics.h"
 #include "utils.h"
 
 static int y_padding = 6;
 
 void statusbar_init(statusbar_t *self, widget_context_init_t *ctx, struct buffer_t *buffer) {
-  draw_init_context(&self->ctx, ctx);
+  gx_init_context(&self->ctx, ctx);
   self->ctx.font = &self->ctx.palette->small_font;
   self->buffer = buffer;
 }
@@ -24,8 +24,8 @@ void statusbar_dispatch(statusbar_t *self, statusbar_msg_t *msg, yield_t yield) 
     __auto_type ctx = &self->ctx;
     __auto_type buff = self->buffer;
 
-    draw_set_color_rgba(ctx, 1 - 0.08, 1 - 0.08, 1 - 0.08, 1);
-    draw_rect(ctx, ctx->clip);
+    gx_set_color_rgba(ctx, 1 - 0.08, 1 - 0.08, 1 - 0.08, 1);
+    gx_rect(ctx, ctx->clip);
     if (!(self->buffer)) return;
 
     int cursor_offset = bs_offset(&self->buffer->input.cursor.pos);
@@ -40,8 +40,8 @@ void statusbar_dispatch(statusbar_t *self, statusbar_msg_t *msg, yield_t yield) 
     }
     sprintf(temp, "%s (%s), %d:%d%s", last_slash, is_saved ? "saved" : "modified", cursor_offset, self->buffer->input.cursor.x0, sel);
 
-    draw_set_color(ctx, ctx->palette->primary_text);
-    draw_text(ctx, ctx->clip.x + 8, ctx->clip.y + (ctx->clip.h - ctx->font->extents.height) * 0.5 + ctx->font->extents.ascent, temp);
+    gx_set_color(ctx, ctx->palette->primary_text);
+    gx_text(ctx, ctx->clip.x + 8, ctx->clip.y + (ctx->clip.h - ctx->font->extents.height) * 0.5 + ctx->font->extents.ascent, temp);
   }
   case Widget_Measure: {
     msg->measure.y = self->ctx.font->extents.height + y_padding * 2;
