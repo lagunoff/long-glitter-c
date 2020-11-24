@@ -48,7 +48,7 @@ void buffer_view_lines(buffer_t *self) {
   __auto_type ctx = &self->ctx;
   __auto_type line = self->input.scroll.line;
   __auto_type color = ctx->palette->secondary_text;
-  color.alpha = .18;
+  __auto_type cursor_offset = bs_offset(&self->input.cursor.pos);
   char temp[64];
   cairo_text_extents_t text_size;
   int y = self->lines.y;
@@ -56,12 +56,15 @@ void buffer_view_lines(buffer_t *self) {
   gx_rect(&self->ctx, self->lines);
 
   gx_set_font(&self->ctx, &self->ctx.palette->monospace_font);
-  gx_set_color(ctx, color);
   for(int i = 0; i < self->input.lines_len; line++, i++) {
     // File content ended, dont draw line numbers
     if (self->input.lines[i] == -1) break;
+    __auto_type next_line_offset = i + 1 < self->input.lines_len ? self->input.lines[i + 1] : -1;
+    __auto_type current_line = cursor_offset >= self->input.lines[i] && (next_line_offset == -1 || cursor_offset < next_line_offset);
+    color.alpha = current_line ? 0.54 : 0.15;
     sprintf(temp, "%d", line + 1);
     gx_measure_text(ctx, temp, &text_size);
+    gx_set_color(ctx, color);
     gx_text(ctx, self->lines.x + self->lines.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp);
     y += ctx->font->extents.height;
     if (y + ctx->font->extents.height >= self->lines.y + self->lines.h) break;
@@ -75,8 +78,8 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
 
   switch (msg->tag) {
   case Expose: {
-    if (self->show_lines) buffer_view_lines(self);
     input_dispatch(&self->input, (input_msg_t *)&msg_view, &noop_yield);
+    if (self->show_lines) buffer_view_lines(self);
     return;
   }
   case MotionNotify: {
@@ -128,8 +131,13 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   }
   case Buffer_Input: {
     __auto_type prev_offset = bs_offset(&self->input.cursor.pos);
+    __auto_type prev_line = self->input.scroll.line;
     input_dispatch(&self->input, &msg->input, &yield_input);
     __auto_type next_offset = bs_offset(&self->input.cursor.pos);
+    __auto_type next_line = self->input.scroll.line;
+    if (next_line != prev_line || prev_offset != next_offset) {
+      buffer_view_lines(self);
+    }
     return;
   }
   case Buffer_ContextMenu: {

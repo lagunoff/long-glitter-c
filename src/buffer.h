@@ -50,6 +50,3 @@ typedef union {
 void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path);
 void buffer_free(buffer_t *self);
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield);
-
-void buffer_dispatch_sdl(buffer_t *self, buffer_msg_t *msg, yield_t yield, yield_t yield_cm);
-bool buffer_iter_screen_xy(buffer_t *self, buff_string_iter_t *iter, int x, int y, bool x_adjust);

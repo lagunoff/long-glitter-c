@@ -73,12 +73,24 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   case ButtonPress: {
     __auto_type button = &msg->widget.x_event.xbutton;
     if (rect_is_inside(self->tabs_clip, button->x, button->y)) {
-      for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
-        if (rect_is_inside(iter->title_clip, button->x, button->y)) {
-          tabs_msg_t next_msg = {.tag = Tabs_TabClicked, .tab_clicked = iter};
-          return yield(&next_msg);
+      switch (button->button) {
+      case Button1: { // Left click
+        for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
+          if (rect_is_inside(iter->title_clip, button->x, button->y)) {
+            tabs_msg_t next_msg = {.tag = Tabs_TabClicked, .tab_clicked = iter};
+            return yield(&next_msg);
+          }
         }
+        return;
       }
+      case Button4: { // Wheel up
+        tabs_msg_t next_msg = {.tag = Tabs_Prev};
+        return yield(&next_msg);
+      }
+      case Button5: { // Wheel down
+        tabs_msg_t next_msg = {.tag = Tabs_Next};
+        return yield(&next_msg);
+      }}
     };
     current_inst = self->active;
     return yield_content((buffer_msg_t *)msg);
@@ -87,22 +99,19 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     __auto_type xkey = &msg->widget.x_event.xkey;
     __auto_type keysym = XLookupKeysym(xkey, 0);
     __auto_type is_ctrl = xkey->state & ControlMask;
+    __auto_type is_shift = xkey->state & ShiftMask;
 
-    if (keysym == XK_w && is_ctrl) {
+    if (keysym == XK_w && is_ctrl && is_shift) {
       tabs_msg_t next_msg = {.tag=Tabs_Close, .close=self->active};
       return yield(&next_msg);
     }
     if (keysym == XK_Page_Down && is_ctrl) {
-      if (!(self->active)) return;
-      if (!(self->active->next)) return;
-      self->active = self->active->next;
-      return yield(&msg_view);
+      tabs_msg_t next_msg = {.tag = Tabs_Prev};
+      return yield(&next_msg);
     }
     if (keysym == XK_Page_Up && is_ctrl) {
-      if (!(self->active)) return;
-      if (!(self->active->prev)) return;
-      self->active = self->active->prev;
-      return yield(&msg_view);
+      tabs_msg_t next_msg = {.tag = Tabs_Next};
+      return yield(&next_msg);
     }
     current_inst = self->active;
     return yield_content((buffer_msg_t *)msg);
@@ -157,6 +166,16 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   }
   case Tabs_TabClicked: {
     self->active = msg->tab_clicked;
+    return yield(&msg_view);
+  }
+  case Tabs_Prev: {
+    if (!(self->active) || !(self->active->prev)) return;
+    self->active = self->active->prev;
+    return yield(&msg_view);
+  }
+  case Tabs_Next: {
+    if (!(self->active) || !(self->active->next)) return;
+    self->active = self->active->next;
     return yield(&msg_view);
   }
   case Tabs_Content: {

@@ -31,6 +31,8 @@ typedef union {
       Tabs_New,
       Tabs_Close,
       Tabs_TabClicked,
+      Tabs_Next,
+      Tabs_Prev,
     } tag;
     union {
       struct {
