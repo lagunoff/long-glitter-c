@@ -65,7 +65,6 @@ typedef struct {
   int            lines_len;
   syntax_highlighter_t *syntax_hl;
   char           syntax_hl_inst[16];
-  Cursor         x_cursor;
   char          *x_selection;
 } input_t;
 

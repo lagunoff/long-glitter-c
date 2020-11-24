@@ -29,10 +29,6 @@ void tabs_view(tabs_t *self) {
   // Draw tabs
   gx_set_color_rgba(ctx, 0.97, 0.97, 0.97, 1);
   gx_rect(ctx, self->tabs_clip);
-  gx_set_color(ctx, ctx->palette->border);
-  cairo_set_antialias(ctx->cairo, CAIRO_ANTIALIAS_NONE);
-  cairo_set_line_width(ctx->cairo, 1.0);
-  gx_line(ctx, self->tabs_clip.x, self->tabs_clip.y + self->tabs_clip.h - 1, self->tabs_clip.x + self->tabs_clip.w, self->tabs_clip.y + self->tabs_clip.h - 1);
   int x = self->tabs_clip.x;
   int y_text = self->tabs_clip.y + (self->tabs_clip.h - ctx->font->extents.ascent) * 0.5 + ctx->font->extents.ascent;
   for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
@@ -40,10 +36,13 @@ void tabs_view(tabs_t *self) {
     int x_padding = 16;
     cairo_text_extents_t extents;
     gx_measure_text(ctx, fname, &extents);
-    gx_set_color_rgba(ctx, 1, 1, 1, 1);
+    if (self->active == iter) {
+      gx_set_color_rgba(ctx, 1, 1, 1, 1);
+    } else {
+      gx_set_color_rgba(ctx, 0.95, 0.95, 0.95, 1);
+    }
     gx_rectangle(ctx, x, self->tabs_clip.y, extents.x_advance + x_padding * 2, self->tabs_clip.h);
     gx_set_color(ctx, ctx->palette->border);
-    gx_line(ctx, x + extents.x_advance + x_padding * 2, self->tabs_clip.y, x + extents.x_advance + x_padding * 2, self->tabs_clip.y + self->tabs_clip.h);
     gx_set_color(ctx, ctx->palette->secondary_text);
     gx_text(ctx, x + x_padding, y_text, fname);
     iter->title_clip.x = x;

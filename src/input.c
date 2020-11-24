@@ -6,7 +6,6 @@
 #include <unistd.h>
 #include <X11/Xatom.h>
 #include <X11/Xmu/Atoms.h>
-#include <X11/cursorfont.h>
 
 #include "graphics.h"
 #include "input.h"
@@ -51,12 +50,10 @@ void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *conten
   hl->reset(&self->syntax_hl_inst);
   self->context_menu.ctx = self->ctx;
   self->x_selection = NULL;
-  self->x_cursor = XCreateFontCursor(ctx->display, XC_xterm);
 }
 
 void input_free(input_t *self) {
   if (self->x_selection) free(self->x_selection);
-  XFreeCursor(self->ctx.display, self->x_cursor);
 }
 
 void input_set_style(widget_context_t *ctx, text_style_t *style) {
@@ -200,7 +197,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     return input_view(self);
   }
   case EnterNotify: {
-    XDefineCursor(ctx->display, ctx->window, self->x_cursor);
+    XDefineCursor(ctx->display, ctx->window, self->ctx.palette->xterm);
     return;
   }
   case LeaveNotify: {

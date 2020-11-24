@@ -2,7 +2,7 @@
 
 void main_window_init(main_window_t *self, widget_context_init_t *ctx) {
   gx_init_context(&self->ctx, ctx);
-  self->show_sidebar = true;
+  self->show_sidebar = false;
   tabs_init(&self->content, ctx, "/home/vlad/job/long-glitter-c/tmp/xola.c");
   tree_panel_init(&self->sidebar, ctx, "/home/vlad/job/long-glitter-c/tmp");
   statusbar_init(&self->statusbar, ctx, NULL);

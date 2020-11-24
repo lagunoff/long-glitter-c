@@ -125,7 +125,7 @@ void gx_free(Display *display) {
 static __attribute__((constructor)) void __init__() {
   palette.primary_text = gx_rgba(0,0,0,0.87);
   palette.secondary_text = gx_rgba(0,0,0,0.54);
-  palette.current_line_bg = gx_rgb_hex("e4f6d4");
+  palette.current_line_bg = gx_rgb_hex("f9f9f9");
   palette.selection_bg = gx_rgb_hex("dfe2e7");
   palette.default_bg = gx_rgba(0.97, 0.97, 0.97, 1);
   palette.ui_bg = gx_rgba(1, 1, 1, 1);
