@@ -21,7 +21,10 @@
   cursor_modified(self, &old_cursor);                        \
 }
 
+//! Number of lines to scroll when cursor is moved near the boundaries
 #define SCROLL_JUMP 8
+//! How much to scroll by mouse wheel
+#define SCROLL_FACTOR 4
 
 void input_view_lines(input_t *self);
 void input_update_lines(input_t *self);
@@ -165,20 +168,23 @@ void input_update_lines(input_t *self) {
 bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x, int screen_y, bool x_adjust) {
   if (self->lines_len < 0) return false;
   __auto_type ctx = &self->ctx;
-  int x = screen_x - ctx->clip.x;
+  int x = screen_x;
   int y = screen_y - ctx->clip.y;
   int line_y = div(y, ctx->font->extents.height).quot;
   int line_offset = self->lines[line_y];
   if (line_offset < 0) return false;
-  int minx, maxx, miny, maxy, advance;
+  cairo_text_extents_t extents;
+  cairo_glyph_t glyph = {0,0,0};
 
-  int current_x = 0;
+  int current_x = ctx->clip.x;
   bs_index(&self->contents, iter, line_offset);
   bs_find(iter, lambda(bool _(char c){
     if (c == '\n') return true;
-    current_x += advance;
+    glyph.index = c;
+    cairo_glyph_extents(ctx->cairo, &glyph, 1, &extents);
+    current_x += extents.x_advance;
     // TODO: better end of line detection
-    if (current_x - 18 >= x) return true;
+    if (current_x >= x) return true;
     return false;
   }));
   return true;
@@ -199,6 +205,40 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   }
   case LeaveNotify: {
     XDefineCursor(ctx->display, ctx->window, None);
+    return;
+  }
+  case MotionNotify: {
+    __auto_type motion = &msg->widget.x_event.xmotion;
+    if (motion->state & Button1MotionMask) {
+      if (self->selection.state != Selection_DraggingMouse) {
+        self->selection.state = Selection_DraggingMouse;
+        self->selection.mark_1 = self->cursor.pos;
+      }
+      input_iter_screen_xy(self, &self->cursor.pos, motion->x, motion->y, true);
+      return yield(&msg_view);
+    } else {
+      if (self->selection.state ==Selection_DraggingMouse) {
+        self->selection.state = Selection_Complete;
+        self->selection.mark_2 = self->cursor.pos;
+      }
+    }
+    return;
+  }
+  case ButtonPress: {
+    __auto_type button = &msg->widget.x_event.xbutton;
+    switch (button->button) {
+    case Button1: { // Left click
+      input_iter_screen_xy(self, &self->cursor.pos, button->x, button->y, true);
+      return yield(&msg_view);
+    }
+    case Button4: { // Wheel up
+      scroll_lines(&self->scroll, -1 * SCROLL_FACTOR);
+      return yield(&msg_view);
+    }
+    case Button5: { // Wheel down
+      scroll_lines(&self->scroll, 1 * SCROLL_FACTOR);
+      return yield(&msg_view);
+    }}
     return;
   }
   case Widget_Free: {

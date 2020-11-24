@@ -92,6 +92,18 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
       tabs_msg_t next_msg = {.tag=Tabs_Close, .close=self->active};
       return yield(&next_msg);
     }
+    if (keysym == XK_Page_Down && is_ctrl) {
+      if (!(self->active)) return;
+      if (!(self->active->next)) return;
+      self->active = self->active->next;
+      return yield(&msg_view);
+    }
+    if (keysym == XK_Page_Up && is_ctrl) {
+      if (!(self->active)) return;
+      if (!(self->active->prev)) return;
+      self->active = self->active->prev;
+      return yield(&msg_view);
+    }
     current_inst = self->active;
     return yield_content((buffer_msg_t *)msg);
   }
@@ -133,6 +145,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     buffer_msg_t next_msg = {.tag=Widget_Layout};
     buffer_dispatch(&new_tab->buffer, &next_msg, &noop_yield);
     dlist_insert_after((dlist_head_t *)&self->tabs, (dlist_node_t *)new_tab, (dlist_node_t *)self->tabs.last);
+    self->active = new_tab;
     return yield(&msg_view);
   }
   case Tabs_Close: {

@@ -80,7 +80,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     return;
   }
   case MotionNotify: {
-    return;
+    return yield_input(msg);
   }
   case KeyPress: {
     // TODO: event has to be redirected only to focused subwidget
@@ -92,6 +92,9 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       yield(&next_msg);
       return yield(&msg_view);
     }
+    return yield_input(msg);
+  }
+  case ButtonPress: {
     return yield_input(msg);
   }
   case SelectionRequest: {
