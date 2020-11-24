@@ -125,8 +125,8 @@ void draw_free(Display *display) {
 static __attribute__((constructor)) void __init__() {
   palette.primary_text = draw_rgba(0,0,0,0.87);
   palette.secondary_text = draw_rgba(0,0,0,0.54);
-  palette.current_line_bg = draw_rgba(0.0, 0.0, 0, 0.06);
-  palette.selection_bg = draw_rgba(0.0, 0.0, 0, 1);
+  palette.current_line_bg = draw_rgb_hex("e4f6d4");
+  palette.selection_bg = draw_rgb_hex("dfe2e7");
   palette.default_bg = draw_rgba(0.97, 0.97, 0.97, 1);
   palette.ui_bg = draw_rgba(1, 1, 1, 1);
   palette.border = draw_rgba(0, 0, 0, 0.09);

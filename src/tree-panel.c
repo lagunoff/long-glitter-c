@@ -102,7 +102,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
   case ButtonPress: {
     __auto_type button = &msg->widget.x_event.xbutton;
     if (self->hover) {
-      tree_panel_msg_t next_msg = {.tag = TreePanel_DirectoryToggle, .directory_toggle = self->hover};
+      tree_panel_msg_t next_msg = {.tag = TreePanel_ItemClicked, .item_clicked = self->hover};
       return yield(&next_msg);
     }
     return;
@@ -116,35 +116,35 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
   case SelectionNotify: {
     return;
   }
-  case TreePanel_DirectoryToggle: {
-    switch (msg->directory_toggle->tag) {
+  case TreePanel_ItemClicked: {
+    switch (msg->item_clicked->tag) {
     case Tree_Directory: {
-      if (msg->directory_toggle->directory.state == Tree_Closed) {
-        DIR *dp = opendir(msg->directory_toggle->directory.path);
+      if (msg->item_clicked->directory.state == Tree_Closed) {
+        DIR *dp = opendir(msg->item_clicked->directory.path);
         struct dirent *ep;
         while (ep = readdir(dp)) {
           if (strcmp(ep->d_name, ".") == 0 || strcmp(ep->d_name, "..") == 0) continue;
           __auto_type new_item = (directory_list_node_t *)malloc(sizeof(directory_list_node_t));
-          __auto_type new_path_len = strlen(msg->directory_toggle->directory.path) + strlen("/") + strlen(ep->d_name) + 1;
+          __auto_type new_path_len = strlen(msg->item_clicked->directory.path) + strlen("/") + strlen(ep->d_name) + 1;
           char new_path[new_path_len];
-          strcpy(new_path, msg->directory_toggle->directory.path);
+          strcpy(new_path, msg->item_clicked->directory.path);
           strcat(new_path, "/");
           strcat(new_path, ep->d_name);
           tree_init(&new_item->item, new_path);
-          dlist_insert_after((dlist_head_t *)&msg->directory_toggle->directory.items, (dlist_node_t *)new_item, (dlist_node_t *)msg->directory_toggle->directory.items.last);
+          dlist_insert_after((dlist_head_t *)&msg->item_clicked->directory.items, (dlist_node_t *)new_item, (dlist_node_t *)msg->item_clicked->directory.items.last);
         }
         closedir(dp);
-        msg->directory_toggle->directory.state = Tree_Expanded;
+        msg->item_clicked->directory.state = Tree_Expanded;
       } else {
-        for (__auto_type iter = msg->directory_toggle->directory.items.first; iter;){
+        for (__auto_type iter = msg->item_clicked->directory.items.first; iter;){
           __auto_type next_iter = iter->next;
           tree_free(&iter->item);
           free(iter);
           iter = next_iter;
         }
-        msg->directory_toggle->directory.state = Tree_Closed;
-        msg->directory_toggle->directory.items.first = NULL;
-        msg->directory_toggle->directory.items.last = NULL;
+        msg->item_clicked->directory.state = Tree_Closed;
+        msg->item_clicked->directory.items.first = NULL;
+        msg->item_clicked->directory.items.last = NULL;
       }
       return yield(&msg_view);
     }}

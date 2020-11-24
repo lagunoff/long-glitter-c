@@ -4,11 +4,11 @@
 #include "tabs.h"
 #include "tree-panel.h"
 
-
 typedef struct {
   widget_context_t ctx;
   tree_panel_t     sidebar;
   tabs_t           content;
+  statusbar_t      statusbar;
   widget_t        *focused;
   bool             show_sidebar;
 } main_window_t;
@@ -19,10 +19,12 @@ typedef union {
     enum {
       MainWindow_Sidebar = Widget_Last,
       MainWindow_Content,
+      MainWindow_Statusbar,
     } tag;
     union {
       tree_panel_msg_t sidebar;
       tabs_msg_t       content;
+      statusbar_msg_t  statusbar;
     };
   };
 } main_window_msg_t;

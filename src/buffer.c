@@ -8,7 +8,6 @@
 
 #include "buffer.h"
 #include "draw.h"
-#include "statusbar.h"
 #include "utils.h"
 #include "widget.h"
 #include "c-mode.h"
@@ -27,8 +26,6 @@ void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
   input_init(&self->input, ctx, new_bytes(mmaped, st.st_size), buffer_choose_syntax_highlighter(path));
   self->context_menu.ctx = self->ctx;
   self->context_menu.ctx.window = 0;
-  self->statusbar.ctx = self->ctx;
-  statusbar_init(&self->statusbar, self);
   self->show_lines = true;
   draw_set_font(&self->input.ctx, &self->ctx.palette->monospace_font);
 }
@@ -74,14 +71,12 @@ void buffer_view_lines(buffer_t *self) {
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   auto void yield_context_menu(void *msg);
   auto void yield_input(void *msg);
-  auto void yield_statusbar(void *msg);
   __auto_type ctx = &self->ctx;
 
   switch (msg->tag) {
   case Expose: {
     if (self->show_lines) buffer_view_lines(self);
     input_dispatch(&self->input, (input_msg_t *)&msg_view, &noop_yield);
-    statusbar_dispatch(&self->statusbar, (statusbar_msg_t *)&msg_view, &noop_yield);
     return;
   }
   case MotionNotify: {
@@ -109,25 +104,17 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     return buffer_free(self);
   }
   case Widget_Layout: {
-    statusbar_msg_t measure = {.tag = Widget_Measure};
-    statusbar_dispatch(&self->statusbar, &measure, &noop_yield);
 
     self->lines.x = ctx->clip.x;
     self->lines.y = ctx->clip.y;
     self->lines.w = self->show_lines ? 64 : 0;
-    self->lines.h = ctx->clip.h - measure.measure.y;
+    self->lines.h = ctx->clip.h;
 
     self->input.ctx.clip.x = self->lines.x + self->lines.w;
     self->input.ctx.clip.y = ctx->clip.y;
     self->input.ctx.clip.w = ctx->clip.w - self->lines.w;
-    self->input.ctx.clip.h = ctx->clip.h - measure.measure.y;
+    self->input.ctx.clip.h = ctx->clip.h;
 
-    self->statusbar.ctx.clip.x = ctx->clip.x;
-    self->statusbar.ctx.clip.y = self->input.ctx.clip.y + self->input.ctx.clip.h;
-    self->statusbar.ctx.clip.w = ctx->clip.w;
-    self->statusbar.ctx.clip.h = measure.measure.y;
-
-    yield_statusbar(msg);
     yield_input(msg);
     return;
   }
@@ -140,13 +127,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     __auto_type prev_offset = bs_offset(&self->input.cursor.pos);
     input_dispatch(&self->input, &msg->input, &yield_input);
     __auto_type next_offset = bs_offset(&self->input.cursor.pos);
-    if (prev_offset != next_offset) {
-      statusbar_dispatch(&self->statusbar, &msg_view, &noop_yield);
-    }
     return;
-  }
-  case Buffer_Statusbar: {
-    return statusbar_dispatch(&self->statusbar, &msg->statusbar, &yield_statusbar);
   }
   case Buffer_ContextMenu: {
     if (msg->context_menu.tag == Menulist_ItemClicked) {
@@ -176,11 +157,4 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     buffer_msg_t buffer_msg = {.tag = Buffer_Input, .input = *(input_msg_t *)msg};
     yield(&buffer_msg);
   }
-  void yield_statusbar(void *msg) {
-    buffer_msg_t buffer_msg = {.tag = Buffer_Statusbar, .input = *(statusbar_msg_t *)msg};
-    yield(&buffer_msg);
-  }
-}
-
-int buffer_unittest() {
 }

@@ -6,7 +6,7 @@
 typedef struct buffer_list_node_t {
   struct buffer_list_node_t *next;
   struct buffer_list_node_t *prev;
-  int      key;
+  rect_t   title_clip;
   buffer_t buffer;
 } buffer_list_node_t;
 
@@ -19,20 +19,27 @@ typedef struct {
   widget_context_t    ctx;
   buffer_list_t       tabs;
   buffer_list_node_t *active; // @Nullable
-  int                 last_key;
   rect_t              tabs_clip;
+  rect_t              content_clip;
 } tabs_t;
 
 typedef union {
   widget_msg_t widget;
   struct {
     enum {
-      Tabs_Active = Widget_Last,
-      Tabs_Key,
+      Tabs_Content = Widget_Last,
+      Tabs_New,
+      Tabs_Close,
+      Tabs_TabClicked,
     } tag;
     union {
-      buffer_msg_t active;
-      struct {int key; buffer_msg_t msg;} key;
+      struct {
+        buffer_list_node_t *inst;
+        buffer_msg_t        msg;
+      } content;
+      struct {char *path;} new;
+      buffer_list_node_t  *tab_clicked;
+      buffer_list_node_t  *close;
     };
   };
 } tabs_msg_t;

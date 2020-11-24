@@ -71,8 +71,8 @@ typedef struct {
   Window     window;
   cairo_t   *cairo;
   palette_t *palette;
-  rect_t     clip;
   XIC        xic;
+  rect_t     clip;
 } widget_context_init_t;
 
 typedef struct {

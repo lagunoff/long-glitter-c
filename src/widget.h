@@ -31,3 +31,31 @@ widget_msg_t msg_layout;
 
 void widget_close_window(Window window);
 void noop_yield(void *msg);
+
+typedef struct {
+  widget_context_t *instance;
+  widget_t dispatch;
+  yield_t  yield;
+} child_widget_t;
+
+#define redirect_x_events(init_widgets) {                               \
+  child_widget_t widgets[] = init_widgets;                              \
+  switch(msg->tag) {                                                    \
+  case MotionNotify: {                                                  \
+    __auto_type motion = &msg->widget.x_event.xmotion;                  \
+    for (int i = 0; i < sizeof(widgets) / sizeof(widgets[0]); i++) {    \
+      if (rect_is_inside(widgets[i].instance->clip, motion->x, motion->y)) { \
+        return widgets[i].yield((void *)msg);                           \
+      }                                                                 \
+    }                                                                   \
+    return;                                                             \
+  }                                                                     \
+  case ButtonPress: {                                                   \
+    __auto_type button = &msg->widget.x_event.xbutton;                  \
+    for (int i = 0; i < sizeof(widgets) / sizeof(widgets[0]); i++) {    \
+      if (rect_is_inside(widgets[i].instance->clip, button->x, button->y)) { \
+        return widgets[i].yield((void *)msg);                           \
+      }                                                                 \
+    }                                                                   \
+    return;                                                             \
+  }}}

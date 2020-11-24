@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <X11/Xatom.h>
 #include <X11/Xmu/Atoms.h>
+#include <X11/cursorfont.h>
 
 #include "draw.h"
 #include "input.h"
@@ -39,14 +40,17 @@ void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *conten
   hl->reset(&self->syntax_hl_inst);
   self->context_menu.ctx = self->ctx;
   self->x_selection = NULL;
+  self->x_cursor = XCreateFontCursor(ctx->display, XC_xterm);
 }
 
 void input_free(input_t *self) {
   if (self->x_selection) free(self->x_selection);
+  XFreeCursor(self->ctx.display, self->x_cursor);
 }
 
 void input_set_style(widget_context_t *ctx, text_style_t *style) {
-  if (style->selected) {
+  // Uncomment if you want text inside selection to be white
+  if (0 && style->selected) {
     draw_set_color_rgba(ctx, 1,1,1,1);
   } else {
     draw_set_color(ctx, draw_get_color_from_style(ctx, style->syntax));
@@ -180,6 +184,14 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   switch (msg->tag) {
   case Expose: {
     return input_view(self);
+  }
+  case EnterNotify: {
+    XDefineCursor(ctx->display, ctx->window, self->x_cursor);
+    return;
+  }
+  case LeaveNotify: {
+    XDefineCursor(ctx->display, ctx->window, None);
+    return;
   }
   case Widget_Free: {
     return input_free(self);
