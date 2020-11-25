@@ -20,41 +20,9 @@ void tabs_free(tabs_t *self) {
   }
 }
 
-void tabs_view(tabs_t *self) {
-  __auto_type ctx = &self->ctx;
-  // Draw contents
-  if (self->active) {
-    buffer_dispatch(&self->active->buffer, (buffer_msg_t *)&msg_view, &noop_yield);
-  }
-  // Draw tabs
-  gx_set_color_rgba(ctx, 0.97, 0.97, 0.97, 1);
-  gx_rect(ctx, self->tabs_clip);
-  int x = self->tabs_clip.x;
-  int y_text = self->tabs_clip.y + (self->tabs_clip.h - ctx->font->extents.ascent) * 0.5 + ctx->font->extents.ascent;
-  for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
-    char *fname = basename(iter->buffer.path);
-    int x_padding = 16;
-    cairo_text_extents_t extents;
-    gx_measure_text(ctx, fname, &extents);
-    if (self->active == iter) {
-      gx_set_color_rgba(ctx, 1, 1, 1, 1);
-    } else {
-      gx_set_color_rgba(ctx, 0.95, 0.95, 0.95, 1);
-    }
-    gx_rectangle(ctx, x, self->tabs_clip.y, extents.x_advance + x_padding * 2, self->tabs_clip.h);
-    gx_set_color(ctx, ctx->palette->border);
-    gx_set_color(ctx, ctx->palette->secondary_text);
-    gx_text(ctx, x + x_padding, y_text, fname);
-    iter->title_clip.x = x;
-    iter->title_clip.y = self->tabs_clip.y;
-    iter->title_clip.w = extents.x_advance + x_padding * 2;
-    iter->title_clip.h = self->tabs_clip.h;
-    x += extents.x_advance + x_padding * 2;
-  }
-}
-
 void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   auto void yield_content(buffer_msg_t *buffer_msg);
+
   __auto_type ctx = &self->ctx;
   buffer_list_node_t *current_inst = NULL;
 
@@ -186,5 +154,40 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     if (!current_inst) return;
     tabs_msg_t next_msg = {.tag=Tabs_Content, .content={.inst=current_inst, .msg=*buffer_msg}};
     yield(&next_msg);
+  }
+}
+
+void tabs_view(tabs_t *self) {
+  __auto_type ctx = &self->ctx;
+  // Draw contents
+  if (self->active) {
+    buffer_dispatch(&self->active->buffer, (buffer_msg_t *)&msg_view, &noop_yield);
+  }
+  // Draw tabs
+  gx_set_color_rgba(ctx, 0.97, 0.97, 0.97, 1);
+  gx_set_font(ctx, ctx->font);
+  gx_rect(ctx, self->tabs_clip);
+  int x = self->tabs_clip.x;
+  int y_text = self->tabs_clip.y + (self->tabs_clip.h - ctx->font->extents.ascent) * 0.5 + ctx->font->extents.ascent;
+  for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
+    char *fname = basename(iter->buffer.path);
+    int x_padding = 16;
+    cairo_text_extents_t extents;
+    gx_measure_text(ctx, fname, &extents);
+    if (self->active == iter) {
+      gx_set_color_rgba(ctx, 1, 1, 1, 1);
+    } else {
+      gx_set_color_rgba(ctx, 0.95, 0.95, 0.95, 1);
+    }
+    gx_rectangle(ctx, x, self->tabs_clip.y, extents.x_advance + x_padding * 2, self->tabs_clip.h);
+    gx_set_color_rgba(ctx, 0.97, 0.97, 0.97, 1);
+    gx_line(ctx, x + extents.x_advance + x_padding * 2, self->tabs_clip.y, x + extents.x_advance + x_padding * 2, self->tabs_clip.y + self->tabs_clip.h);
+    gx_set_color(ctx, ctx->palette->secondary_text);
+    gx_text(ctx, x + x_padding, y_text, fname);
+    iter->title_clip.x = x;
+    iter->title_clip.y = self->tabs_clip.y;
+    iter->title_clip.w = extents.x_advance + x_padding * 2;
+    iter->title_clip.h = self->tabs_clip.h;
+    x += extents.x_advance + x_padding * 2;
   }
 }

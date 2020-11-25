@@ -14,6 +14,7 @@ struct buffer_t {
   char          *path;
   int            fd;
   bool           show_lines;
+  font_t         font;
   // Children widgets
   menulist_t     context_menu;
   input_t        input;

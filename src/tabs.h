@@ -48,4 +48,5 @@ typedef union {
 
 void tabs_init(tabs_t *self, widget_context_init_t *ctx, char *path);
 void tabs_free(tabs_t *self);
+void tabs_view(tabs_t *self);
 void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield);

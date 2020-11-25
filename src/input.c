@@ -31,6 +31,7 @@ void input_line_selection_range(point_t *line_sel_range, point_t *sel_range, int
 static void cursor_modified(input_t *self,cursor_t *prev);
 
 static const int CURSOR_LINE_WIDTH = 2;
+XEvent respond;
 
 void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *content, syntax_highlighter_t *hl) {
   self->contents = content;
@@ -55,138 +56,6 @@ void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *conten
 void input_free(input_t *self) {
   if (self->x_selection) free(self->x_selection);
 }
-
-void input_set_style(widget_context_t *ctx, text_style_t *style) {
-  // Uncomment if you want text inside selection to be white
-  if (0 && style->selected) {
-    gx_set_color_rgba(ctx, 1,1,1,1);
-  } else {
-    gx_set_color(ctx, gx_get_color_from_style(ctx, style->syntax));
-  }
-}
-
-void input_view(input_t *self) {
-  auto void with_styles(highlighter_t hl);
-  __auto_type ctx = &self->ctx;
-  __auto_type iter = self->scroll.pos;
-  __auto_type cursor_offset = bs_offset(&self->cursor.pos);
-  __auto_type scroll_offset = bs_offset(&self->scroll.pos);
-  __auto_type sel_range = selection_get_range(&self->selection, &self->cursor);
-  __auto_type max_y = ctx->clip.y + ctx->clip.h;
-  __auto_type syntax_hl_inst = self->syntax_hl_inst;
-
-  char temp[1024 * 16]; // Maximum line length — 16kb
-  int y = ctx->clip.y; // y coordinate of the top-left corner of the text
-  int i = 0; // Index of the line
-  point_t line_sel_range;
-  text_style_t normal = {.syntax = Syntax_Normal, .selected = false};
-  highlighter_args_t hl_args = {.ctx = ctx, .normal = &normal, .input = temp, .len = strlen(temp)};
-
-  input_update_lines(self);
-  gx_set_font(&self->ctx, self->ctx.font);
-  gx_set_color(&self->ctx, self->ctx.background);
-  gx_rect(&self->ctx, self->ctx.clip);
-
-  for(;;i++) {
-    gx_set_color(ctx, ctx->palette->primary_text);
-    __auto_type begin_offset = bs_offset(&iter);
-    __auto_type eof = bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
-    __auto_type end_offset = bs_offset(&iter);
-    __auto_type line_len = end_offset - begin_offset;
-    hl_args.len = line_len;
-    input_line_selection_range(&line_sel_range, &sel_range, begin_offset, end_offset);
-    self->lines[i] = begin_offset;
-
-    // Highlight the current line
-    if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
-      gx_set_color(ctx, ctx->palette->current_line_bg);
-      gx_box(ctx, ctx->clip.x, y, ctx->clip.w, ctx->font->extents.height);
-      gx_set_color(ctx, ctx->palette->primary_text);
-    }
-
-    // Draw the line
-    // cairo_set_source_rgb(ctx->cairo, 0, 0, 0);
-    /* gx_set_color(ctx, ctx->palette->primary_text); */
-    /* gx_text(ctx, ctx->clip.x, y + ctx->font->extents.ascent, temp, 0); */
-    int x = ctx->clip.x;
-    with_styles(lambda(void _(point_t r, text_style_t *s) {
-      __auto_type len = r.y - r.x;
-      if (len > 0) {
-        cairo_text_extents_t extents;
-        char tmp[len + 1];
-        strncpy(tmp, temp + r.x, len);
-        tmp[len] = '\0';
-        gx_measure_text(ctx, tmp, &extents);
-        if (s->selected) {
-          gx_set_color(ctx, ctx->palette->selection_bg);
-          gx_box(ctx, x, y, extents.x_advance, ctx->font->extents.height);
-        }
-        input_set_style(ctx, s);
-        gx_text(ctx, x, y + ctx->font->extents.ascent, tmp);
-        x += extents.x_advance;
-      }
-    }));
-
-    // Draw cursor
-    if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
-      int cur_x_offset = cursor_offset - begin_offset;
-      temp[cur_x_offset] = '\0';
-      cairo_text_extents_t extents;
-      gx_measure_text(ctx, temp, &extents);
-      gx_box(ctx, ctx->clip.x + extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font->extents.height + 2);
-    }
-    y += ctx->font->extents.height;
-    if (y + ctx->font->extents.height >= max_y) break;
-    // Skip newline symbol
-    bs_move(&iter, 1);
-    if (eof) break;
-  }
-
-  self->lines[i++] = bs_offset(&iter);
-  for (;i < self->lines_len; i++) self->lines[i] = -1;
-
-  void selection_on(text_style_t *s) {s->selected = true;}
-  void selection_off(text_style_t *s) {s->selected = false;}
-  void with_styles_1(highlighter_t hl) {self->syntax_hl->highlight(syntax_hl_inst, &hl_args, hl);}
-  void with_styles(highlighter_t hl) {input_highlight_range(&selection_on, &selection_off, line_sel_range, &with_styles_1, hl);}
-}
-
-void input_update_lines(input_t *self) {
-  __auto_type ctx = &self->ctx;
-  int lines_len = div(ctx->clip.h + ctx->font->extents.height, ctx->font->extents.height).quot + 1;
-
-  if (!self->lines || (lines_len != self->lines_len)) {
-    self->lines_len = lines_len;
-    self->lines = realloc(self->lines, self->lines_len * sizeof(int));
-    if (self->lines_len == 0) self->lines = NULL;
-  }
-}
-
-bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x, int screen_y, bool x_adjust) {
-  if (self->lines_len < 0) return false;
-  __auto_type ctx = &self->ctx;
-  int x = screen_x;
-  int y = screen_y - ctx->clip.y;
-  int line_y = div(y, ctx->font->extents.height).quot;
-  int line_offset = self->lines[line_y];
-  if (line_offset < 0) return false;
-  cairo_text_extents_t extents;
-  cairo_glyph_t glyph = {0,0,0};
-
-  int current_x = ctx->clip.x;
-  bs_index(&self->contents, iter, line_offset);
-  bs_find(iter, lambda(bool _(char c){
-    if (c == '\n') return true;
-    glyph.index = c;
-    cairo_glyph_extents(ctx->cairo, &glyph, 1, &extents);
-    current_x += extents.x_advance;
-    // TODO: better end of line detection
-    if (current_x >= x) return true;
-    return false;
-  }));
-  return true;
-}
-XEvent respond;
 
 void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   auto void yield_context_menu(void *msg);
@@ -547,6 +416,137 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     input_msg_t input_msg = {.tag = Input_ContextMenu, .context_menu = *(menulist_msg_t *)msg};
     yield(&input_msg);
   }
+}
+
+void input_set_style(widget_context_t *ctx, text_style_t *style) {
+  // Uncomment if you want text inside selection to be white
+  if (0 && style->selected) {
+    gx_set_color_rgba(ctx, 1,1,1,1);
+  } else {
+    gx_set_color(ctx, gx_get_color_from_style(ctx, style->syntax));
+  }
+}
+
+void input_view(input_t *self) {
+  auto void with_styles(highlighter_t hl);
+  __auto_type ctx = &self->ctx;
+  __auto_type iter = self->scroll.pos;
+  __auto_type cursor_offset = bs_offset(&self->cursor.pos);
+  __auto_type scroll_offset = bs_offset(&self->scroll.pos);
+  __auto_type sel_range = selection_get_range(&self->selection, &self->cursor);
+  __auto_type max_y = ctx->clip.y + ctx->clip.h;
+  __auto_type syntax_hl_inst = self->syntax_hl_inst;
+
+  char temp[1024 * 16]; // Maximum line length — 16kb
+  int y = ctx->clip.y; // y coordinate of the top-left corner of the text
+  int i = 0; // Index of the line
+  point_t line_sel_range;
+  text_style_t normal = {.syntax = Syntax_Normal, .selected = false};
+  highlighter_args_t hl_args = {.ctx = ctx, .normal = &normal, .input = temp, .len = strlen(temp)};
+
+  input_update_lines(self);
+  gx_set_font(&self->ctx, self->ctx.font);
+  gx_set_color(&self->ctx, self->ctx.background);
+  gx_rect(&self->ctx, self->ctx.clip);
+
+  for(;;i++) {
+    gx_set_color(ctx, ctx->palette->primary_text);
+    __auto_type begin_offset = bs_offset(&iter);
+    __auto_type eof = bs_takewhile(&iter, temp, lambda(bool _(char c) { return c != '\n'; }));
+    __auto_type end_offset = bs_offset(&iter);
+    __auto_type line_len = end_offset - begin_offset;
+    hl_args.len = line_len;
+    input_line_selection_range(&line_sel_range, &sel_range, begin_offset, end_offset);
+    self->lines[i] = begin_offset;
+
+    // Highlight the current line
+    if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
+      gx_set_color(ctx, ctx->palette->current_line_bg);
+      gx_box(ctx, ctx->clip.x, y, ctx->clip.w, ctx->font->extents.height);
+      gx_set_color(ctx, ctx->palette->primary_text);
+    }
+
+    // Draw the line
+    // cairo_set_source_rgb(ctx->cairo, 0, 0, 0);
+    /* gx_set_color(ctx, ctx->palette->primary_text); */
+    /* gx_text(ctx, ctx->clip.x, y + ctx->font->extents.ascent, temp, 0); */
+    int x = ctx->clip.x;
+    with_styles(lambda(void _(point_t r, text_style_t *s) {
+      __auto_type len = r.y - r.x;
+      if (len > 0) {
+        cairo_text_extents_t extents;
+        char tmp[len + 1];
+        strncpy(tmp, temp + r.x, len);
+        tmp[len] = '\0';
+        gx_measure_text(ctx, tmp, &extents);
+        if (s->selected) {
+          gx_set_color(ctx, ctx->palette->selection_bg);
+          gx_box(ctx, x, y, extents.x_advance, ctx->font->extents.height);
+        }
+        input_set_style(ctx, s);
+        gx_text(ctx, x, y + ctx->font->extents.ascent, tmp);
+        x += extents.x_advance;
+      }
+    }));
+
+    // Draw cursor
+    if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
+      int cur_x_offset = cursor_offset - begin_offset;
+      temp[cur_x_offset] = '\0';
+      cairo_text_extents_t extents;
+      gx_measure_text(ctx, temp, &extents);
+      gx_box(ctx, ctx->clip.x + extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font->extents.height + 2);
+    }
+    y += ctx->font->extents.height;
+    if (y + ctx->font->extents.height >= max_y) break;
+    // Skip newline symbol
+    bs_move(&iter, 1);
+    if (eof) break;
+  }
+
+  self->lines[i++] = bs_offset(&iter);
+  for (;i < self->lines_len; i++) self->lines[i] = -1;
+
+  void selection_on(text_style_t *s) {s->selected = true;}
+  void selection_off(text_style_t *s) {s->selected = false;}
+  void with_styles_1(highlighter_t hl) {self->syntax_hl->highlight(syntax_hl_inst, &hl_args, hl);}
+  void with_styles(highlighter_t hl) {input_highlight_range(&selection_on, &selection_off, line_sel_range, &with_styles_1, hl);}
+}
+
+void input_update_lines(input_t *self) {
+  __auto_type ctx = &self->ctx;
+  int lines_len = div(ctx->clip.h + ctx->font->extents.height, ctx->font->extents.height).quot + 1;
+
+  if (!self->lines || (lines_len != self->lines_len)) {
+    self->lines_len = lines_len;
+    self->lines = realloc(self->lines, self->lines_len * sizeof(int));
+    if (self->lines_len == 0) self->lines = NULL;
+  }
+}
+
+bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x, int screen_y, bool x_adjust) {
+  if (self->lines_len < 0) return false;
+  __auto_type ctx = &self->ctx;
+  int x = screen_x;
+  int y = screen_y - ctx->clip.y;
+  int line_y = div(y, ctx->font->extents.height).quot;
+  int line_offset = self->lines[line_y];
+  if (line_offset < 0) return false;
+  cairo_text_extents_t extents;
+  cairo_glyph_t glyph = {0,0,0};
+
+  int current_x = ctx->clip.x;
+  bs_index(&self->contents, iter, line_offset);
+  bs_find(iter, lambda(bool _(char c){
+    if (c == '\n') return true;
+    glyph.index = c;
+    cairo_glyph_extents(ctx->cairo, &glyph, 1, &extents);
+    current_x += extents.x_advance;
+    // TODO: better end of line detection
+    if (current_x >= x) return true;
+    return false;
+  }));
+  return true;
 }
 
 point_t selection_get_range(selection_t *selection, cursor_t *cursor) {

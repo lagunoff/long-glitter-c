@@ -104,6 +104,8 @@ void gx_set_font(widget_context_t *ctx, font_t *font);
 color_t gx_get_color_from_style(widget_context_t *ctx, syntax_style_t style);
 void gx_init(Display *display);
 void gx_free(Display *display);
+void gx_font_destroy(font_t *font);
+void gx_sync_font(font_t *font);
 
 inline_always void
 gx_text(widget_context_t *ctx, int x, int y, const char *text) {

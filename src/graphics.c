@@ -122,6 +122,17 @@ void gx_init(Display *display) {
 void gx_free(Display *display) {
 }
 
+void gx_sync_font(font_t *font) {
+  font->face = cairo_toy_font_face_create(font->family, font->slant, font->weight);
+  font->scaled_font = cairo_scaled_font_create(font->face, &font->matrix, &identity_matrix, default_options);
+  cairo_scaled_font_extents(font->scaled_font, &font->extents);
+}
+
+void gx_font_destroy(font_t *font) {
+  cairo_font_face_destroy(font->face);
+  cairo_scaled_font_destroy(font->scaled_font);
+}
+
 static __attribute__((constructor)) void __init__() {
   palette.primary_text = gx_rgba(0,0,0,0.87);
   palette.secondary_text = gx_rgba(0,0,0,0.54);
@@ -139,27 +150,24 @@ static __attribute__((constructor)) void __init__() {
   cairo_matrix_init_scale(&palette.default_font.matrix, 16, 16);
   palette.default_font.slant = CAIRO_FONT_SLANT_NORMAL;
   palette.default_font.weight = CAIRO_FONT_WEIGHT_NORMAL;
-  palette.default_font.face = cairo_toy_font_face_create(palette.default_font.family, palette.default_font.slant, palette.default_font.weight);
-  palette.default_font.scaled_font = cairo_scaled_font_create(palette.default_font.face, &palette.default_font.matrix, &identity_matrix, default_options);
-  cairo_scaled_font_extents(palette.default_font.scaled_font, &palette.default_font.extents);
+  gx_sync_font(&palette.default_font);
 
   palette.small_font.family = "sans-serif";
   cairo_matrix_init_scale(&palette.small_font.matrix, 14, 14);
   palette.small_font.slant = CAIRO_FONT_SLANT_NORMAL;
   palette.small_font.weight = CAIRO_FONT_WEIGHT_NORMAL;
-  palette.small_font.face = cairo_toy_font_face_create(palette.small_font.family, palette.small_font.slant, palette.small_font.weight);
-  palette.small_font.scaled_font = cairo_scaled_font_create(palette.small_font.face, &palette.small_font.matrix, &identity_matrix, default_options);
-  cairo_scaled_font_extents(palette.small_font.scaled_font, &palette.small_font.extents);
+  gx_sync_font(&palette.small_font);
 
   palette.monospace_font.family = "Hack";
   cairo_matrix_init_scale(&palette.monospace_font.matrix, 16, 16);
   palette.monospace_font.slant = CAIRO_FONT_SLANT_NORMAL;
   palette.monospace_font.weight = CAIRO_FONT_WEIGHT_NORMAL;
-  palette.monospace_font.face = cairo_toy_font_face_create(palette.monospace_font.family, palette.monospace_font.slant, palette.monospace_font.weight);
-  palette.monospace_font.scaled_font = cairo_scaled_font_create(palette.monospace_font.face, &palette.monospace_font.matrix, &identity_matrix, default_options);
-  cairo_scaled_font_extents(palette.monospace_font.scaled_font, &palette.monospace_font.extents);
+  gx_sync_font(&palette.monospace_font);
 }
 
 static __attribute__((destructor)) void __free__() {
   cairo_font_options_destroy(default_options);
+  gx_font_destroy(&palette.default_font);
+  gx_font_destroy(&palette.small_font);
+  gx_font_destroy(&palette.monospace_font);
 }

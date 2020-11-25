@@ -38,6 +38,11 @@ typedef struct {
   yield_t  yield;
 } child_widget_t;
 
+typedef struct {
+  widget_context_t *keyboard_focus;
+  widget_context_t *mouse_focus;
+} container_t;
+
 #define redirect_x_events(init_widgets) {                               \
   child_widget_t widgets[] = init_widgets;                              \
   switch(msg->tag) {                                                    \

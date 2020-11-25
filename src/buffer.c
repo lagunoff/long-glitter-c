@@ -27,6 +27,8 @@ void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
   self->context_menu.ctx = self->ctx;
   self->context_menu.ctx.window = 0;
   self->show_lines = true;
+  self->font = ctx->palette->monospace_font;
+  gx_sync_font(&ctx->palette->monospace_font);
   gx_set_font(&self->input.ctx, &self->ctx.palette->monospace_font);
 }
 
@@ -55,7 +57,7 @@ void buffer_view_lines(buffer_t *self) {
   gx_set_color(&self->ctx, self->ctx.background);
   gx_rect(&self->ctx, self->lines);
 
-  gx_set_font(&self->ctx, &self->ctx.palette->monospace_font);
+  gx_set_font(&self->ctx, self->ctx.font);
   for(int i = 0; i < self->input.lines_len; line++, i++) {
     // File content ended, dont draw line numbers
     if (self->input.lines[i] == -1) break;
@@ -89,10 +91,27 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     // TODO: event has to be redirected only to focused subwidget
     __auto_type xkey = &msg->widget.x_event.xkey;
     __auto_type keysym = XLookupKeysym(xkey, 0);
+    __auto_type is_ctrl = xkey->state & ControlMask;
     if (keysym == XK_F10) {
       self->show_lines = !self->show_lines;
       buffer_msg_t next_msg = {.tag=Widget_Layout};
       yield(&next_msg);
+      return yield(&msg_view);
+    }
+    if (keysym == XK_minus && is_ctrl) {
+      cairo_matrix_init_scale(&self->font.matrix, self->font.matrix.xx - 1, self->font.matrix.xx - 1);
+      gx_sync_font(&self->font);
+      gx_set_font(&self->input.ctx, &self->font);
+      gx_set_font(&self->ctx, &self->font);
+      yield(&msg_layout);
+      return yield(&msg_view);
+    }
+    if (keysym == XK_equal && is_ctrl) {
+      cairo_matrix_init_scale(&self->font.matrix, self->font.matrix.xx + 1, self->font.matrix.xx + 1);
+      gx_sync_font(&self->font);
+      gx_set_font(&self->input.ctx, &self->font);
+      gx_set_font(&self->ctx, &self->font);
+      yield(&msg_layout);
       return yield(&msg_view);
     }
     return yield_input(msg);
@@ -113,7 +132,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
 
     self->lines.x = ctx->clip.x;
     self->lines.y = ctx->clip.y;
-    self->lines.w = self->show_lines ? 64 : 0;
+    self->lines.w = self->font.extents.max_x_advance * 5;
     self->lines.h = ctx->clip.h;
 
     self->input.ctx.clip.x = self->lines.x + self->lines.w;
