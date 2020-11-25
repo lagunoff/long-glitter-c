@@ -59,6 +59,7 @@ void input_free(input_t *self) {
 
 void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   auto void yield_context_menu(void *msg);
+  auto void do_insert_fixup(iter_fixup_t fix_cursor, iter_fixup_t fix_scroll);
   __auto_type ctx = &self->ctx;
 
   switch (msg->tag) {
@@ -142,8 +143,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->contents,
         self->cursor.pos.global_index,
         clipboard, 0, BuffString_Left,
-        &self->cursor.pos,
-        &self->scroll.pos, NULL
+        &do_insert_fixup
       );
       XFree(clipboard);
       return yield(&msg_view);
@@ -241,8 +241,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->cursor.pos.global_index,
         "", MAX(iter_offset - curr_offset, 1),
         BuffString_Right,
-        &self->cursor.pos,
-        &self->scroll.pos, NULL
+        &do_insert_fixup
       );
       return yield(&msg_view);
     } else if (keysym == XK_BackSpace && is_alt) {
@@ -255,8 +254,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->cursor.pos.global_index,
         "", MAX(curr_offset - iter_offset, 1),
         BuffString_Left,
-        &self->cursor.pos,
-        &self->scroll.pos, NULL
+        &do_insert_fixup
       );
       return yield(&msg_view);
     } else if (keysym == XK_d && is_alt) {
@@ -269,8 +267,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->cursor.pos.global_index,
         "", MAX(iter_offset - curr_offset, 1),
         BuffString_Right,
-        &self->cursor.pos,
-        &self->scroll.pos, NULL
+        &do_insert_fixup
       );
       return yield(&msg_view);
     } else if (keysym == XK_comma && is_altshift) {
@@ -285,8 +282,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->cursor.pos.global_index,
         "", 1,
         BuffString_Right,
-        &self->cursor.pos,
-        &self->scroll.pos, NULL
+        &do_insert_fixup
       );
       return yield(&msg_view);
     } else if (keysym == XK_BackSpace) {
@@ -295,8 +291,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->cursor.pos.global_index,
         "", 1,
         BuffString_Left,
-        &self->cursor.pos,
-        &self->scroll.pos, NULL
+        &do_insert_fixup
       );
       return yield(&msg_view);
     } else if (keysym == XK_Return) {
@@ -305,8 +300,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         self->cursor.pos.global_index,
         "\n", 0,
         BuffString_Left,
-        &self->cursor.pos,
-        &self->scroll.pos, NULL
+        &do_insert_fixup
       );
       return yield(&msg_view);
     } else if (keysym == XK_slash && is_ctrl) {
@@ -341,8 +335,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
           self->cursor.pos.global_index,
           buffer, 0,
           BuffString_Left,
-          &self->cursor.pos,
-          &self->scroll.pos, NULL
+          &do_insert_fixup
         );
         return yield(&msg_view);
       }
@@ -365,8 +358,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
         mark_1.global_index,
         "", len,
         BuffString_Right,
-        &self->cursor.pos,
-        &self->scroll.pos, NULL
+        &do_insert_fixup
       );
       self->selection.state = Selection_Inactive;
       return yield(&msg_view);
@@ -415,6 +407,10 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   void yield_context_menu(void *msg) {
     input_msg_t input_msg = {.tag = Input_ContextMenu, .context_menu = *(menulist_msg_t *)msg};
     yield(&input_msg);
+  }
+  void do_insert_fixup(iter_fixup_t fix_cursor, iter_fixup_t fix_scroll) {
+    fix_cursor(&self->cursor.pos);
+    fix_scroll(&self->scroll.pos);
   }
 }
 

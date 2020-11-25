@@ -121,7 +121,7 @@ bool bs_iterate(
         if (dir == BuffString_Right && iter->local_index >= str->splice.start + str->splice.len
             || dir == BuffString_Left && iter->local_index > str->splice.start + str->splice.len) {
           iter->local_index += str->splice.deleted - str->splice.len;
-          iter->begin += str->splice.deleted - str->splice.len;
+          iter->begin = str->splice.start + str->splice.deleted;
           iter->end += str->splice.deleted - str->splice.len;
           str = str->splice.base;
           continue;
@@ -221,21 +221,28 @@ int bs_offset(buff_string_iter_t *iter) {
    return iter->global_index;
 }
 
-buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted, bs_direction_t dir, ...) {
+buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted, bs_direction_t dir, iter_get_fixups_t get_fixups) {
+  auto void fixup_cursor(buff_string_iter_t *iter);
+  auto void fixup_scroll(buff_string_iter_t *iter);
   int start1 = dir == BuffString_Right ? start : start - deleted;
   // TODO: Check for right bound
   if (start1 < 0) return base;
   buff_string_t *splice = new_splice_str(str, start1, deleted, base);
-
-  va_list iters;
-  va_start(iters, dir);
-  while(1) {
-    buff_string_iter_t *it = va_arg(iters, buff_string_iter_t *);
-    if (it == NULL) break;
-    _bs_insert_insert_fixup(it, splice, dir);
-  }
-  va_end(iters);
+  if (get_fixups) get_fixups(&fixup_cursor, &fixup_scroll);
   return splice;
+
+  void fixup_cursor(buff_string_iter_t *iter) {
+    if (splice->splice.start <= iter->global_index) {
+      int dx = splice->splice.len - (dir == BuffString_Left ? splice->splice.deleted : 0);
+      bs_move(iter, dx);
+    }
+  }
+  void fixup_scroll(buff_string_iter_t *iter) {
+    if (splice->splice.start < iter->global_index) {
+      int dx = splice->splice.len - (dir == BuffString_Left ? splice->splice.deleted : 0);
+      bs_move(iter, dx);
+    }
+  }
 }
 
 buff_string_t *bs_insert_undo(buff_string_t *base, ...) {
@@ -257,15 +264,7 @@ buff_string_t *bs_insert_undo(buff_string_t *base, ...) {
   }
   default: {
     return base;
-  }
-  }
-}
-
-void _bs_insert_insert_fixup(buff_string_iter_t *iter, buff_string_t *new, bs_direction_t dir) {
-  if (new->splice.start <= iter->global_index) {
-    int dx = new->splice.len - (dir == BuffString_Left ? new->splice.deleted : 0);
-    bs_move(iter, dx);
-  }
+  }}
 }
 
 void _bs_insert_insert_fixup_inv(buff_string_iter_t *iter, buff_string_t *new) {
