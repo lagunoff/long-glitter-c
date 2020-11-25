@@ -21,56 +21,26 @@ void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
   self->path = path;
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
-  self->ctx.font = &ctx->palette->monospace_font;
   gx_init_context(&self->ctx, ctx);
   input_init(&self->input, ctx, new_bytes(mmaped, st.st_size), buffer_choose_syntax_highlighter(path));
   self->context_menu.ctx = self->ctx;
   self->context_menu.ctx.window = 0;
   self->show_lines = true;
   self->font = ctx->palette->monospace_font;
+  self->ctx.font = &self->font;
+  self->modifier.state = 0;
+  self->modifier.keysym = 0;
   gx_sync_font(&ctx->palette->monospace_font);
   gx_set_font(&self->input.ctx, &self->ctx.palette->monospace_font);
 }
 
-syntax_highlighter_t *buffer_choose_syntax_highlighter(char *path) {
-  __auto_type ext = extension(path); if (!ext) return &noop_highlighter;
-  if (strcmp(ext, "c") == 0 || strcmp(ext, "h") == 0) return &c_mode_highlighter;
-  return &noop_highlighter;
-}
-
 void buffer_free(buffer_t *self) {
+  gx_font_destroy(&self->font);
   input_free(&self->input);
   bs_free(self->input.contents, lambda(void _(bs_bytes_t *b){
     munmap(b->bytes, b->len);
   }));
   close(self->fd);
-}
-
-void buffer_view_lines(buffer_t *self) {
-  __auto_type ctx = &self->ctx;
-  __auto_type line = self->input.scroll.line;
-  __auto_type color = ctx->palette->secondary_text;
-  __auto_type cursor_offset = bs_offset(&self->input.cursor.pos);
-  char temp[64];
-  cairo_text_extents_t text_size;
-  int y = self->lines.y;
-  gx_set_color(&self->ctx, self->ctx.background);
-  gx_rect(&self->ctx, self->lines);
-
-  gx_set_font(&self->ctx, self->ctx.font);
-  for(int i = 0; i < self->input.lines_len; line++, i++) {
-    // File content ended, dont draw line numbers
-    if (self->input.lines[i] == -1) break;
-    __auto_type next_line_offset = i + 1 < self->input.lines_len ? self->input.lines[i + 1] : -1;
-    __auto_type current_line = cursor_offset >= self->input.lines[i] && (next_line_offset == -1 || cursor_offset < next_line_offset);
-    color.alpha = current_line ? 0.54 : 0.15;
-    sprintf(temp, "%d", line + 1);
-    gx_measure_text(ctx, temp, &text_size);
-    gx_set_color(ctx, color);
-    gx_text(ctx, self->lines.x + self->lines.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp);
-    y += ctx->font->extents.height;
-    if (y + ctx->font->extents.height >= self->lines.y + self->lines.h) break;
-  }
 }
 
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
@@ -98,7 +68,19 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       yield(&next_msg);
       return yield(&msg_view);
     }
+    if (self->modifier.keysym == XK_x && (self->modifier.state & ControlMask) && keysym == XK_s && is_ctrl) {
+      self->modifier.state = 0;
+      self->modifier.keysym = 0;
+      buffer_msg_t next_msg = {.tag=Buffer_Save};
+      return yield(&next_msg);
+    }
+    if (keysym == XK_x && is_ctrl) {
+      self->modifier.state = xkey->state;
+      self->modifier.keysym = keysym;
+      return;
+    }
     if (keysym == XK_minus && is_ctrl) {
+      gx_font_destroy(&self->font);
       cairo_matrix_init_scale(&self->font.matrix, self->font.matrix.xx - 1, self->font.matrix.xx - 1);
       gx_sync_font(&self->font);
       gx_set_font(&self->input.ctx, &self->font);
@@ -107,6 +89,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       return yield(&msg_view);
     }
     if (keysym == XK_equal && is_ctrl) {
+      gx_font_destroy(&self->font);
       cairo_matrix_init_scale(&self->font.matrix, self->font.matrix.xx + 1, self->font.matrix.xx + 1);
       gx_sync_font(&self->font);
       gx_set_font(&self->input.ctx, &self->font);
@@ -187,4 +170,37 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     buffer_msg_t buffer_msg = {.tag = Buffer_Input, .input = *(input_msg_t *)msg};
     yield(&buffer_msg);
   }
+}
+
+void buffer_view_lines(buffer_t *self) {
+  __auto_type ctx = &self->ctx;
+  __auto_type line = self->input.scroll.line;
+  __auto_type color = ctx->palette->secondary_text;
+  __auto_type cursor_offset = bs_offset(&self->input.cursor.pos);
+  char temp[64];
+  cairo_text_extents_t text_size;
+  int y = self->lines.y;
+  gx_set_color(&self->ctx, self->ctx.background);
+  gx_rect(&self->ctx, self->lines);
+
+  gx_set_font(&self->ctx, self->ctx.font);
+  for(int i = 0; i < self->input.lines_len; line++, i++) {
+    // File content ended, dont draw line numbers
+    if (self->input.lines[i] == -1) break;
+    __auto_type next_line_offset = i + 1 < self->input.lines_len ? self->input.lines[i + 1] : -1;
+    __auto_type current_line = cursor_offset >= self->input.lines[i] && (next_line_offset == -1 || cursor_offset < next_line_offset);
+    color.alpha = current_line ? 0.54 : 0.15;
+    sprintf(temp, "%d", line + 1);
+    gx_measure_text(ctx, temp, &text_size);
+    gx_set_color(ctx, color);
+    gx_text(ctx, self->lines.x + self->lines.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp);
+    y += ctx->font->extents.height;
+    if (y + ctx->font->extents.height >= self->lines.y + self->lines.h) break;
+  }
+}
+
+syntax_highlighter_t *buffer_choose_syntax_highlighter(char *path) {
+  __auto_type ext = extension(path); if (!ext) return &noop_highlighter;
+  if (strcmp(ext, "c") == 0 || strcmp(ext, "h") == 0) return &c_mode_highlighter;
+  return &noop_highlighter;
 }

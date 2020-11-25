@@ -13,12 +13,14 @@ void tree_free(tree_t *self);
 
 void tree_panel_init(tree_panel_t *self, widget_context_init_t *ctx, char *path) {
   gx_init_context(&self->ctx, ctx);
-  tree_init(&self->tree, path);
+  self->tree = malloc(sizeof(tree_t));
+  tree_init(self->tree, path);
   self->hover = NULL;
 }
 
 void tree_panel_free(tree_panel_t *self) {
-  tree_free(&self->tree);
+  tree_free(self->tree);
+  free(self->tree);
 }
 
 void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yield) {
@@ -63,7 +65,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
     gx_set_font(ctx, ctx->font);
     gx_set_color(ctx, ctx->palette->default_bg);
     gx_rect(ctx, ctx->clip);
-    return go(0, 0, &self->tree);
+    return go(0, 0, self->tree);
   }
   case Widget_Free: {
     return tree_panel_free(self);
@@ -92,7 +94,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
       }}
       return NULL;
     }
-    __auto_type new_hover = go(&self->tree);
+    __auto_type new_hover = go(self->tree);
     if (new_hover != self->hover) {
       self->hover = new_hover;
       return yield(&msg_view);
@@ -149,6 +151,15 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
       return yield(&msg_view);
     }}
     return;
+  }
+  case TreePanel_Up: {
+    char *path = self->tree->common.path;
+    char parent_path[strlen(path) + 1];
+    parent_path[dirname(path, parent_path)] = '\0';
+    self->tree = malloc(sizeof(tree_t));
+    tree_init(self->tree, parent_path);
+    // FIXME(leak): mount previous tree to the new root
+    return yield(&msg_view);
   }
   case Widget_Layout: {
     return;

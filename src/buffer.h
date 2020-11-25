@@ -9,12 +9,18 @@
 #include "statusbar.h"
 #include "input.h"
 
+typedef struct {
+  int    state;
+  KeySym keysym;
+} keystroke_t;
+
 struct buffer_t {
   widget_context_t ctx;
   char          *path;
   int            fd;
   bool           show_lines;
   font_t         font;
+  keystroke_t    modifier;
   // Children widgets
   menulist_t     context_menu;
   input_t        input;
@@ -28,6 +34,7 @@ typedef union {
     enum {
       Buffer_ContextMenu = Widget_Last,
       Buffer_Input,
+      Buffer_Save,
     } tag;
     union {
       menulist_msg_t context_menu;

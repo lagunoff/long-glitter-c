@@ -44,8 +44,7 @@ typedef struct directory_list_node_t {
 
 typedef struct {
   widget_context_t ctx;
-  char            *path;
-  tree_t           tree;
+  tree_t          *tree;
   tree_t          *hover;
 } tree_panel_t;
 
@@ -54,6 +53,7 @@ typedef union {
   struct {
     enum {
       TreePanel_ItemClicked = Widget_Last,
+      TreePanel_Up,
     } tag;
     union {
       tree_t *item_clicked;

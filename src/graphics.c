@@ -128,9 +128,11 @@ void gx_sync_font(font_t *font) {
   cairo_scaled_font_extents(font->scaled_font, &font->extents);
 }
 
+// FIXME: For some reason this does not free the memory. That leads to
+// memory leak in the buffers that change font size
 void gx_font_destroy(font_t *font) {
-  cairo_font_face_destroy(font->face);
   cairo_scaled_font_destroy(font->scaled_font);
+  cairo_font_face_destroy(font->face);
 }
 
 static __attribute__((constructor)) void __init__() {

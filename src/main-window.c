@@ -59,11 +59,16 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
   case KeyPress: {
     __auto_type xkey = &msg->widget.x_event.xkey;
     __auto_type keysym = XLookupKeysym(xkey, 0);
+    __auto_type is_alt = xkey->state & Mod1Mask;
     if (keysym == XK_F4) {
       self->show_sidebar = !self->show_sidebar;
-      buffer_msg_t next_msg = {.tag=Widget_Layout};
+      main_window_msg_t next_msg = {.tag=Widget_Layout};
       yield(&next_msg);
       return yield(&msg_view);
+    }
+    if (keysym == XK_Up && is_alt) {
+      tree_panel_msg_t next_msg = {.tag=TreePanel_Up};
+      return yield_sidebar(&next_msg);
     }
     return yield_content((tabs_msg_t *)msg);
   }
