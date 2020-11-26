@@ -38,7 +38,7 @@ typedef union {
     } tag;
     union {
       menulist_msg_t context_menu;
-      input_msg_t    input;
+      input_msg_t   *input;
     };
   };
 } buffer_msg_t;

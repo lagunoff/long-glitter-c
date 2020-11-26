@@ -58,13 +58,13 @@ menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
     __auto_type ctx = &self->ctx;
     __auto_type extents = &ctx->font->extents;
     __auto_type prev_hover = self->hover;
-    __auto_type e = &msg->x_event;
+    __auto_type xmotion = &msg->widget.x_event->xmotion;
 
     int Y_MARGIN = 8;
     int item_height = extents->height + Y_MARGIN;
     int y = 1 + Y_MARGIN;
     for (int i = 0; i < self->len; i++) {
-      if (e->xmotion.y - ctx->clip.y >= y && e->xmotion.y - ctx->clip.y < y + item_height) {
+      if (xmotion->y - ctx->clip.y >= y && xmotion->y - ctx->clip.y < y + item_height) {
         self->hover = i;
         goto check_hover;
       }

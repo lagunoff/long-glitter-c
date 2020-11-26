@@ -17,7 +17,7 @@ syntax_highlighter_t *buffer_choose_syntax_highlighter(char *path);
 
 void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
   struct stat st;
-  self->fd = open(path, O_RDWR);
+  self->fd = open(path, O_RDONLY);
   self->path = path;
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
@@ -59,7 +59,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   }
   case KeyPress: {
     // TODO: event has to be redirected only to focused subwidget
-    __auto_type xkey = &msg->widget.x_event.xkey;
+    __auto_type xkey = &msg->widget.x_event->xkey;
     __auto_type keysym = XLookupKeysym(xkey, 0);
     __auto_type is_ctrl = xkey->state & ControlMask;
     if (keysym == XK_F10) {
@@ -134,13 +134,44 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   case Buffer_Input: {
     __auto_type prev_offset = bs_offset(&self->input.cursor.pos);
     __auto_type prev_line = self->input.scroll.line;
-    input_dispatch(&self->input, &msg->input, &yield_input);
+    input_dispatch(&self->input, msg->input, &yield_input);
     __auto_type next_offset = bs_offset(&self->input.cursor.pos);
     __auto_type next_line = self->input.scroll.line;
     if (next_line != prev_line || prev_offset != next_offset) {
       buffer_view_lines(self);
     }
     return;
+  }
+  case Buffer_Save: {
+    buff_string_iter_t iter;
+    bs_begin(&iter, &self->input.contents);
+    int buf_len = 1024 * 64;
+    char buf[buf_len];
+    remove(self->path);
+    int fd = open(self->path, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+    for (;;) {
+      int taken = bs_take_2(&iter, buf, buf_len);
+      int written = 0;
+      for(;;) {
+        int w = write(fd, buf + written, taken - written);
+        // TODO: handle write error
+        if (w == -1) return yield(&msg_view);
+        written += w;
+        if (written >= taken) break;
+      }
+      if (taken < buf_len) break;
+    }
+    close(fd);
+    bs_free(self->input.contents, lambda(void _(bs_bytes_t *b){
+      munmap(b->bytes, b->len);
+    }));
+    close(self->fd);
+    struct stat st;
+    self->fd = open(self->path, O_RDONLY);
+    fstat(self->fd, &st);
+    char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
+    self->input.contents = new_bytes(mmaped, st.st_size);
+    return yield(&msg_view);
   }
   case Buffer_ContextMenu: {
     if (msg->context_menu.tag == Menulist_ItemClicked) {
@@ -167,7 +198,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     yield(&buffer_msg);
   }
   void yield_input(void *msg) {
-    buffer_msg_t buffer_msg = {.tag = Buffer_Input, .input = *(input_msg_t *)msg};
+    buffer_msg_t buffer_msg = {.tag = Buffer_Input, .input = (input_msg_t *)msg};
     yield(&buffer_msg);
   }
 }

@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
         break;
       }}
     }
-    main_window_dispatch(&buffer, user_msg ? user_msg : &x_event, (yield_t)&loop);
+    main_window_dispatch(&buffer, user_msg ? user_msg : &x_event, &loop);
   }
 
   main_window_dispatch(&buffer, &layout, &loop);

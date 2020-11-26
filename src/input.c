@@ -75,7 +75,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     return;
   }
   case MotionNotify: {
-    __auto_type motion = &msg->widget.x_event.xmotion;
+    __auto_type motion = &msg->widget.x_event->xmotion;
     if (motion->state & Button1MotionMask) {
       if (self->selection.state != Selection_DraggingMouse) {
         self->selection.state = Selection_DraggingMouse;
@@ -92,7 +92,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     return;
   }
   case ButtonPress: {
-    __auto_type button = &msg->widget.x_event.xbutton;
+    __auto_type button = &msg->widget.x_event->xbutton;
     switch (button->button) {
     case Button1: { // Left click
       input_iter_screen_xy(self, &self->cursor.pos, button->x, button->y, true);
@@ -153,7 +153,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   case SelectionRequest: {
     // Copy self->x_selection into the clipboard
     __auto_type targets = XInternAtom(ctx->display, "TARGETS", false);
-    __auto_type req = &msg->widget.x_event.xselectionrequest;
+    __auto_type req = &msg->widget.x_event->xselectionrequest;
 
     if (req->target == targets) {
       Atom types[2] = { targets, XA_UTF8_STRING(ctx->display) };
@@ -189,7 +189,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     return;
   }
   case KeyPress: {
-    __auto_type xkey = &msg->widget.x_event.xkey;
+    __auto_type xkey = &msg->widget.x_event->xkey;
     __auto_type keysym = XLookupKeysym(xkey, 0);
     __auto_type is_ctrl = xkey->state & ControlMask;
     __auto_type is_alt = xkey->state & Mod1Mask;
@@ -431,7 +431,8 @@ void input_view(input_t *self) {
   __auto_type scroll_offset = bs_offset(&self->scroll.pos);
   __auto_type sel_range = selection_get_range(&self->selection, &self->cursor);
   __auto_type max_y = ctx->clip.y + ctx->clip.h;
-  __auto_type syntax_hl_inst = self->syntax_hl_inst;
+  char syntax_hl_inst[16];
+  strncpy(syntax_hl_inst, self->syntax_hl_inst, sizeof(syntax_hl_inst));
 
   char temp[1024 * 16]; // Maximum line length — 16kb
   int y = ctx->clip.y; // y coordinate of the top-left corner of the text

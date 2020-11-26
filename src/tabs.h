@@ -37,7 +37,7 @@ typedef union {
     union {
       struct {
         buffer_list_node_t *inst;
-        buffer_msg_t        msg;
+        buffer_msg_t       *msg;
       } content;
       struct {char *path;} new;
       buffer_list_node_t  *tab_clicked;

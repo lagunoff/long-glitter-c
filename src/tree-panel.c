@@ -71,7 +71,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
     return tree_panel_free(self);
   }
   case MotionNotify: {
-    __auto_type motion = &msg->widget.x_event.xmotion;
+    __auto_type motion = &msg->widget.x_event->xmotion;
     tree_t *go(tree_t *tree) {
       switch(tree->tag) {
       case Tree_File: {
@@ -102,7 +102,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
     return;
   }
   case ButtonPress: {
-    __auto_type button = &msg->widget.x_event.xbutton;
+    __auto_type button = &msg->widget.x_event->xbutton;
     if (self->hover) {
       tree_panel_msg_t next_msg = {.tag = TreePanel_ItemClicked, .item_clicked = self->hover};
       return yield(&next_msg);

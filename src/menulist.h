@@ -20,8 +20,6 @@ typedef struct {
 
 typedef union {
   widget_msg_t widget;
-  XEvent       x_event;
-
   struct {
     enum {
       Menulist_DispatchParent = Widget_Last,

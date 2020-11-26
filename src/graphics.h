@@ -67,23 +67,21 @@ typedef struct {
 } palette_t;
 
 typedef struct {
+  rect_t     clip;
   Display   *display;
   Window     window;
   cairo_t   *cairo;
   palette_t *palette;
   XIC        xic;
-  rect_t     clip;
 } widget_context_init_t;
 
 typedef struct {
-  // ro fields
+  rect_t     clip;
   Display   *display;
   Window     window;
   cairo_t   *cairo;
   palette_t *palette;
   XIC        xic;
-  // rw fields
-  rect_t     clip;
   font_t    *font;
   color_t    foreground;
   color_t    background;

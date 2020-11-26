@@ -38,7 +38,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     return yield_content((buffer_msg_t *)msg);
   }
   case ButtonPress: {
-    __auto_type button = &msg->widget.x_event.xbutton;
+    __auto_type button = &msg->widget.x_event->xbutton;
     if (rect_is_inside(self->tabs_clip, button->x, button->y)) {
       switch (button->button) {
       case Button1: { // Left click
@@ -63,7 +63,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     return yield_content((buffer_msg_t *)msg);
   }
   case KeyPress: {
-    __auto_type xkey = &msg->widget.x_event.xkey;
+    __auto_type xkey = &msg->widget.x_event->xkey;
     __auto_type keysym = XLookupKeysym(xkey, 0);
     __auto_type is_ctrl = xkey->state & ControlMask;
     __auto_type is_shift = xkey->state & ShiftMask;
@@ -147,12 +147,12 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   }
   case Tabs_Content: {
     current_inst = msg->content.inst;
-    return buffer_dispatch(&msg->content.inst->buffer, &msg->content.msg, (yield_t)&yield_content);
+    return buffer_dispatch(&msg->content.inst->buffer, msg->content.msg, (yield_t)&yield_content);
   }}
 
   void yield_content(buffer_msg_t *buffer_msg) {
     if (!current_inst) return;
-    tabs_msg_t next_msg = {.tag=Tabs_Content, .content={.inst=current_inst, .msg=*buffer_msg}};
+    tabs_msg_t next_msg = {.tag=Tabs_Content, .content={.inst=current_inst, .msg=buffer_msg}};
     yield(&next_msg);
   }
 }

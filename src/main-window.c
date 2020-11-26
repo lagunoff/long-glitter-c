@@ -37,7 +37,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     return main_window_free(self);
   }
   case MotionNotify: {
-    __auto_type motion = &msg->widget.x_event.xmotion;
+    __auto_type motion = &msg->widget.x_event->xmotion;
     if (rect_is_inside(self->content.ctx.clip, motion->x, motion->y)) {
       return yield_content((tabs_msg_t *)msg);
     }
@@ -47,7 +47,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     return;
   }
   case ButtonPress: {
-    __auto_type button = &msg->widget.x_event.xbutton;
+    __auto_type button = &msg->widget.x_event->xbutton;
     if (rect_is_inside(self->content.ctx.clip, button->x, button->y)) {
       return yield_content((tabs_msg_t *)msg);
     }
@@ -57,7 +57,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     return;
   }
   case KeyPress: {
-    __auto_type xkey = &msg->widget.x_event.xkey;
+    __auto_type xkey = &msg->widget.x_event->xkey;
     __auto_type keysym = XLookupKeysym(xkey, 0);
     __auto_type is_alt = xkey->state & Mod1Mask;
     if (keysym == XK_F4) {
@@ -79,18 +79,18 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     return yield_content((tabs_msg_t *)msg);
   }
   case MainWindow_Content: {
-    return tabs_dispatch(&self->content, &msg->content, (yield_t)&yield_content);
+    return tabs_dispatch(&self->content, msg->content, (yield_t)&yield_content);
   }
   case MainWindow_Sidebar: {
-    if (msg->sidebar.tag == TreePanel_ItemClicked && msg->sidebar.item_clicked->tag == Tree_File) {
+    if (msg->sidebar->tag == TreePanel_ItemClicked && msg->sidebar->item_clicked->tag == Tree_File) {
       // Click on a file, open new tab
-      tabs_msg_t next_msg = {.tag = Tabs_New, .new = {.path = msg->sidebar.item_clicked->file.path}};
+      tabs_msg_t next_msg = {.tag = Tabs_New, .new = {.path = msg->sidebar->item_clicked->file.path}};
       return yield_content(&next_msg);
     }
-    return tree_panel_dispatch(&self->sidebar, &msg->sidebar, (yield_t)&yield_sidebar);
+    return tree_panel_dispatch(&self->sidebar, msg->sidebar, (yield_t)&yield_sidebar);
   }
   case MainWindow_Statusbar: {
-    return statusbar_dispatch(&self->statusbar, &msg->statusbar, &yield_statusbar);
+    return statusbar_dispatch(&self->statusbar, msg->statusbar, &yield_statusbar);
   }
   case Widget_Layout: {
     statusbar_msg_t measure = {.tag = Widget_Measure};
@@ -113,15 +113,15 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
   }}
 
   void yield_sidebar(tree_panel_msg_t *msg) {
-    main_window_msg_t next_msg = {.tag=MainWindow_Sidebar, .sidebar=*msg};
+    main_window_msg_t next_msg = {.tag=MainWindow_Sidebar, .sidebar=msg};
     yield(&next_msg);
   }
   void yield_content(tabs_msg_t *msg) {
-    main_window_msg_t next_msg = {.tag=MainWindow_Content, .content=*msg};
+    main_window_msg_t next_msg = {.tag=MainWindow_Content, .content=msg};
     yield(&next_msg);
   }
   void yield_statusbar(void *msg) {
-    main_window_msg_t next_msg = {.tag=MainWindow_Statusbar, .statusbar=*(statusbar_msg_t *)msg};
+    main_window_msg_t next_msg = {.tag=MainWindow_Statusbar, .statusbar=(statusbar_msg_t *)msg};
     yield(&next_msg);
   }
 }

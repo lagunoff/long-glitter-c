@@ -22,9 +22,9 @@ typedef union {
       MainWindow_Statusbar,
     } tag;
     union {
-      tree_panel_msg_t sidebar;
-      tabs_msg_t       content;
-      statusbar_msg_t  statusbar;
+      tree_panel_msg_t *sidebar;
+      tabs_msg_t       *content;
+      statusbar_msg_t  *statusbar;
     };
   };
 } main_window_msg_t;
