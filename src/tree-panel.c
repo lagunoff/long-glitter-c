@@ -11,8 +11,10 @@
 void tree_init(tree_t *self, char *path);
 void tree_free(tree_t *self);
 
-void tree_panel_init(tree_panel_t *self, widget_context_init_t *ctx, char *path) {
-  gx_init_context(&self->ctx, ctx);
+void tree_panel_init(tree_panel_t *self, widget_context_t *ctx, char *path) {
+  self->widget.ctx = ctx;
+  self->widget.dispatch = (dispatch_t)&tree_panel_dispatch;
+  self->font = &ctx->palette->default_font;
   self->tree = malloc(sizeof(tree_t));
   tree_init(self->tree, path);
   self->hover = NULL;
@@ -24,7 +26,7 @@ void tree_panel_free(tree_panel_t *self) {
 }
 
 void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yield) {
-  __auto_type ctx = &self->ctx;
+  __auto_type ctx = self->widget.ctx;
   switch(msg->tag) {
   case Expose: {
     void go(int indent, int line, tree_t *tree) {
@@ -32,7 +34,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
       case Tree_File: {
         __auto_type name = basename(tree->file.path);
         __auto_type color = self->hover == tree ? ctx->palette->primary_text : ctx->palette->secondary_text;
-        rect_t clip = {ctx->clip.x + 8 + indent * 16, ctx->clip.y + 8 + line * ctx->font->extents.height};
+        rect_t clip = {self->widget.clip.x + 8 + indent * 16, self->widget.clip.y + 8 + line * ctx->font->extents.height};
         cairo_text_extents_t extents;
         gx_set_color(ctx, color);
         gx_text(ctx, clip.x, clip.y + ctx->font->extents.ascent, name);
@@ -45,7 +47,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
       case Tree_Directory: {
         __auto_type name = basename(tree->directory.path);
         __auto_type color = self->hover == tree ? ctx->palette->primary_text : ctx->palette->secondary_text;
-        rect_t clip = {ctx->clip.x + 8 + indent * 16, ctx->clip.y + 8 + (line * ctx->font->extents.height)};
+        rect_t clip = {self->widget.clip.x + 8 + indent * 16, self->widget.clip.y + 8 + (line * ctx->font->extents.height)};
         cairo_text_extents_t extents;
         gx_set_color(ctx, color);
         gx_text(ctx, clip.x, clip.y + ctx->font->extents.ascent, name);
@@ -62,9 +64,9 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
         break;
       }}
     }
-    gx_set_font(ctx, ctx->font);
+    gx_set_font(ctx, self->font);
     gx_set_color(ctx, ctx->palette->default_bg);
-    gx_rect(ctx, ctx->clip);
+    gx_rect(ctx, self->widget.clip);
     return go(0, 0, self->tree);
   }
   case Widget_Free: {

@@ -16,11 +16,11 @@ typedef struct {
 } buffer_list_t;
 
 typedef struct {
-  widget_context_t    ctx;
-  buffer_list_t       tabs;
+  widget_t      widget;
+  buffer_list_t tabs;
   buffer_list_node_t *active; // @Nullable
-  rect_t              tabs_clip;
-  rect_t              content_clip;
+  rect_t        tabs_clip;
+  rect_t        content_clip;
 } tabs_t;
 
 typedef union {
@@ -46,7 +46,7 @@ typedef union {
   };
 } tabs_msg_t;
 
-void tabs_init(tabs_t *self, widget_context_init_t *ctx, char *path);
+void tabs_init(tabs_t *self, widget_context_t *ctx, char *path);
 void tabs_free(tabs_t *self);
 void tabs_view(tabs_t *self);
 void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield);

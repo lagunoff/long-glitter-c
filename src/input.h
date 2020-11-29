@@ -9,6 +9,7 @@
 #include "menulist.h"
 #include "utils.h"
 
+
 typedef enum {
   Selection_Inactive,
   Selection_DraggingMouse,
@@ -51,9 +52,9 @@ typedef struct {
 } syntax_highlighter_t;
 
 typedef struct {
-  widget_context_t ctx;
+  widget_t       widget;
   buff_string_t *contents;
-  XftFont       *font;
+  font_t        *font;
   cursor_style_t cursor_style;
   scroll_t       scroll;
   cursor_t       cursor;
@@ -95,11 +96,11 @@ typedef union {
   };
 } input_msg_t;
 
-void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *content, syntax_highlighter_t *hl);
+void input_init(input_t *self, widget_context_t *ctx, buff_string_t *content, syntax_highlighter_t *hl);
 void input_free(input_t *self);
 void input_view(input_t *self);
 void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield);
-bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int x, int y, bool x_adjust);
+bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x, int screen_y, bool x_adjust);
 void input_set_style(widget_context_t *ctx, text_style_t *style);
 point_t selection_get_range(selection_t *self, cursor_t *cursor);
 

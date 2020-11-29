@@ -1,38 +1,53 @@
 #pragma once
 #include <stdbool.h>
+#include <cairo.h>
 #include <X11/Xlib.h>
 
-#include "graphics.h"
 #include "utils.h"
 
+typedef struct {
+  double red, green, blue, alpha;
+} color_t;
+
 union widget_msg_t;
+struct palette_t;
+struct font_t;
 
 typedef void (*yield_t)(void *msg);
-typedef void (*widget_t)(void *self, union widget_msg_t *msg, yield_t yield);
+typedef void (*dispatch_t)(void *self, union widget_msg_t *msg, yield_t yield);
 
 typedef struct {
-  widget_t         dispatch;
-  widget_context_t instance[0];
-} child_widget_t;
+  Window  window;
+  Display *display;
+  cairo_t *cairo;
+  struct palette_t *palette;
+  XIC      xic;
+  struct font_t *font;
+} widget_context_t;
+
+typedef struct {
+  rect_t            clip;
+  dispatch_t        dispatch;
+  widget_context_t *ctx;
+} widget_t;
 
 typedef union widget_msg_t {
   XEvent x_event[0];
-  XEvent x_event_;
   struct {
     enum {
       Widget_Noop = LASTEvent,
       Widget_Free,
       Widget_Measure,
       Widget_Layout,
-      Widget_Children,
+      Widget_Embedded,
       Widget_Last,
     } tag;
     union {
       point_t measure;
       struct {
-        child_widget_t     *widget;
+        widget_t           *widget;
         union widget_msg_t *msg;
-      } children;
+      } embedded;
     };
   };
 } widget_msg_t;

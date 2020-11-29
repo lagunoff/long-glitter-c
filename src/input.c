@@ -33,14 +33,14 @@ static void cursor_modified(input_t *self,cursor_t *prev);
 static const int CURSOR_LINE_WIDTH = 2;
 XEvent respond;
 
-void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *content, syntax_highlighter_t *hl) {
+void input_init(input_t *self, widget_context_t *ctx, buff_string_t *content, syntax_highlighter_t *hl) {
+  self->widget.ctx = ctx;
+  self->widget.dispatch = (dispatch_t)&input_dispatch;
+  self->font = &ctx->palette->default_font;
   self->contents = content;
-
   self->selection.state = Selection_Inactive;
   bs_index(&self->contents, &self->selection.mark_1, 0);
   bs_index(&self->contents, &self->selection.mark_2, 0);
-
-  gx_init_context(&self->ctx, ctx);
   self->scroll.line = 0;
   bs_begin(&self->scroll.pos, &self->contents);
   bs_begin(&self->cursor.pos, &self->contents);
@@ -49,7 +49,7 @@ void input_init(input_t *self, widget_context_init_t *ctx, buff_string_t *conten
   self->lines_len = 0;
   self->syntax_hl = hl;
   hl->reset(&self->syntax_hl_inst);
-  self->context_menu.ctx = self->ctx;
+  //  self->context_menu.widget.ctx = self->widget.ctx;
   self->x_selection = NULL;
 }
 
@@ -60,14 +60,14 @@ void input_free(input_t *self) {
 void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
   auto void yield_context_menu(void *msg);
   auto void do_insert_fixup(iter_fixup_t fix_cursor, iter_fixup_t fix_scroll);
-  __auto_type ctx = &self->ctx;
+  __auto_type ctx = self->widget.ctx;
 
   switch (msg->tag) {
   case Expose: {
     return input_view(self);
   }
   case EnterNotify: {
-    XDefineCursor(ctx->display, ctx->window, self->ctx.palette->xterm);
+    XDefineCursor(ctx->display, ctx->window, ctx->palette->xterm);
     return;
   }
   case LeaveNotify: {
@@ -220,10 +220,10 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       modify_cursor(cursor_bol);
       return yield(&msg_view);
     } else if (keysym == XK_v && is_ctrl || keysym == XK_Page_Down) {
-      scroll_page(&self->ctx, &self->scroll, &self->cursor, 1);
+      scroll_page(&self->widget, self->font, &self->scroll, &self->cursor, 1);
       return yield(&msg_view);
     } else if (keysym == XK_v && is_alt || keysym == XK_Page_Up) {
-      scroll_page(&self->ctx, &self->scroll, &self->cursor, -1);
+      scroll_page(&self->widget, self->font, &self->scroll, &self->cursor, -1);
       return yield(&msg_view);
     } else if (keysym == XK_bracketleft && is_altshift) {
       modify_cursor(backward_paragraph);
@@ -328,7 +328,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       char buffer[32];
       KeySym ignore;
       Status return_status;
-      Xutf8LookupString(self->ctx.xic, xkey, buffer, 32, &ignore, &return_status);
+      Xutf8LookupString(ctx->xic, xkey, buffer, 32, &ignore, &return_status);
       if (strlen(buffer)) {
         self->contents = bs_insert(
           self->contents,
@@ -388,13 +388,13 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     if (msg->context_menu.tag == Menulist_ItemClicked) {
       input_msg_t next_msg = {.tag = msg->context_menu.item_clicked->action};
       yield(&next_msg);
-      widget_close_window(self->context_menu.ctx.window);
-      self->context_menu.ctx.window = 0;
+      widget_close_window(self->context_menu.widget.ctx->window);
+      // self->context_menu.ctx.window = 0;
       return;
     }
     if (msg->context_menu.tag == Menulist_Destroy) {
-      widget_close_window(self->context_menu.ctx.window);
-      self->context_menu.ctx.window = 0;
+      widget_close_window(self->context_menu.widget.ctx->window);
+      // self->context_menu.widget.ctx->window = 0;
       return;
     }
     menulist_dispatch(&self->context_menu, &msg->context_menu, &yield_context_menu);
@@ -425,26 +425,26 @@ void input_set_style(widget_context_t *ctx, text_style_t *style) {
 
 void input_view(input_t *self) {
   auto void with_styles(highlighter_t hl);
-  __auto_type ctx = &self->ctx;
+  __auto_type ctx = self->widget.ctx;
   __auto_type iter = self->scroll.pos;
   __auto_type cursor_offset = bs_offset(&self->cursor.pos);
   __auto_type scroll_offset = bs_offset(&self->scroll.pos);
   __auto_type sel_range = selection_get_range(&self->selection, &self->cursor);
-  __auto_type max_y = ctx->clip.y + ctx->clip.h;
+  __auto_type max_y = self->widget.clip.y + self->widget.clip.h;
   char syntax_hl_inst[16];
   strncpy(syntax_hl_inst, self->syntax_hl_inst, sizeof(syntax_hl_inst));
 
   char temp[1024 * 16]; // Maximum line length — 16kb
-  int y = ctx->clip.y; // y coordinate of the top-left corner of the text
+  int y = self->widget.clip.y; // y coordinate of the top-left corner of the text
   int i = 0; // Index of the line
   point_t line_sel_range;
   text_style_t normal = {.syntax = Syntax_Normal, .selected = false};
   highlighter_args_t hl_args = {.ctx = ctx, .normal = &normal, .input = temp, .len = strlen(temp)};
 
   input_update_lines(self);
-  gx_set_font(&self->ctx, self->ctx.font);
-  gx_set_color(&self->ctx, self->ctx.background);
-  gx_rect(&self->ctx, self->ctx.clip);
+  gx_set_font(ctx, self->font);
+  gx_set_color(ctx, ctx->palette->white);
+  gx_rect(ctx, self->widget.clip);
 
   for(;;i++) {
     gx_set_color(ctx, ctx->palette->primary_text);
@@ -459,15 +459,15 @@ void input_view(input_t *self) {
     // Highlight the current line
     if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
       gx_set_color(ctx, ctx->palette->current_line_bg);
-      gx_box(ctx, ctx->clip.x, y, ctx->clip.w, ctx->font->extents.height);
+      gx_box(ctx, self->widget.clip.x, y, self->widget.clip.w, self->font->extents.height);
       gx_set_color(ctx, ctx->palette->primary_text);
     }
 
     // Draw the line
     // cairo_set_source_rgb(ctx->cairo, 0, 0, 0);
     /* gx_set_color(ctx, ctx->palette->primary_text); */
-    /* gx_text(ctx, ctx->clip.x, y + ctx->font->extents.ascent, temp, 0); */
-    int x = ctx->clip.x;
+    /* gx_text(ctx, self->widget.clip.x, y + self->font->extents.ascent, temp, 0); */
+    int x = self->widget.clip.x;
     with_styles(lambda(void _(point_t r, text_style_t *s) {
       __auto_type len = r.y - r.x;
       if (len > 0) {
@@ -478,10 +478,10 @@ void input_view(input_t *self) {
         gx_measure_text(ctx, tmp, &extents);
         if (s->selected) {
           gx_set_color(ctx, ctx->palette->selection_bg);
-          gx_box(ctx, x, y, extents.x_advance, ctx->font->extents.height);
+          gx_box(ctx, x, y, extents.x_advance, self->font->extents.height);
         }
         input_set_style(ctx, s);
-        gx_text(ctx, x, y + ctx->font->extents.ascent, tmp);
+        gx_text(ctx, x, y + self->font->extents.ascent, tmp);
         x += extents.x_advance;
       }
     }));
@@ -492,10 +492,10 @@ void input_view(input_t *self) {
       temp[cur_x_offset] = '\0';
       cairo_text_extents_t extents;
       gx_measure_text(ctx, temp, &extents);
-      gx_box(ctx, ctx->clip.x + extents.x_advance, y - 2, CURSOR_LINE_WIDTH, ctx->font->extents.height + 2);
+      gx_box(ctx, self->widget.clip.x + extents.x_advance, y - 2, CURSOR_LINE_WIDTH, self->font->extents.height + 2);
     }
-    y += ctx->font->extents.height;
-    if (y + ctx->font->extents.height >= max_y) break;
+    y += self->font->extents.height;
+    if (y + self->font->extents.height >= max_y) break;
     // Skip newline symbol
     bs_move(&iter, 1);
     if (eof) break;
@@ -511,8 +511,8 @@ void input_view(input_t *self) {
 }
 
 void input_update_lines(input_t *self) {
-  __auto_type ctx = &self->ctx;
-  int lines_len = div(ctx->clip.h + ctx->font->extents.height, ctx->font->extents.height).quot + 1;
+  __auto_type ctx = self->widget.ctx;
+  __auto_type lines_len = div(self->widget.clip.h + self->font->extents.height, self->font->extents.height).quot + 1;
 
   if (!self->lines || (lines_len != self->lines_len)) {
     self->lines_len = lines_len;
@@ -521,18 +521,17 @@ void input_update_lines(input_t *self) {
   }
 }
 
-bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x, int screen_y, bool x_adjust) {
+bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int x, int y, bool x_adjust) {
   if (self->lines_len < 0) return false;
-  __auto_type ctx = &self->ctx;
-  int x = screen_x;
-  int y = screen_y - ctx->clip.y;
-  int line_y = div(y, ctx->font->extents.height).quot;
-  int line_offset = self->lines[line_y];
+  __auto_type ctx = self->widget.ctx;
+  __auto_type clip_y = y - self->widget.clip.y;
+  __auto_type line_y = div(clip_y, self->font->extents.height).quot;
+  __auto_type line_offset = self->lines[line_y];
   if (line_offset < 0) return false;
   cairo_text_extents_t extents;
   cairo_glyph_t glyph = {0,0,0};
 
-  int current_x = ctx->clip.x;
+  __auto_type current_x = self->widget.clip.x;
   bs_index(&self->contents, iter, line_offset);
   bs_find(iter, lambda(bool _(char c){
     if (c == '\n') return true;
@@ -584,11 +583,12 @@ void input_line_selection_range(point_t *line_sel_range, point_t *sel_range, int
 }
 
 static void cursor_modified(input_t *self,cursor_t *prev) {
-  int next_offset = bs_offset(&self->cursor.pos);
-  int prev_offset = bs_offset(&prev->pos);
-  int scroll_offset = bs_offset(&self->scroll.pos);
-  int diff = next_offset - prev_offset;
-  int screen_lines = div(self->ctx.clip.h, self->ctx.font->extents.height).quot;
+  __auto_type ctx = self->widget.ctx;
+  __auto_type next_offset = bs_offset(&self->cursor.pos);
+  __auto_type prev_offset = bs_offset(&prev->pos);
+  __auto_type scroll_offset = bs_offset(&self->scroll.pos);
+  __auto_type diff = next_offset - prev_offset;
+  __auto_type screen_lines = div(self->widget.clip.h, self->font->extents.height).quot;
 
   int count_lines() {
     buff_string_iter_t iter = self->cursor.pos;

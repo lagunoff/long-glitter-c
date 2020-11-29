@@ -5,6 +5,7 @@
 #include <cairo.h>
 
 #include "utils.h"
+#include "widget.h"
 
 struct widget_t;
 
@@ -20,11 +21,7 @@ typedef enum {
   Syntax_Type,
 } syntax_style_t;
 
-typedef struct {
-  double red, green, blue, alpha;
-} color_t;
-
-typedef struct {
+typedef struct font_t {
   // Arguments
   char                *family;
   cairo_font_slant_t   slant;
@@ -47,7 +44,7 @@ typedef struct {
   color_t type;
 } syntax_theme_t;
 
-typedef struct {
+typedef struct palette_t {
   color_t primary_text;
   color_t secondary_text;
   color_t selection_bg;
@@ -56,6 +53,7 @@ typedef struct {
   color_t ui_bg;
   color_t border;
   color_t hover;
+  color_t white;
   font_t  default_font;
   font_t  small_font;
   font_t  monospace_font;
@@ -66,30 +64,8 @@ typedef struct {
   syntax_theme_t syntax;
 } palette_t;
 
-typedef struct {
-  rect_t     clip;
-  Display   *display;
-  Window     window;
-  cairo_t   *cairo;
-  palette_t *palette;
-  XIC        xic;
-} widget_context_init_t;
-
-typedef struct {
-  rect_t     clip;
-  Display   *display;
-  Window     window;
-  cairo_t   *cairo;
-  palette_t *palette;
-  XIC        xic;
-  font_t    *font;
-  color_t    foreground;
-  color_t    background;
-} widget_context_t;
-
 palette_t palette;
 
-void gx_init_context(widget_context_t *self, widget_context_init_t *data);
 color_t gx_rgba(double r, double g, double b, double a);
 color_t gx_rgb_hex(char *str);
 void gx_set_color(widget_context_t *ctx, color_t color);

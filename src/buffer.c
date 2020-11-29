@@ -15,23 +15,21 @@
 void buffer_view_lines(buffer_t *self);
 syntax_highlighter_t *buffer_choose_syntax_highlighter(char *path);
 
-void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path) {
+void buffer_init(buffer_t *self, widget_context_t *ctx, char *path) {
   struct stat st;
   self->fd = open(path, O_RDONLY);
   self->path = path;
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
-  gx_init_context(&self->ctx, ctx);
+  self->widget.ctx = ctx;
+  self->widget.dispatch = (dispatch_t)&buffer_dispatch;
   input_init(&self->input, ctx, new_bytes(mmaped, st.st_size), buffer_choose_syntax_highlighter(path));
-  self->context_menu.ctx = self->ctx;
-  self->context_menu.ctx.window = 0;
+  self->input.font = &self->font;
   self->show_lines = true;
   self->font = ctx->palette->monospace_font;
-  self->ctx.font = &self->font;
   self->modifier.state = 0;
   self->modifier.keysym = 0;
   gx_sync_font(&ctx->palette->monospace_font);
-  gx_set_font(&self->input.ctx, &self->ctx.palette->monospace_font);
 }
 
 void buffer_free(buffer_t *self) {
@@ -46,7 +44,9 @@ void buffer_free(buffer_t *self) {
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   auto void yield_context_menu(void *msg);
   auto void yield_input(void *msg);
-  __auto_type ctx = &self->ctx;
+  auto void yield_embedded(void *msg);
+  __auto_type ctx = self->widget.ctx;
+  __auto_type embedded_widget = (widget_t *)NULL;
 
   switch (msg->tag) {
   case Expose: {
@@ -56,6 +56,13 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   }
   case MotionNotify: {
     return yield_input(msg);
+  }
+  case Widget_Embedded: {
+    return msg->widget.embedded.widget->dispatch(
+      &msg->widget.embedded.widget,
+      msg->widget.embedded.msg,
+      &yield_embedded
+    );
   }
   case KeyPress: {
     // TODO: event has to be redirected only to focused subwidget
@@ -83,8 +90,8 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       gx_font_destroy(&self->font);
       cairo_matrix_init_scale(&self->font.matrix, self->font.matrix.xx - 1, self->font.matrix.xx - 1);
       gx_sync_font(&self->font);
-      gx_set_font(&self->input.ctx, &self->font);
-      gx_set_font(&self->ctx, &self->font);
+      gx_set_font(self->input.widget.ctx, &self->font);
+      gx_set_font(ctx, &self->font);
       yield(&msg_layout);
       return yield(&msg_view);
     }
@@ -92,8 +99,8 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       gx_font_destroy(&self->font);
       cairo_matrix_init_scale(&self->font.matrix, self->font.matrix.xx + 1, self->font.matrix.xx + 1);
       gx_sync_font(&self->font);
-      gx_set_font(&self->input.ctx, &self->font);
-      gx_set_font(&self->ctx, &self->font);
+      gx_set_font(self->input.widget.ctx, &self->font);
+      gx_set_font(ctx, &self->font);
       yield(&msg_layout);
       return yield(&msg_view);
     }
@@ -112,16 +119,15 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     return buffer_free(self);
   }
   case Widget_Layout: {
+    self->lines.x = self->widget.clip.x;
+    self->lines.y = self->widget.clip.y;
+    self->lines.w = self->input.font->extents.max_x_advance * 5;
+    self->lines.h = self->widget.clip.h;
 
-    self->lines.x = ctx->clip.x;
-    self->lines.y = ctx->clip.y;
-    self->lines.w = self->font.extents.max_x_advance * 5;
-    self->lines.h = ctx->clip.h;
-
-    self->input.ctx.clip.x = self->lines.x + self->lines.w;
-    self->input.ctx.clip.y = ctx->clip.y;
-    self->input.ctx.clip.w = ctx->clip.w - self->lines.w;
-    self->input.ctx.clip.h = ctx->clip.h;
+    self->input.widget.clip.x = self->lines.x + self->lines.w;
+    self->input.widget.clip.y = self->widget.clip.y;
+    self->input.widget.clip.w = self->widget.clip.w - self->lines.w;
+    self->input.widget.clip.h = self->widget.clip.h;
 
     yield_input(msg);
     return;
@@ -177,13 +183,13 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     if (msg->context_menu.tag == Menulist_ItemClicked) {
       buffer_msg_t next_msg = {.tag = msg->context_menu.item_clicked->action};
       yield(&next_msg);
-      widget_close_window(self->context_menu.ctx.window);
-      self->context_menu.ctx.window = 0;
+      /* widget_close_window(self->context_menu.ctx.window); */
+      /* self->context_menu.ctx.window = 0; */
       return;
     }
     if (msg->context_menu.tag == Menulist_Destroy) {
-      widget_close_window(self->context_menu.ctx.window);
-      self->context_menu.ctx.window = 0;
+      /* widget_close_window(self->context_menu.ctx.window); */
+      /* self->context_menu.ctx.window = 0; */
       return;
     }
     menulist_dispatch(&self->context_menu, &msg->context_menu, &yield_context_menu);
@@ -193,28 +199,32 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     return;
   }}
 
+  void yield_embedded(void *msg) {
+    if (!embedded_widget) return;
+    return embedded_widget->dispatch(embedded_widget,msg, &yield_embedded);
+  }
   void yield_context_menu(void *msg) {
     buffer_msg_t buffer_msg = {.tag = Buffer_ContextMenu, .context_menu = *(menulist_msg_t *)msg};
     yield(&buffer_msg);
   }
   void yield_input(void *msg) {
-    buffer_msg_t buffer_msg = {.tag = Buffer_Input, .input = (input_msg_t *)msg};
-    yield(&buffer_msg);
+    embedded_widget = (widget_t *)&self->input;
+    yield_embedded(msg);
   }
 }
 
 void buffer_view_lines(buffer_t *self) {
-  __auto_type ctx = &self->ctx;
+  __auto_type ctx = self->widget.ctx;
   __auto_type line = self->input.scroll.line;
   __auto_type color = ctx->palette->secondary_text;
   __auto_type cursor_offset = bs_offset(&self->input.cursor.pos);
   char temp[64];
   cairo_text_extents_t text_size;
   int y = self->lines.y;
-  gx_set_color(&self->ctx, self->ctx.background);
-  gx_rect(&self->ctx, self->lines);
+  gx_set_color(self->widget.ctx, ctx->palette->white);
+  gx_rect(self->widget.ctx, self->lines);
 
-  gx_set_font(&self->ctx, self->ctx.font);
+  gx_set_font(ctx, self->input.font);
   for(int i = 0; i < self->input.lines_len; line++, i++) {
     // File content ended, dont draw line numbers
     if (self->input.lines[i] == -1) break;

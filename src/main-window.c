@@ -1,7 +1,8 @@
 #include "main-window.h"
 
-void main_window_init(main_window_t *self, widget_context_init_t *ctx) {
-  gx_init_context(&self->ctx, ctx);
+void main_window_init(main_window_t *self, widget_context_t *ctx) {
+  self->widget.ctx = ctx;
+  self->widget.dispatch = (dispatch_t)&main_window_dispatch;
   self->show_sidebar = false;
   tabs_init(&self->content, ctx, "/home/vlad/job/long-glitter-c/tmp/xola.c");
   tree_panel_init(&self->sidebar, ctx, "/home/vlad/job/long-glitter-c/tmp");
@@ -17,7 +18,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
   auto void yield_statusbar(void *msg);
   auto void yield_sidebar(tree_panel_msg_t *msg);
   auto void yield_content(tabs_msg_t *msg);
-  __auto_type ctx = &self->ctx;
+  __auto_type ctx = self->widget.ctx;
   switch(msg->tag) {
   case Expose: {
     if (self->show_sidebar) {
@@ -25,9 +26,9 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     }
     tabs_dispatch(&self->content, (tabs_msg_t *)msg, &noop_yield);
     if (self->show_sidebar) {
-      gx_set_color(ctx, self->ctx.palette->border);
-      cairo_move_to(ctx->cairo, self->sidebar.ctx.clip.x + self->sidebar.ctx.clip.w, self->sidebar.ctx.clip.y);
-      cairo_line_to(ctx->cairo, self->sidebar.ctx.clip.x + self->sidebar.ctx.clip.w, self->sidebar.ctx.clip.y + self->sidebar.ctx.clip.h);
+      gx_set_color(ctx, ctx->palette->border);
+      cairo_move_to(ctx->cairo, self->sidebar.widget.clip.x + self->sidebar.widget.clip.w, self->sidebar.widget.clip.y);
+      cairo_line_to(ctx->cairo, self->sidebar.widget.clip.x + self->sidebar.widget.clip.w, self->sidebar.widget.clip.y + self->sidebar.widget.clip.h);
       cairo_stroke(ctx->cairo);
     }
     statusbar_dispatch(&self->statusbar, (statusbar_msg_t *)msg, &yield_statusbar);
@@ -38,20 +39,20 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
   }
   case MotionNotify: {
     __auto_type motion = &msg->widget.x_event->xmotion;
-    if (rect_is_inside(self->content.ctx.clip, motion->x, motion->y)) {
+    if (rect_is_inside(self->content.widget.clip, motion->x, motion->y)) {
       return yield_content((tabs_msg_t *)msg);
     }
-    if (rect_is_inside(self->sidebar.ctx.clip, motion->x, motion->y)) {
+    if (rect_is_inside(self->sidebar.widget.clip, motion->x, motion->y)) {
       return yield_sidebar((tree_panel_msg_t *)msg);
     }
     return;
   }
   case ButtonPress: {
     __auto_type button = &msg->widget.x_event->xbutton;
-    if (rect_is_inside(self->content.ctx.clip, button->x, button->y)) {
+    if (rect_is_inside(self->content.widget.clip, button->x, button->y)) {
       return yield_content((tabs_msg_t *)msg);
     }
-    if (rect_is_inside(self->sidebar.ctx.clip, button->x, button->y)) {
+    if (rect_is_inside(self->sidebar.widget.clip, button->x, button->y)) {
       return yield_sidebar((tree_panel_msg_t *)msg);
     }
     return;
@@ -96,16 +97,16 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     statusbar_msg_t measure = {.tag = Widget_Measure};
     statusbar_dispatch(&self->statusbar, &measure, &noop_yield);
     __auto_type sidebar_width = self->show_sidebar ? 280 : 0;
-    rect_t content_clip = {ctx->clip.x + sidebar_width, ctx->clip.y, ctx->clip.w - sidebar_width, ctx->clip.h - measure.measure.y};
-    rect_t tree_panel_clip = {ctx->clip.x, ctx->clip.y, sidebar_width, ctx->clip.h - measure.measure.y};
+    rect_t content_clip = {self->widget.clip.x + sidebar_width, self->widget.clip.y, self->widget.clip.w - sidebar_width, self->widget.clip.h - measure.measure.y};
+    rect_t tree_panel_clip = {self->widget.clip.x, self->widget.clip.y, sidebar_width, self->widget.clip.h - measure.measure.y};
 
-    self->content.ctx.clip = content_clip;
-    self->sidebar.ctx.clip = tree_panel_clip;
+    self->content.widget.clip = content_clip;
+    self->sidebar.widget.clip = tree_panel_clip;
 
-    self->statusbar.ctx.clip.x = ctx->clip.x;
-    self->statusbar.ctx.clip.y = content_clip.y + content_clip.h;
-    self->statusbar.ctx.clip.w = ctx->clip.w;
-    self->statusbar.ctx.clip.h = measure.measure.y;
+    self->statusbar.widget.clip.x = self->widget.clip.x;
+    self->statusbar.widget.clip.y = content_clip.y + content_clip.h;
+    self->statusbar.widget.clip.w = self->widget.clip.w;
+    self->statusbar.widget.clip.h = measure.measure.y;
 
     yield_content((tabs_msg_t *)msg);
     yield_sidebar((tree_panel_msg_t *)msg);
@@ -121,7 +122,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     yield(&next_msg);
   }
   void yield_statusbar(void *msg) {
-    main_window_msg_t next_msg = {.tag=MainWindow_Statusbar, .statusbar=(statusbar_msg_t *)msg};
-    yield(&next_msg);
+    /* main_window_msg_t next_msg = {.tag=MainWindow_Statusbar, .statusbar=(statusbar_msg_t *)msg}; */
+    /* yield(&next_msg); */
   }
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include <stdbool.h>
 
+#include "graphics.h"
 #include "widget.h"
 
 typedef struct {
@@ -11,11 +12,11 @@ typedef struct {
 } menulist_item_t;
 
 typedef struct {
-  widget_context_t   ctx;
+  widget_t widget;
   menulist_item_t *items; //! aligned by value of 'alignment' field
-  int              len;
-  int              alignement; //! sizeof(specific_item_t)
-  int              hover;
+  int      len;
+  int      alignement; //! sizeof(specific_item_t)
+  int      hover;
 } menulist_t;
 
 typedef union {
@@ -34,5 +35,6 @@ typedef union {
   };
 } menulist_msg_t;
 
-void menulist_init(menulist_t *self, menulist_item_t *items, int len, int alignement);
+void menulist_init(menulist_t *self, widget_context_t *ctx, menulist_item_t *items, int len, int alignement);
+void menulist_view(menulist_t *self);
 void menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield);

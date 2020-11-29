@@ -6,7 +6,6 @@
 #include "graphics.h"
 #include "widget.h"
 #include "menulist.h"
-#include "statusbar.h"
 #include "input.h"
 
 typedef struct {
@@ -15,16 +14,16 @@ typedef struct {
 } keystroke_t;
 
 struct buffer_t {
-  widget_context_t ctx;
-  char          *path;
-  int            fd;
-  bool           show_lines;
-  font_t         font;
-  keystroke_t    modifier;
+  widget_t    widget;
+  char       *path;
+  int         fd;
+  bool        show_lines;
+  font_t      font;
+  keystroke_t modifier;
   // Children widgets
-  menulist_t     context_menu;
-  input_t        input;
-  rect_t         lines;
+  input_t     input;
+  menulist_t  context_menu;
+  rect_t      lines;
 };
 typedef struct buffer_t buffer_t;
 
@@ -55,6 +54,6 @@ typedef union {
   };
 } buffer_context_menu_item_t __attribute__((__transparent_union__));
 
-void buffer_init(buffer_t *self, widget_context_init_t *ctx, char *path);
+void buffer_init(buffer_t *self, widget_context_t *ctx, char *path);
 void buffer_free(buffer_t *self);
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield);

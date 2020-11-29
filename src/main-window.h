@@ -3,14 +3,15 @@
 #include "widget.h"
 #include "tabs.h"
 #include "tree-panel.h"
+#include "statusbar.h"
 
 typedef struct {
-  widget_context_t ctx;
-  tree_panel_t     sidebar;
-  tabs_t           content;
-  statusbar_t      statusbar;
-  widget_t        *focused;
-  bool             show_sidebar;
+  widget_t     widget;
+  tree_panel_t sidebar;
+  tabs_t       content;
+  statusbar_t  statusbar;
+  widget_t    *focused;
+  bool         show_sidebar;
 } main_window_t;
 
 typedef union {
@@ -29,6 +30,6 @@ typedef union {
   };
 } main_window_msg_t;
 
-void main_window_init(main_window_t *self, widget_context_init_t *ctx);
+void main_window_init(main_window_t *self, widget_context_t *ctx);
 void main_window_free(main_window_t *self);
 void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t yield);

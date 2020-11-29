@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
   int width = 800, height = 800;
   XVisualInfo vinfo;
   XSetWindowAttributes attr;
-  widget_context_init_t ctx;
+  widget_context_t ctx;
 
   ctx.display = XOpenDisplay(NULL); exit_if_not(ctx.display);
   XMatchVisualInfo(ctx.display, DefaultScreen(ctx.display), 32, TrueColor, &vinfo);
@@ -39,8 +39,6 @@ int main(int argc, char **argv) {
 
   ctx.palette = &palette;
   ctx.cairo = cairo_create(surface);
-  ctx.clip.x = 0; ctx.clip.y = 0;
-  ctx.clip.w = width; ctx.clip.h = height;
 
   main_window_t buffer;
   main_window_init(&buffer, &ctx);
@@ -54,23 +52,25 @@ int main(int argc, char **argv) {
     if (!user_msg) {
       switch (x_event.type) {
       case ConfigureNotify: {
-        if (x_event.xconfigure.width != buffer.ctx.clip.w || x_event.xconfigure.height != buffer.ctx.clip.h) {
-          buffer.ctx.clip.w = x_event.xconfigure.width;
-          buffer.ctx.clip.h = x_event.xconfigure.height;
-          cairo_xlib_surface_set_size(surface, buffer.ctx.clip.w, buffer.ctx.clip.h);
+        if (x_event.xconfigure.width != buffer.widget.clip.w || x_event.xconfigure.height != buffer.widget.clip.h) {
+          buffer.widget.clip.w = x_event.xconfigure.width;
+          buffer.widget.clip.h = x_event.xconfigure.height;
+          cairo_xlib_surface_set_size(surface, buffer.widget.clip.w, buffer.widget.clip.h);
           loop(&msg_layout);
         }
         return;
       }
       case Expose: {
-        gx_set_color(&buffer.ctx, buffer.ctx.background);
-        cairo_paint(buffer.ctx.cairo);
+        gx_set_color(buffer.widget.ctx, buffer.widget.ctx->palette->default_bg);
+        cairo_paint(buffer.widget.ctx->cairo);
         break;
       }}
     }
     main_window_dispatch(&buffer, user_msg ? user_msg : &x_event, &loop);
   }
 
+  buffer.widget.clip.x = 0; buffer.widget.clip.y = 0;
+  buffer.widget.clip.w = width; buffer.widget.clip.h = height;
   main_window_dispatch(&buffer, &layout, &loop);
   while (1) {
     XNextEvent(ctx.display, &x_event);

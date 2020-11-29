@@ -43,9 +43,10 @@ typedef struct directory_list_node_t {
 } directory_list_node_t;
 
 typedef struct {
-  widget_context_t ctx;
-  tree_t          *tree;
-  tree_t          *hover;
+  widget_t widget;
+  tree_t  *tree;
+  tree_t  *hover;
+  font_t  *font;
 } tree_panel_t;
 
 typedef union {
@@ -61,6 +62,6 @@ typedef union {
   };
 } tree_panel_msg_t;
 
-void tree_panel_init(tree_panel_t *self, widget_context_init_t *ctx, char *path);
+void tree_panel_init(tree_panel_t *self, widget_context_t *ctx, char *path);
 void tree_panel_free(tree_panel_t *self);
 void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yield);

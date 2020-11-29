@@ -24,20 +24,8 @@ color_t gx_rgba(double r, double g, double b, double a) {
   return color;
 }
 
-void gx_init_context(widget_context_t *self, widget_context_init_t *init) {
-  self->display = init->display;
-  self->window = init->window;
-  self->cairo = init->cairo;
-  self->palette = init->palette;
-  self->clip = init->clip;
-  self->xic = init->xic;
-  self->background = gx_rgba(1, 1, 1, 1);
-  self->foreground = self->palette->primary_text;
-  gx_set_font(self, &palette.default_font);
-}
-
 void gx_set_color(widget_context_t *self, color_t color) {
-  self->foreground = color;
+  //  self->foreground = color;
   cairo_set_source_rgba(self->cairo, color.red, color.green, color.blue, color.alpha);
 }
 
@@ -57,7 +45,7 @@ void gx_rect(widget_context_t *ctx, rect_t rect) {
 }
 
 void gx_set_color_rgba(widget_context_t *self, double r, double g, double b, double a) {
-  self->foreground = gx_rgba(r, g, b, a);
+  //  self->foreground = gx_rgba(r, g, b, a);
   cairo_set_source_rgba(self->cairo, r, g, b, a);
 }
 
@@ -144,6 +132,7 @@ static __attribute__((constructor)) void __init__() {
   palette.ui_bg = gx_rgba(1, 1, 1, 1);
   palette.border = gx_rgba(0, 0, 0, 0.09);
   palette.hover = gx_rgba(0, 0, 0, 0.06);
+  palette.white = gx_rgba(1,1,1,1);
   gx_init_syntax(&palette.syntax);
   default_options = cairo_font_options_create();
   cairo_matrix_init_identity(&identity_matrix);

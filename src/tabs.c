@@ -1,8 +1,9 @@
 #include "tabs.h"
 #include "dlist.h"
 
-void tabs_init(tabs_t *self, widget_context_init_t *ctx, char *path) {
-  gx_init_context(&self->ctx, ctx);
+void tabs_init(tabs_t *self, widget_context_t *ctx, char *path) {
+  self->widget.ctx = ctx;
+  self->widget.dispatch = (dispatch_t)&tabs_dispatch;
   self->active = malloc(sizeof(buffer_list_node_t));
   self->active->next = NULL;
   self->active->prev = NULL;
@@ -22,8 +23,7 @@ void tabs_free(tabs_t *self) {
 
 void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   auto void yield_content(buffer_msg_t *buffer_msg);
-
-  __auto_type ctx = &self->ctx;
+  __auto_type ctx = self->widget.ctx;
   buffer_list_node_t *current_inst = NULL;
 
   switch(msg->tag) {
@@ -94,17 +94,17 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   case Widget_Layout: {
     __auto_type tabs_height = 36;
     __auto_type iter = self->tabs.first;
-    self->content_clip.x = ctx->clip.x;
-    self->content_clip.y = ctx->clip.y + tabs_height;
-    self->content_clip.w = ctx->clip.w;
-    self->content_clip.h = ctx->clip.h - tabs_height;
+    self->content_clip.x = self->widget.clip.x;
+    self->content_clip.y = self->widget.clip.y + tabs_height;
+    self->content_clip.w = self->widget.clip.w;
+    self->content_clip.h = self->widget.clip.h - tabs_height;
     for(; iter; iter = iter->next) {
-      iter->buffer.ctx.clip = self->content_clip;
+      iter->buffer.widget.clip = self->content_clip;
       current_inst = iter;
       yield_content((buffer_msg_t *)msg);
     }
-    self->tabs_clip.x = ctx->clip.x; self->tabs_clip.y = ctx->clip.y;
-    self->tabs_clip.w = ctx->clip.w; self->tabs_clip.h = tabs_height;
+    self->tabs_clip.x = self->widget.clip.x; self->tabs_clip.y = self->widget.clip.y;
+    self->tabs_clip.w = self->widget.clip.w; self->tabs_clip.h = tabs_height;
     return;
   }
   case Tabs_New: {
@@ -117,7 +117,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     }
     __auto_type new_tab = (buffer_list_node_t *)malloc(sizeof(buffer_list_node_t));
     buffer_init(&new_tab->buffer, (void *)ctx, msg->new.path);
-    new_tab->buffer.ctx.clip = self->content_clip;
+    new_tab->buffer.widget.clip = self->content_clip;
     buffer_msg_t next_msg = {.tag=Widget_Layout};
     buffer_dispatch(&new_tab->buffer, &next_msg, &noop_yield);
     dlist_insert_after((dlist_head_t *)&self->tabs, (dlist_node_t *)new_tab, (dlist_node_t *)self->tabs.last);
@@ -158,7 +158,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
 }
 
 void tabs_view(tabs_t *self) {
-  __auto_type ctx = &self->ctx;
+  __auto_type ctx = self->widget.ctx;
   // Draw contents
   if (self->active) {
     buffer_dispatch(&self->active->buffer, (buffer_msg_t *)&msg_view, &noop_yield);
