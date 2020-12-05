@@ -39,20 +39,20 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
   }
   case MotionNotify: {
     __auto_type motion = &msg->widget.x_event->xmotion;
-    if (rect_is_inside(self->content.widget.clip, motion->x, motion->y)) {
+    if (is_inside_xy(self->content.widget.clip, motion->x, motion->y)) {
       return yield_content((tabs_msg_t *)msg);
     }
-    if (rect_is_inside(self->sidebar.widget.clip, motion->x, motion->y)) {
+    if (is_inside_xy(self->sidebar.widget.clip, motion->x, motion->y)) {
       return yield_sidebar((tree_panel_msg_t *)msg);
     }
     return;
   }
   case ButtonPress: {
     __auto_type button = &msg->widget.x_event->xbutton;
-    if (rect_is_inside(self->content.widget.clip, button->x, button->y)) {
+    if (is_inside_xy(self->content.widget.clip, button->x, button->y)) {
       return yield_content((tabs_msg_t *)msg);
     }
-    if (rect_is_inside(self->sidebar.widget.clip, button->x, button->y)) {
+    if (is_inside_xy(self->sidebar.widget.clip, button->x, button->y)) {
       return yield_sidebar((tree_panel_msg_t *)msg);
     }
     return;

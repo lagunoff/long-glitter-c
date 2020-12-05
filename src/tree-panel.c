@@ -77,13 +77,13 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
     tree_t *go(tree_t *tree) {
       switch(tree->tag) {
       case Tree_File: {
-        if (rect_is_inside(tree->file.clip, motion->x, motion->y)) {
+        if (is_inside_xy(tree->file.clip, motion->x, motion->y)) {
           return tree;
         }
         break;
       }
       case Tree_Directory: {
-        if (rect_is_inside(tree->directory.clip, motion->x, motion->y)) {
+        if (is_inside_xy(tree->directory.clip, motion->x, motion->y)) {
           return tree;
         }
         if (tree->directory.state == Tree_Expanded) {

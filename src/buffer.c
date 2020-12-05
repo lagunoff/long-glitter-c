@@ -30,6 +30,8 @@ void buffer_init(buffer_t *self, widget_context_t *ctx, char *path) {
   self->modifier.state = 0;
   self->modifier.keysym = 0;
   gx_sync_font(&ctx->palette->monospace_font);
+  self->focus = (some_widget_t){(dispatch_t)&input_dispatch, (base_widget_t *)&self->input};
+  self->hover = noop_widget;
 }
 
 void buffer_free(buffer_t *self) {
@@ -43,26 +45,14 @@ void buffer_free(buffer_t *self) {
 
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   auto void yield_context_menu(void *msg);
-  auto void yield_input(void *msg);
-  auto void yield_embedded(void *msg);
+  auto some_widget_t lookup_children(lookup_filter_t filter);
   __auto_type ctx = self->widget.ctx;
-  __auto_type embedded_widget = (widget_t *)NULL;
 
   switch (msg->tag) {
   case Expose: {
     input_dispatch(&self->input, (input_msg_t *)&msg_view, &noop_yield);
     if (self->show_lines) buffer_view_lines(self);
     return;
-  }
-  case MotionNotify: {
-    return yield_input(msg);
-  }
-  case Widget_Embedded: {
-    return msg->widget.embedded.widget->dispatch(
-      &msg->widget.embedded.widget,
-      msg->widget.embedded.msg,
-      &yield_embedded
-    );
   }
   case KeyPress: {
     // TODO: event has to be redirected only to focused subwidget
@@ -104,16 +94,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       yield(&msg_layout);
       return yield(&msg_view);
     }
-    return yield_input(msg);
-  }
-  case ButtonPress: {
-    return yield_input(msg);
-  }
-  case SelectionRequest: {
-    return yield_input(msg);
-  }
-  case SelectionNotify: {
-    return yield_input(msg);
+    break;
   }
   case Widget_Free: {
     return buffer_free(self);
@@ -129,7 +110,8 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     self->input.widget.clip.w = self->widget.clip.w - self->lines.w;
     self->input.widget.clip.h = self->widget.clip.h;
 
-    yield_input(msg);
+    __auto_type input_widget = (some_widget_t){(dispatch_t)&input_dispatch, (base_widget_t*)&self->input};
+    yield(&(widget_msg_t){.tag=Widget_Children, .children={input_widget, msg}});
     return;
   }
   case Widget_Measure: {
@@ -137,10 +119,10 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     msg->widget.measure.y = INT_MAX;
     return;
   }
-  case Buffer_Input: {
+  case Widget_Children: {
     __auto_type prev_offset = bs_offset(&self->input.cursor.pos);
     __auto_type prev_line = self->input.scroll.line;
-    input_dispatch(&self->input, msg->input, &yield_input);
+    dispatch_some(buffer_dispatch, msg->widget.children.some, msg->widget.children.msg);
     __auto_type next_offset = bs_offset(&self->input.cursor.pos);
     __auto_type next_line = self->input.scroll.line;
     if (next_line != prev_line || prev_offset != next_offset) {
@@ -199,17 +181,14 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     return;
   }}
 
-  void yield_embedded(void *msg) {
-    if (!embedded_widget) return;
-    return embedded_widget->dispatch(embedded_widget,msg, &yield_embedded);
-  }
+  redirect_x_events(buffer_dispatch);
+
   void yield_context_menu(void *msg) {
     buffer_msg_t buffer_msg = {.tag = Buffer_ContextMenu, .context_menu = *(menulist_msg_t *)msg};
     yield(&buffer_msg);
   }
-  void yield_input(void *msg) {
-    embedded_widget = (widget_t *)&self->input;
-    yield_embedded(msg);
+  some_widget_t lookup_children(lookup_filter_t filter) {
+    return noop_widget;
   }
 }
 

@@ -6,8 +6,8 @@
 typedef struct buffer_list_node_t {
   struct buffer_list_node_t *next;
   struct buffer_list_node_t *prev;
-  rect_t   title_clip;
-  buffer_t buffer;
+  base_widget_t title;
+  buffer_t      buffer;
 } buffer_list_node_t;
 
 typedef struct {
@@ -16,19 +16,20 @@ typedef struct {
 } buffer_list_t;
 
 typedef struct {
-  widget_t      widget;
+  widget_t   widget;
+  some_widget_t hover;
+  some_widget_t focus;
   buffer_list_t tabs;
   buffer_list_node_t *active; // @Nullable
-  rect_t        tabs_clip;
-  rect_t        content_clip;
+  rect_t     tabs_clip;
+  rect_t     content_clip;
 } tabs_t;
 
 typedef union {
   widget_msg_t widget;
   struct {
     enum {
-      Tabs_Content = Widget_Last,
-      Tabs_New,
+      Tabs_New = Widget_Last,
       Tabs_Close,
       Tabs_TabClicked,
       Tabs_Next,

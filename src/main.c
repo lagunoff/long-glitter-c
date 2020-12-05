@@ -39,6 +39,7 @@ int main(int argc, char **argv) {
 
   ctx.palette = &palette;
   ctx.cairo = cairo_create(surface);
+  ctx.font = &palette.default_font;
 
   main_window_t buffer;
   main_window_init(&buffer, &ctx);

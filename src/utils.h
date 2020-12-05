@@ -14,6 +14,7 @@
 #define inline_always __inline__ __attribute__((always_inline))
 #define swap(a, b) {__auto_type temp = a; a = b; b = temp;}
 #define match(ty, a, body) ({ ty _(it) { switch(it) body;}; _(a); })
+#define return_construct(ty, body) {ty _result = body; return _result;}
 
 typedef struct {
   int x;
@@ -34,8 +35,15 @@ char *extension(char *str);
 char *strchr_last(char *str, int c);
 
 inline_always bool
-rect_is_inside(rect_t rect, int x, int y) {
+is_inside_xy(rect_t rect, int x, int y) {
   if (x < rect.x || x >= rect.x + rect.w) return false;
   if (y < rect.y || y >= rect.y + rect.h) return false;
+  return true;
+}
+
+inline_always bool
+is_inside_point(rect_t rect, point_t point) {
+  if (point.x < rect.x || point.x >= rect.x + rect.w) return false;
+  if (point.y < rect.y || point.y >= rect.y + rect.h) return false;
   return true;
 }

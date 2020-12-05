@@ -1,5 +1,6 @@
 #include "tabs.h"
 #include "dlist.h"
+#include "utils.h"
 
 void tabs_init(tabs_t *self, widget_context_t *ctx, char *path) {
   self->widget.ctx = ctx;
@@ -10,6 +11,8 @@ void tabs_init(tabs_t *self, widget_context_t *ctx, char *path) {
   buffer_init(&self->active->buffer, ctx, path);
   self->tabs.first = self->active;
   self->tabs.last = self->active;
+  self->focus = (some_widget_t){(dispatch_t)&buffer_dispatch, (base_widget_t *)&self->active->buffer};
+  self->hover = noop_widget;
 }
 
 void tabs_free(tabs_t *self) {
@@ -22,9 +25,13 @@ void tabs_free(tabs_t *self) {
 }
 
 void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
-  auto void yield_content(buffer_msg_t *buffer_msg);
+  auto void title_dispatch(base_widget_t *self, widget_msg_t *msg, yield_t yield);
+  auto some_widget_t lookup_children(lookup_filter_t filter);
+
   __auto_type ctx = self->widget.ctx;
   buffer_list_node_t *current_inst = NULL;
+
+  redirect_x_events(tabs_dispatch);
 
   switch(msg->tag) {
   case Expose: {
@@ -33,17 +40,13 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   case Widget_Free: {
     return tabs_free(self);
   }
-  case MotionNotify: {
-    current_inst = self->active;
-    return yield_content((buffer_msg_t *)msg);
-  }
   case ButtonPress: {
     __auto_type button = &msg->widget.x_event->xbutton;
-    if (rect_is_inside(self->tabs_clip, button->x, button->y)) {
+    if (is_inside_xy(self->tabs_clip, button->x, button->y)) {
       switch (button->button) {
       case Button1: { // Left click
         for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
-          if (rect_is_inside(iter->title_clip, button->x, button->y)) {
+          if (is_inside_xy(iter->title.clip, button->x, button->y)) {
             tabs_msg_t next_msg = {.tag = Tabs_TabClicked, .tab_clicked = iter};
             return yield(&next_msg);
           }
@@ -55,12 +58,10 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
         return yield(&next_msg);
       }
       case Button5: { // Wheel down
-        tabs_msg_t next_msg = {.tag = Tabs_Next};
-        return yield(&next_msg);
+        return yield(&(tabs_msg_t){.tag=Tabs_Next});
       }}
     };
-    current_inst = self->active;
-    return yield_content((buffer_msg_t *)msg);
+    return dispatch_some(tabs_dispatch, self->focus, msg);
   }
   case KeyPress: {
     __auto_type xkey = &msg->widget.x_event->xkey;
@@ -80,16 +81,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
       tabs_msg_t next_msg = {.tag = Tabs_Next};
       return yield(&next_msg);
     }
-    current_inst = self->active;
-    return yield_content((buffer_msg_t *)msg);
-  }
-  case SelectionRequest: {
-    current_inst = self->active;
-    return yield_content((buffer_msg_t *)msg);
-  }
-  case SelectionNotify: {
-    current_inst = self->active;
-    return yield_content((buffer_msg_t *)msg);
+    break;
   }
   case Widget_Layout: {
     __auto_type tabs_height = 36;
@@ -100,8 +92,10 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     self->content_clip.h = self->widget.clip.h - tabs_height;
     for(; iter; iter = iter->next) {
       iter->buffer.widget.clip = self->content_clip;
-      current_inst = iter;
-      yield_content((buffer_msg_t *)msg);
+      yield(&(widget_msg_t){
+        .tag=Widget_Children,
+        .children={{(dispatch_t)&buffer_dispatch, (base_widget_t *)&iter->buffer}, msg}
+      });
     }
     self->tabs_clip.x = self->widget.clip.x; self->tabs_clip.y = self->widget.clip.y;
     self->tabs_clip.w = self->widget.clip.w; self->tabs_clip.h = tabs_height;
@@ -111,8 +105,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     // First check if the file already opened, if so, focus on its tab
     for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
       if (strcmp(iter->buffer.path, msg->new.path) == 0) {
-        tabs_msg_t next_msg = {.tag = Tabs_TabClicked, .tab_clicked = iter};
-        return yield(&next_msg);
+        return yield(&(tabs_msg_t){.tag=Tabs_TabClicked, .tab_clicked=iter});
       }
     }
     __auto_type new_tab = (buffer_list_node_t *)malloc(sizeof(buffer_list_node_t));
@@ -144,16 +137,30 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     if (!(self->active) || !(self->active->next)) return;
     self->active = self->active->next;
     return yield(&msg_view);
-  }
-  case Tabs_Content: {
-    current_inst = msg->content.inst;
-    return buffer_dispatch(&msg->content.inst->buffer, msg->content.msg, (yield_t)&yield_content);
   }}
 
-  void yield_content(buffer_msg_t *buffer_msg) {
-    if (!current_inst) return;
-    tabs_msg_t next_msg = {.tag=Tabs_Content, .content={.inst=current_inst, .msg=buffer_msg}};
-    yield(&next_msg);
+  some_widget_t lookup_children(lookup_filter_t filter) {
+    switch(filter.tag) {
+    case Lookup_Coords: {
+      if (self->active && is_inside_point(self->active->buffer.widget.clip, filter.coords)) {
+        return (some_widget_t){(dispatch_t)&buffer_dispatch, (base_widget_t *)&self->active->buffer.widget};
+      }
+      for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
+        if (is_inside_point(iter->title.clip, filter.coords)) {
+          return (some_widget_t){(dispatch_t)&title_dispatch, &iter->title};
+        }
+      }
+    }}
+    return noop_widget;
+  }
+
+  void title_dispatch(base_widget_t *self, widget_msg_t *msg, yield_t yield) {
+    switch(msg->tag) {
+    case Widget_MouseEnter: {
+
+    }
+    case Widget_MouseLeave: {
+    }}
   }
 }
 
@@ -184,10 +191,10 @@ void tabs_view(tabs_t *self) {
     gx_line(ctx, x + extents.x_advance + x_padding * 2, self->tabs_clip.y, x + extents.x_advance + x_padding * 2, self->tabs_clip.y + self->tabs_clip.h);
     gx_set_color(ctx, ctx->palette->secondary_text);
     gx_text(ctx, x + x_padding, y_text, fname);
-    iter->title_clip.x = x;
-    iter->title_clip.y = self->tabs_clip.y;
-    iter->title_clip.w = extents.x_advance + x_padding * 2;
-    iter->title_clip.h = self->tabs_clip.h;
+    iter->title.clip.x = x;
+    iter->title.clip.y = self->tabs_clip.y;
+    iter->title.clip.w = extents.x_advance + x_padding * 2;
+    iter->title.clip.h = self->tabs_clip.h;
     x += extents.x_advance + x_padding * 2;
   }
 }

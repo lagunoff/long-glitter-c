@@ -15,6 +15,8 @@ typedef struct {
 
 struct buffer_t {
   widget_t    widget;
+  some_widget_t hover;
+  some_widget_t focus;
   char       *path;
   int         fd;
   bool        show_lines;
