@@ -49,8 +49,8 @@ void input_init(input_t *self, widget_context_t *ctx, buff_string_t *content, sy
   self->lines_len = 0;
   self->syntax_hl = hl;
   hl->reset(&self->syntax_hl_inst);
-  //  self->context_menu.widget.ctx = self->widget.ctx;
   self->x_selection = NULL;
+  self->highlight_line = false;
 }
 
 void input_free(input_t *self) {
@@ -457,7 +457,7 @@ void input_view(input_t *self) {
     self->lines[i] = begin_offset;
 
     // Highlight the current line
-    if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
+    if (self->highlight_line && cursor_offset >= begin_offset && cursor_offset <= end_offset) {
       gx_set_color(ctx, ctx->palette->current_line_bg);
       gx_box(ctx, self->widget.clip.x, y, self->widget.clip.w, self->font->extents.height);
       gx_set_color(ctx, ctx->palette->primary_text);

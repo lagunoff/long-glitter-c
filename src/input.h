@@ -56,6 +56,7 @@ typedef struct {
   buff_string_t *contents;
   font_t        *font;
   cursor_style_t cursor_style;
+  bool           highlight_line;
   scroll_t       scroll;
   cursor_t       cursor;
   selection_t    selection;

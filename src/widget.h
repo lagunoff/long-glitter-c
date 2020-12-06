@@ -14,12 +14,7 @@ typedef struct {
   double red, green, blue, alpha;
 } color_t;
 
-union widget_msg_or_void_t {
-  union widget_msg_t *widget;
-  void         *_void;
-} __attribute__((__transparent_union__));
-
-typedef void (*yield_t)(union widget_msg_or_void_t msg);
+typedef void (*yield_t)(void *msg);
 typedef void (*dispatch_t)(void *self, union widget_msg_t *msg, yield_t yield);
 
 typedef struct {
@@ -85,7 +80,7 @@ static widget_msg_t mouse_enter = {.tag = Widget_MouseEnter};
 static widget_msg_t mouse_leave = {.tag = Widget_MouseLeave};
 static widget_msg_t focus_in = {.tag = Widget_FocusIn};
 static widget_msg_t focus_out = {.tag = Widget_FocusOut};
-static void noop_yield(union widget_msg_or_void_t msg) {}
+static void noop_yield(void *msg) {}
 
 void widget_close_window(Window window);
 
@@ -119,7 +114,7 @@ static some_widget_t noop_widget = {.dispatch = &noop_dispatch, .widget = NULL};
   })
 
 #define yield_children(__dispatch, __widget, __msg)                     \
-  yield(&(widget_msg_t){.tag=Widget_Children, .children={{(dispatch_t)&__dispatch, (base_widget_t *)(__widget)}, __msg}})
+  yield(&(widget_msg_t){.tag=Widget_Children, .children={{(dispatch_t)&__dispatch, (base_widget_t *)(__widget)}, (__msg)}})
 
 #define redirect_x_events(__dispatch) {                                 \
   switch(msg->tag) {                                                    \

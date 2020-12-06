@@ -115,6 +115,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     buffer_dispatch(&new_tab->buffer, &next_msg, &noop_yield);
     dlist_insert_after((dlist_head_t *)&self->tabs, (dlist_node_t *)new_tab, (dlist_node_t *)self->tabs.last);
     self->active = new_tab;
+    yield(&msg_layout);
     return yield(&msg_view);
   }
   case Tabs_Close: {
@@ -126,6 +127,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   }
   case Tabs_TabClicked: {
     self->active = msg->tab_clicked;
+    self->focus = (some_widget_t){(dispatch_t)&buffer_dispatch, (base_widget_t *)&self->active->buffer};
     return yield(&msg_view);
   }
   case Tabs_Prev: {

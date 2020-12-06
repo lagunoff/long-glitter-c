@@ -9,6 +9,7 @@ void main_window_init(main_window_t *self, widget_context_t *ctx, int argc, char
   tabs_init(&self->content, ctx, "/home/vlad/job/long-glitter-c/tmp/xola.c");
   tree_panel_init(&self->sidebar, ctx, "/home/vlad/job/long-glitter-c/tmp");
   statusbar_init(&self->statusbar, ctx, NULL);
+  self->statusbar.buffer = self->content.active ? &self->content.active->buffer : NULL;
 }
 
 void main_window_free(main_window_t *self) {
@@ -81,7 +82,14 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
         return yield_children(tabs_dispatch, &self->content, &next_msg);
       }
     }
-    break;
+    __auto_type prev_active = self->content.active;
+    dispatch_some(main_window_dispatch, msg->widget.children.some, msg->widget.children.msg);
+    __auto_type next_active = self->content.active;
+    if (prev_active != next_active) {
+      self->statusbar.buffer = self->content.active ? &self->content.active->buffer : NULL;
+      yield(&msg_view);
+    }
+    return;
   }}
 
   redirect_x_events(main_window_dispatch);

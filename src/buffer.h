@@ -7,6 +7,7 @@
 #include "widget.h"
 #include "menulist.h"
 #include "input.h"
+#include "address-line.h"
 
 typedef struct {
   int    state;
@@ -23,6 +24,7 @@ struct buffer_t {
   font_t      font;
   keystroke_t modifier;
   // Children widgets
+  address_line_t address_line;
   input_t     input;
   menulist_t  context_menu;
   rect_t      lines;
@@ -33,14 +35,8 @@ typedef union {
   widget_msg_t widget;
   struct {
     enum {
-      Buffer_ContextMenu = Widget_Last,
-      Buffer_Input,
-      Buffer_Save,
+      Buffer_Save = Widget_Last,
     } tag;
-    union {
-      menulist_msg_t context_menu;
-      input_msg_t   *input;
-    };
   };
 } buffer_msg_t;
 
