@@ -1,9 +1,11 @@
 #include "main-window.h"
 
-void main_window_init(main_window_t *self, widget_context_t *ctx) {
+void main_window_init(main_window_t *self, widget_context_t *ctx, int argc, char **argv) {
   self->widget.ctx = ctx;
   self->widget.dispatch = (dispatch_t)&main_window_dispatch;
   self->show_sidebar = false;
+  self->focus = (some_widget_t){(dispatch_t)&tabs_dispatch, (base_widget_t *)&self->content};
+  self->hover = noop_widget;
   tabs_init(&self->content, ctx, "/home/vlad/job/long-glitter-c/tmp/xola.c");
   tree_panel_init(&self->sidebar, ctx, "/home/vlad/job/long-glitter-c/tmp");
   statusbar_init(&self->statusbar, ctx, NULL);
@@ -15,10 +17,9 @@ void main_window_free(main_window_t *self) {
 }
 
 void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
-  auto void yield_statusbar(void *msg);
-  auto void yield_sidebar(tree_panel_msg_t *msg);
-  auto void yield_content(tabs_msg_t *msg);
+  auto some_widget_t lookup_children(lookup_filter_t filter);
   __auto_type ctx = self->widget.ctx;
+
   switch(msg->tag) {
   case Expose: {
     if (self->show_sidebar) {
@@ -31,31 +32,11 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
       cairo_line_to(ctx->cairo, self->sidebar.widget.clip.x + self->sidebar.widget.clip.w, self->sidebar.widget.clip.y + self->sidebar.widget.clip.h);
       cairo_stroke(ctx->cairo);
     }
-    statusbar_dispatch(&self->statusbar, (statusbar_msg_t *)msg, &yield_statusbar);
+    statusbar_dispatch(&self->statusbar, (statusbar_msg_t *)msg, &noop_yield);
     return;
   }
   case Widget_Free: {
     return main_window_free(self);
-  }
-  case MotionNotify: {
-    __auto_type motion = &msg->widget.x_event->xmotion;
-    if (is_inside_xy(self->content.widget.clip, motion->x, motion->y)) {
-      return yield_content((tabs_msg_t *)msg);
-    }
-    if (is_inside_xy(self->sidebar.widget.clip, motion->x, motion->y)) {
-      return yield_sidebar((tree_panel_msg_t *)msg);
-    }
-    return;
-  }
-  case ButtonPress: {
-    __auto_type button = &msg->widget.x_event->xbutton;
-    if (is_inside_xy(self->content.widget.clip, button->x, button->y)) {
-      return yield_content((tabs_msg_t *)msg);
-    }
-    if (is_inside_xy(self->sidebar.widget.clip, button->x, button->y)) {
-      return yield_sidebar((tree_panel_msg_t *)msg);
-    }
-    return;
   }
   case KeyPress: {
     __auto_type xkey = &msg->widget.x_event->xkey;
@@ -68,30 +49,9 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
       return yield(&msg_view);
     }
     if (keysym == XK_Up && is_alt) {
-      tree_panel_msg_t next_msg = {.tag=TreePanel_Up};
-      return yield_sidebar(&next_msg);
+      return yield_children(tree_panel_dispatch, &self->sidebar, &(tree_panel_msg_t){.tag=TreePanel_Up});
     }
-    return yield_content((tabs_msg_t *)msg);
-  }
-  case SelectionRequest: {
-    return yield_content((tabs_msg_t *)msg);
-  }
-  case SelectionNotify: {
-    return yield_content((tabs_msg_t *)msg);
-  }
-  case MainWindow_Content: {
-    return tabs_dispatch(&self->content, msg->content, (yield_t)&yield_content);
-  }
-  case MainWindow_Sidebar: {
-    if (msg->sidebar->tag == TreePanel_ItemClicked && msg->sidebar->item_clicked->tag == Tree_File) {
-      // Click on a file, open new tab
-      tabs_msg_t next_msg = {.tag = Tabs_New, .new = {.path = msg->sidebar->item_clicked->file.path}};
-      return yield_content(&next_msg);
-    }
-    return tree_panel_dispatch(&self->sidebar, msg->sidebar, (yield_t)&yield_sidebar);
-  }
-  case MainWindow_Statusbar: {
-    return statusbar_dispatch(&self->statusbar, msg->statusbar, &yield_statusbar);
+    break;
   }
   case Widget_Layout: {
     statusbar_msg_t measure = {.tag = Widget_Measure};
@@ -108,21 +68,37 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     self->statusbar.widget.clip.w = self->widget.clip.w;
     self->statusbar.widget.clip.h = measure.measure.y;
 
-    yield_content((tabs_msg_t *)msg);
-    yield_sidebar((tree_panel_msg_t *)msg);
+    yield_children(tabs_dispatch, &self->content, (tabs_msg_t *)msg);
+    yield_children(tree_panel_dispatch, &self->sidebar, (tree_panel_msg_t *)msg);
     return;
+  }
+  case Widget_Children: {
+    if (msg->widget.children.some.dispatch == (dispatch_t)&tree_panel_dispatch) {
+      __auto_type child_msg = (tree_panel_msg_t *)msg->widget.children.msg;
+      if (child_msg->tag == TreePanel_ItemClicked && child_msg->item_clicked->tag == Tree_File) {
+        // Click on a file, open new tab
+        tabs_msg_t next_msg = {.tag = Tabs_New, .new = {.path = child_msg->item_clicked->file.path}};
+        return yield_children(tabs_dispatch, &self->content, &next_msg);
+      }
+    }
+    break;
   }}
 
-  void yield_sidebar(tree_panel_msg_t *msg) {
-    main_window_msg_t next_msg = {.tag=MainWindow_Sidebar, .sidebar=msg};
-    yield(&next_msg);
-  }
-  void yield_content(tabs_msg_t *msg) {
-    main_window_msg_t next_msg = {.tag=MainWindow_Content, .content=msg};
-    yield(&next_msg);
-  }
-  void yield_statusbar(void *msg) {
-    /* main_window_msg_t next_msg = {.tag=MainWindow_Statusbar, .statusbar=(statusbar_msg_t *)msg}; */
-    /* yield(&next_msg); */
+  redirect_x_events(main_window_dispatch);
+
+  some_widget_t lookup_children(lookup_filter_t filter) {
+    switch(filter.tag) {
+    case Lookup_Coords: {
+      if (is_inside_point(self->statusbar.widget.clip, filter.coords)) {
+        return (some_widget_t){(dispatch_t)&statusbar_dispatch, (base_widget_t *)&self->statusbar.widget};
+      }
+      if (is_inside_point(self->sidebar.widget.clip, filter.coords)) {
+        return (some_widget_t){(dispatch_t)&tree_panel_dispatch, (base_widget_t *)&self->sidebar.widget};
+      }
+      if (is_inside_point(self->content.widget.clip, filter.coords)) {
+        return (some_widget_t){(dispatch_t)&tabs_dispatch, (base_widget_t *)&self->content.widget};
+      }
+    }}
+    return noop_widget;
   }
 }

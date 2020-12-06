@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
   ctx.font = &palette.default_font;
 
   main_window_t buffer;
-  main_window_init(&buffer, &ctx);
+  main_window_init(&buffer, &ctx, argc, argv);
   main_window_msg_t layout = {.tag = Widget_Layout};
 
   XEvent x_event;

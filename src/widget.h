@@ -14,9 +14,13 @@ typedef struct {
   double red, green, blue, alpha;
 } color_t;
 
-typedef void (*yield_t)(void *msg);
+union widget_msg_or_void_t {
+  union widget_msg_t *widget;
+  void         *_void;
+} __attribute__((__transparent_union__));
+
+typedef void (*yield_t)(union widget_msg_or_void_t msg);
 typedef void (*dispatch_t)(void *self, union widget_msg_t *msg, yield_t yield);
-typedef bool (*lookup_cb_t)(dispatch_t dispatch, struct base_widget_t *widget);
 
 typedef struct {
   Window  window;
@@ -81,7 +85,7 @@ static widget_msg_t mouse_enter = {.tag = Widget_MouseEnter};
 static widget_msg_t mouse_leave = {.tag = Widget_MouseLeave};
 static widget_msg_t focus_in = {.tag = Widget_FocusIn};
 static widget_msg_t focus_out = {.tag = Widget_FocusOut};
-static void noop_yield(void *msg) {}
+static void noop_yield(union widget_msg_or_void_t msg) {}
 
 void widget_close_window(Window window);
 
@@ -94,11 +98,9 @@ typedef struct {
   enum {
     Lookup_Empty,
     Lookup_Coords,
-    Lookup_ButtonPress
   } tag;
   union {
     point_t coords;
-    point_t button_press;
   };
 } lookup_filter_t;
 
@@ -135,12 +137,12 @@ static some_widget_t noop_widget = {.dispatch = &noop_dispatch, .widget = NULL};
     }                                                                   \
     break;                                                              \
   }                                                                     \
-  case ButtonPress: {break;                                             \
+  case ButtonPress: {                                                   \
     __auto_type xbutton = &msg->widget.x_event->xbutton;                \
-    if (xbutton->button != Button1) break;                              \
-    __auto_type filter = (lookup_filter_t){.tag=Lookup_ButtonPress, .button_press={xbutton->x, xbutton->y}}; \
+    __auto_type filter = (lookup_filter_t){.tag=Lookup_Coords, .coords={xbutton->x, xbutton->y}}; \
     __auto_type next_focus = lookup_children(filter);                   \
-    if (next_focus.widget != self->focus.widget) {                      \
+    dispatch_some(__dispatch, next_focus, msg);                         \
+    if (0 && next_focus.widget != self->focus.widget) {                 \
       dispatch_some(__dispatch, self->focus, &focus_out);               \
       dispatch_some(__dispatch, next_focus, &focus_in);                 \
       self->focus.dispatch = next_focus.dispatch;                       \
