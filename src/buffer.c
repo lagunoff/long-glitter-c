@@ -45,7 +45,7 @@ void buffer_free(buffer_t *self) {
   close(self->fd);
 }
 
-void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
+void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   auto some_widget_t lookup_children(lookup_filter_t filter);
   __auto_type ctx = self->widget.ctx;
 
@@ -77,6 +77,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       return yield_children(address_line_dispatch, &self->address_line, &(widget_msg_t){.tag=Widget_FocusIn});
     }
     if (keysym == XK_Escape) {
+      self->focus = (some_widget_t){(dispatch_t)&input_dispatch, (base_widget_t *)&self->input};
       self->focus = (some_widget_t){(dispatch_t)&input_dispatch, (base_widget_t *)&self->input};
       return yield_children(input_dispatch, &self->input, &(widget_msg_t){.tag=Widget_FocusIn});
     }
@@ -208,6 +209,24 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   some_widget_t lookup_children(lookup_filter_t filter) {
     return (some_widget_t){(dispatch_t)&input_dispatch, (base_widget_t *)&self->input};
   }
+}
+
+void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
+  void sync_focus(buffer_t *self, buffer_msg_t *msg, yield_t yield, dispatch_t next) {
+    __auto_type last_focus = self->focus;
+    __auto_type last_hover = self->hover;
+    next(self, msg, yield);
+    if (last_focus.widget != self->focus.widget) {
+      dispatch_some(next, last_focus, &(widget_msg_t){.tag=Widget_FocusOut});
+      dispatch_some(next, self->focus, &(widget_msg_t){.tag=Widget_FocusIn});
+    }
+    if (last_hover.widget != self->hover.widget) {
+      dispatch_some(next, last_focus, &(widget_msg_t){.tag=Widget_MouseLeave});
+      dispatch_some(next, self->focus, &(widget_msg_t){.tag=Widget_MouseEnter});
+    }
+  }
+
+  return sync_focus(self, msg, yield, (dispatch_t)buffer_dispatch_);
 }
 
 void buffer_view_lines(buffer_t *self) {

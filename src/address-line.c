@@ -34,6 +34,8 @@ void address_line_dispatch(address_line_t *self, address_line_msg_t *msg, yield_
     input_dispatch(&self->input, (input_msg_t *)msg, &noop_yield);
     return;
   }
+  case Widget_FocusIn: {
+  }
   case Widget_Measure: {
     msg->widget.measure.y = self->font->extents.height + y_padding * 2;
     return;

@@ -15,7 +15,7 @@ typedef struct {
 } color_t;
 
 typedef void (*yield_t)(void *msg);
-typedef void (*dispatch_t)(void *self, union widget_msg_t *msg, yield_t yield);
+typedef void (*dispatch_t)(void *self, void *msg, yield_t yield);
 
 typedef struct {
   Window  window;
@@ -99,7 +99,7 @@ typedef struct {
   };
 } lookup_filter_t;
 
-static void noop_dispatch(void *self, union widget_msg_t *msg, yield_t yield) {}
+static void noop_dispatch(void *self, void *msg, yield_t yield) {}
 static lookup_filter_t noop_filter = {.tag = Lookup_Empty};
 static some_widget_t noop_widget = {.dispatch = &noop_dispatch, .widget = NULL};
 

@@ -24,14 +24,12 @@ void tabs_free(tabs_t *self) {
   }
 }
 
-void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
+void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   auto void title_dispatch(base_widget_t *self, widget_msg_t *msg, yield_t yield);
   auto some_widget_t lookup_children(lookup_filter_t filter);
 
   __auto_type ctx = self->widget.ctx;
   buffer_list_node_t *current_inst = NULL;
-
-  redirect_x_events(tabs_dispatch);
 
   switch(msg->tag) {
   case Expose: {
@@ -70,16 +68,13 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     __auto_type is_shift = xkey->state & ShiftMask;
 
     if (keysym == XK_w && is_ctrl && is_shift) {
-      tabs_msg_t next_msg = {.tag=Tabs_Close, .close=self->active};
-      return yield(&next_msg);
-    }
-    if (keysym == XK_Page_Down && is_ctrl) {
-      tabs_msg_t next_msg = {.tag = Tabs_Prev};
-      return yield(&next_msg);
+      return yield(&(tabs_msg_t){.tag=Tabs_Close, .close=self->active});
     }
     if (keysym == XK_Page_Up && is_ctrl) {
-      tabs_msg_t next_msg = {.tag = Tabs_Next};
-      return yield(&next_msg);
+      return yield(&(tabs_msg_t){.tag = Tabs_Prev});
+    }
+    if (keysym == XK_Page_Down && is_ctrl) {
+      return yield(&(tabs_msg_t){.tag = Tabs_Next});
     }
     break;
   }
@@ -127,7 +122,6 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   }
   case Tabs_TabClicked: {
     self->active = msg->tab_clicked;
-    self->focus = (some_widget_t){(dispatch_t)&buffer_dispatch, (base_widget_t *)&self->active->buffer};
     return yield(&msg_view);
   }
   case Tabs_Prev: {
@@ -140,6 +134,8 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     self->active = self->active->next;
     return yield(&msg_view);
   }}
+
+  redirect_x_events(tabs_dispatch);
 
   some_widget_t lookup_children(lookup_filter_t filter) {
     switch(filter.tag) {
@@ -164,6 +160,18 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     case Widget_MouseLeave: {
     }}
   }
+}
+
+void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
+  void sync_active(tabs_t *self, tabs_msg_t *msg, yield_t yield, dispatch_t next) {
+    __auto_type prev_active = self->active;
+    next(self, msg, yield);
+    if (prev_active != self->active) {
+      self->focus = self->active ? (some_widget_t){(dispatch_t)&buffer_dispatch, (base_widget_t *)&self->active->buffer} : noop_widget;
+    }
+  }
+
+  return sync_active(self, msg, yield, (dispatch_t)tabs_dispatch_);
 }
 
 void tabs_view(tabs_t *self) {

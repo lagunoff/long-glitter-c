@@ -1,13 +1,16 @@
 #include "main-window.h"
 
 void main_window_init(main_window_t *self, widget_context_t *ctx, int argc, char **argv) {
+  __auto_type path = argc < 2 ? "/home/vlad/job/long-glitter-c/tmp/xola.c" : argv[1];
+  char dir_path[128];
+  dir_path[dirname(path, dir_path)] = '\0';
   self->widget.ctx = ctx;
   self->widget.dispatch = (dispatch_t)&main_window_dispatch;
   self->show_sidebar = false;
   self->focus = (some_widget_t){(dispatch_t)&tabs_dispatch, (base_widget_t *)&self->content};
   self->hover = noop_widget;
-  tabs_init(&self->content, ctx, "/home/vlad/job/long-glitter-c/tmp/xola.c");
-  tree_panel_init(&self->sidebar, ctx, "/home/vlad/job/long-glitter-c/tmp");
+  tabs_init(&self->content, ctx, path);
+  tree_panel_init(&self->sidebar, ctx, dir_path);
   statusbar_init(&self->statusbar, ctx, NULL);
   self->statusbar.buffer = self->content.active ? &self->content.active->buffer : NULL;
 }
