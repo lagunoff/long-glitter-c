@@ -6,9 +6,7 @@
 #include "statusbar.h"
 
 typedef struct {
-  widget_t     widget;
-  some_widget_t hover;
-  some_widget_t focus;
+  widget_container_t widget;
   tree_panel_t sidebar;
   tabs_t       content;
   statusbar_t  statusbar;

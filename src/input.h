@@ -52,7 +52,7 @@ typedef struct {
 } syntax_highlighter_t;
 
 typedef struct {
-  widget_t       widget;
+  widget_basic_t widget;
   buff_string_t *contents;
   font_t        *font;
   cursor_style_t cursor_style;

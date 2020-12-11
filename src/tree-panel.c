@@ -12,12 +12,13 @@ void tree_init(tree_t *self, char *path);
 void tree_free(tree_t *self);
 
 void tree_panel_init(tree_panel_t *self, widget_context_t *ctx, char *path) {
-  self->widget.ctx = ctx;
-  self->widget.dispatch = (dispatch_t)&tree_panel_dispatch;
+  self->widget = (widget_container_t){
+    Widget_Container, {0,0,0,0}, ctx,
+    ((dispatch_t)&tree_panel_dispatch), NULL, NULL
+  };
   self->font = &ctx->palette->default_font;
   self->tree = malloc(sizeof(tree_t));
   tree_init(self->tree, path);
-  self->hover = NULL;
 }
 
 void tree_panel_free(tree_panel_t *self) {
@@ -25,7 +26,7 @@ void tree_panel_free(tree_panel_t *self) {
   free(self->tree);
 }
 
-void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yield) {
+void tree_panel_dispatch_(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yield) {
   __auto_type ctx = self->widget.ctx;
   switch(msg->tag) {
   case Expose: {
@@ -33,7 +34,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
       switch(tree->tag) {
       case Tree_File: {
         __auto_type name = basename(tree->file.path);
-        __auto_type color = self->hover == tree ? ctx->palette->primary_text : ctx->palette->secondary_text;
+        __auto_type color = self->widget.hover == coerce_widget(tree) ? ctx->palette->primary_text : ctx->palette->secondary_text;
         rect_t clip = {self->widget.clip.x + 8 + indent * 16, self->widget.clip.y + 8 + line * ctx->font->extents.height};
         cairo_text_extents_t extents;
         gx_set_color(ctx, color);
@@ -41,12 +42,12 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
         gx_measure_text(ctx, name, &extents);
         clip.w = extents.x_advance;
         clip.h = extents.height;
-        tree->file.clip = clip;
+        tree->clip = clip;
         break;
       }
       case Tree_Directory: {
         __auto_type name = basename(tree->directory.path);
-        __auto_type color = self->hover == tree ? ctx->palette->primary_text : ctx->palette->secondary_text;
+        __auto_type color = self->widget.hover == coerce_widget(tree) ? ctx->palette->primary_text : ctx->palette->secondary_text;
         rect_t clip = {self->widget.clip.x + 8 + indent * 16, self->widget.clip.y + 8 + (line * ctx->font->extents.height)};
         cairo_text_extents_t extents;
         gx_set_color(ctx, color);
@@ -77,13 +78,13 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
     tree_t *go(tree_t *tree) {
       switch(tree->tag) {
       case Tree_File: {
-        if (is_inside_xy(tree->file.clip, motion->x, motion->y)) {
+        if (is_inside_xy(tree->clip, motion->x, motion->y)) {
           return tree;
         }
         break;
       }
       case Tree_Directory: {
-        if (is_inside_xy(tree->directory.clip, motion->x, motion->y)) {
+        if (is_inside_xy(tree->clip, motion->x, motion->y)) {
           return tree;
         }
         if (tree->directory.state == Tree_Expanded) {
@@ -97,17 +98,16 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
       return NULL;
     }
     __auto_type new_hover = go(self->tree);
-    if (new_hover != self->hover) {
-      self->hover = new_hover;
+    if (coerce_widget(new_hover) != self->widget.hover) {
+      self->widget.hover = coerce_widget(new_hover);
       return yield(&msg_view);
     }
     return;
   }
   case ButtonPress: {
     __auto_type button = &msg->widget.x_event->xbutton;
-    if (self->hover) {
-      tree_panel_msg_t next_msg = {.tag = TreePanel_ItemClicked, .item_clicked = self->hover};
-      return yield(&next_msg);
+    if (self->widget.hover) {
+      return yield(&(tree_panel_msg_t){.tag = TreePanel_ItemClicked, .item_clicked = (tree_t *)self->widget.hover});
     }
     return;
   }
@@ -155,7 +155,7 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
     return;
   }
   case TreePanel_Up: {
-    char *path = self->tree->common.path;
+    char *path = self->tree->path;
     char parent_path[strlen(path) + 1];
     parent_path[dirname(path, parent_path)] = '\0';
     self->tree = malloc(sizeof(tree_t));
@@ -168,12 +168,17 @@ void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yiel
   }}
 }
 
+void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yield) {
+  return sync_container(self, msg, yield, (dispatch_t)&tree_panel_dispatch_);
+}
+
 void tree_init(tree_t *self, char *path) {
   struct stat st;
   __auto_type fd = open(path, O_RDONLY);
   __auto_type own_path = (char *)malloc(strlen(path) + 1);
   strcpy(own_path, path);
   fstat(fd, &st);
+  self->widget_tag = Widget_Rectangle;
   if (S_ISDIR(st.st_mode)) {
     self->tag = Tree_Directory;
     self->directory.path = own_path;

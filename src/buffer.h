@@ -15,9 +15,7 @@ typedef struct {
 } keystroke_t;
 
 struct buffer_t {
-  widget_t    widget;
-  some_widget_t hover;
-  some_widget_t focus;
+  widget_container_t widget;
   char       *path;
   int         fd;
   bool        show_lines;
@@ -27,7 +25,7 @@ struct buffer_t {
   address_line_t address_line;
   input_t     input;
   menulist_t  context_menu;
-  rect_t      lines;
+  widget_rect_t lines;
 };
 typedef struct buffer_t buffer_t;
 

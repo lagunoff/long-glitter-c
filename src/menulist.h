@@ -5,6 +5,7 @@
 #include "widget.h"
 
 typedef struct {
+  widget_rect_t widget;
   char *title;
   bool  disabled;
   int   icon; // Glyph codepoint from fontawesome font, 0 if the item lacks icon
@@ -12,11 +13,10 @@ typedef struct {
 } menulist_item_t;
 
 typedef struct {
-  widget_t widget;
+  widget_container_t widget;
   menulist_item_t *items; //! aligned by value of 'alignment' field
   int      len;
   int      alignement; //! sizeof(specific_item_t)
-  int      hover;
 } menulist_t;
 
 typedef union {

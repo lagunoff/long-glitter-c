@@ -7,47 +7,23 @@ static int X_PADDING = 32;
 static int Y_MARGIN = 12;
 
 void menulist_init(menulist_t *self, widget_context_t *ctx, menulist_item_t *items, int len, int alignement) {
-  self->widget.ctx = ctx;
-  self->widget.dispatch = (dispatch_t)&menulist_dispatch;
+  self->widget = (widget_container_t){
+    Widget_Container, {0,0,0,0}, ctx,
+    (dispatch_t)&menulist_dispatch, NULL, NULL
+  };
   self->items = items;
   self->len = len;
   self->alignement = alignement;
-  self->hover = -1;
 }
 
 void menulist_free(menulist_t *self) {
 }
 
-void menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
+void menulist_dispatch_(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
   __auto_type ctx = self->widget.ctx;
   switch (msg->tag) {
   case Expose: {
     return menulist_view(self);
-  }
-  case MotionNotify: {
-    __auto_type extents = &ctx->font->extents;
-    __auto_type prev_hover = self->hover;
-    __auto_type xmotion = &msg->widget.x_event->xmotion;
-
-    int Y_MARGIN = 8;
-    int item_height = extents->height + Y_MARGIN;
-    int y = 1 + Y_MARGIN;
-    for (int i = 0; i < self->len; i++) {
-      if (xmotion->y - self->widget.clip.y >= y && xmotion->y - self->widget.clip.y < y + item_height) {
-        self->hover = i;
-        goto check_hover;
-      }
-      y += item_height;
-    }
-    self->hover = -1;
-    check_hover:
-    if (self->hover != prev_hover)
-      yield(&msg_view);
-    return;
-  }
-  case LeaveNotify: {
-    self->hover = -1;
-    return yield(&msg_view);
   }
   case Widget_Free: {
   }
@@ -71,6 +47,10 @@ void menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
   }}
 }
 
+void menulist_dispatch(menulist_t *self, menulist_msg_t *msg, yield_t yield) {
+  return sync_container(self, msg, yield, (dispatch_t)&menulist_dispatch_);
+}
+
 void menulist_view(menulist_t *self) {
   __auto_type ctx = self->widget.ctx;
   __auto_type extents = &ctx->palette->small_font.extents;
@@ -82,7 +62,8 @@ void menulist_view(menulist_t *self) {
   for (int i = 0; i < self->len; i++) {
     uint8_t *ptr8 = (uint8_t *)self->items;
     menulist_item_t *item_ptr = (menulist_item_t *)(ptr8 + i * self->alignement);
-    if (i == self->hover) {
+    item_ptr->widget.clip = (rect_t){0, y - Y_MARGIN * 0.5, self->widget.clip.w, item_height};
+    if (coerce_widget(&item_ptr->widget) == self->widget.hover) {
       gx_set_color(ctx, ctx->palette->hover);
       gx_box(ctx, 0, y - Y_MARGIN * 0.5, self->widget.clip.w, item_height);
       gx_set_color(ctx, ctx->palette->primary_text);

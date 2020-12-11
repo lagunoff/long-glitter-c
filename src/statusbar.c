@@ -13,8 +13,10 @@
 static int y_padding = 6;
 
 void statusbar_init(statusbar_t *self, widget_context_t *ctx, struct buffer_t *buffer) {
-  self->widget.ctx = ctx;
-  self->widget.dispatch = (dispatch_t)&statusbar_dispatch;
+  self->widget = (widget_basic_t){
+    Widget_Basic, {0,0,0,0}, ctx,
+    (dispatch_t)&statusbar_dispatch
+  };
   self->font = &ctx->palette->small_font;
   self->buffer = buffer;
 }

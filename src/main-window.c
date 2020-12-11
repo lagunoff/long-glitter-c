@@ -4,11 +4,11 @@ void main_window_init(main_window_t *self, widget_context_t *ctx, int argc, char
   __auto_type path = argc < 2 ? "/home/vlad/job/long-glitter-c/tmp/xola.c" : argv[1];
   char dir_path[128];
   dir_path[dirname(path, dir_path)] = '\0';
-  self->widget.ctx = ctx;
-  self->widget.dispatch = (dispatch_t)&main_window_dispatch;
+  self->widget = (widget_container_t){
+    Widget_Container, {0,0,0,0}, ctx,
+    ((dispatch_t)&main_window_dispatch), NULL, NULL
+  };
   self->show_sidebar = false;
-  self->focus = (some_widget_t){(dispatch_t)&tabs_dispatch, (base_widget_t *)&self->content};
-  self->hover = noop_widget;
   tabs_init(&self->content, ctx, path);
   tree_panel_init(&self->sidebar, ctx, dir_path);
   statusbar_init(&self->statusbar, ctx, NULL);
@@ -20,8 +20,7 @@ void main_window_free(main_window_t *self) {
   tree_panel_free(&self->sidebar);
 }
 
-void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
-  auto some_widget_t lookup_children(lookup_filter_t filter);
+void main_window_dispatch_(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
   __auto_type ctx = self->widget.ctx;
 
   switch(msg->tag) {
@@ -53,7 +52,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
       return yield(&msg_view);
     }
     if (keysym == XK_Up && is_alt) {
-      return yield_children(tree_panel_dispatch, &self->sidebar, &(tree_panel_msg_t){.tag=TreePanel_Up});
+      return dispatch_to(yield, &self->sidebar, &(tree_panel_msg_t){.tag=TreePanel_Up});
     }
     break;
   }
@@ -72,44 +71,54 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
     self->statusbar.widget.clip.w = self->widget.clip.w;
     self->statusbar.widget.clip.h = measure.measure.y;
 
-    yield_children(tabs_dispatch, &self->content, (tabs_msg_t *)msg);
-    yield_children(tree_panel_dispatch, &self->sidebar, (tree_panel_msg_t *)msg);
+    dispatch_to(yield, &self->content, (tabs_msg_t *)msg);
+    dispatch_to(yield, &self->sidebar, (tree_panel_msg_t *)msg);
     return;
   }
-  case Widget_Children: {
-    if (msg->widget.children.some.dispatch == (dispatch_t)&tree_panel_dispatch) {
-      __auto_type child_msg = (tree_panel_msg_t *)msg->widget.children.msg;
-      if (child_msg->tag == TreePanel_ItemClicked && child_msg->item_clicked->tag == Tree_File) {
-        // Click on a file, open new tab
-        tabs_msg_t next_msg = {.tag = Tabs_New, .new = {.path = child_msg->item_clicked->file.path}};
-        return yield_children(tabs_dispatch, &self->content, &next_msg);
-      }
-    }
-    __auto_type prev_active = self->content.active;
-    dispatch_some(main_window_dispatch, msg->widget.children.some, msg->widget.children.msg);
-    __auto_type next_active = self->content.active;
-    if (prev_active != next_active) {
-      self->statusbar.buffer = self->content.active ? &self->content.active->buffer : NULL;
-      yield(&msg_view);
-    }
-    return;
-  }}
-
-  redirect_x_events(main_window_dispatch);
-
-  some_widget_t lookup_children(lookup_filter_t filter) {
+  case Widget_Lookup: {
+    __auto_type filter = msg->widget.lookup.request;
     switch(filter.tag) {
     case Lookup_Coords: {
       if (is_inside_point(self->statusbar.widget.clip, filter.coords)) {
-        return (some_widget_t){(dispatch_t)&statusbar_dispatch, (base_widget_t *)&self->statusbar.widget};
+        msg->widget.lookup.response = coerce_widget(&self->statusbar.widget);
+        return;
       }
       if (is_inside_point(self->sidebar.widget.clip, filter.coords)) {
-        return (some_widget_t){(dispatch_t)&tree_panel_dispatch, (base_widget_t *)&self->sidebar.widget};
+        msg->widget.lookup.response = coerce_widget(&self->sidebar.widget);
+        return;
       }
       if (is_inside_point(self->content.widget.clip, filter.coords)) {
-        return (some_widget_t){(dispatch_t)&tabs_dispatch, (base_widget_t *)&self->content.widget};
+        msg->widget.lookup.response = coerce_widget(&self->content.widget);
+        return;
       }
     }}
-    return noop_widget;
+    return;
+  }}
+}
+
+void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
+  void step_1(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
+    __auto_type next = &main_window_dispatch_;
+    if (msg->tag == Widget_NewChildren) {
+      if (msg->widget.new_children.widget == coerce_widget(&self->sidebar.widget)) {
+        __auto_type child_msg = (tree_panel_msg_t *)msg->widget.new_children.msg;
+        if (child_msg->tag == TreePanel_ItemClicked && child_msg->item_clicked->tag == Tree_File) {
+          // Click on a file, open new tab
+          tabs_msg_t next_msg = {.tag = Tabs_New, .new = {.path = child_msg->item_clicked->file.path}};
+          return dispatch_to(yield, &self->content, &next_msg);
+        }
+      }
+      __auto_type prev_active = self->content.active;
+      dispatch_to(yield, msg->widget.new_children.widget, msg->widget.new_children.msg);
+      __auto_type next_active = self->content.active;
+      if (prev_active != next_active) {
+        self->statusbar.buffer = self->content.active ? &self->content.active->buffer : NULL;
+        yield(&msg_view);
+      }
+      return;
+    } else {
+      return next(self, msg, yield);
+    }
   }
+  return sync_container(self, msg, yield, (dispatch_t)&step_1);
 }

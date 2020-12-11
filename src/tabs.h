@@ -6,7 +6,7 @@
 typedef struct buffer_list_node_t {
   struct buffer_list_node_t *next;
   struct buffer_list_node_t *prev;
-  base_widget_t title;
+  widget_rect_t title;
   buffer_t      buffer;
 } buffer_list_node_t;
 
@@ -16,9 +16,7 @@ typedef struct {
 } buffer_list_t;
 
 typedef struct {
-  widget_t   widget;
-  some_widget_t hover;
-  some_widget_t focus;
+  widget_container_t widget;
   buffer_list_t tabs;
   buffer_list_node_t *active; // @Nullable
   rect_t     tabs_clip;

@@ -116,8 +116,8 @@ void scroll_lines(scroll_t *s, int n) {
   }
 }
 
-void scroll_page(widget_t *self, font_t *font, scroll_t *s, cursor_t *c, int n) {
-  int screen_lines = div(self->clip.h, font->extents.height).quot;
+void scroll_page(new_widget_t *self, font_t *font, scroll_t *s, cursor_t *c, int n) {
+  int screen_lines = div(self->basic.clip.h, font->extents.height).quot;
   if (n > 0) {
     scroll_lines(s, screen_lines);
   } else {

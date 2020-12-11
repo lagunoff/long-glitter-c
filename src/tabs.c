@@ -3,16 +3,16 @@
 #include "utils.h"
 
 void tabs_init(tabs_t *self, widget_context_t *ctx, char *path) {
-  self->widget.ctx = ctx;
-  self->widget.dispatch = (dispatch_t)&tabs_dispatch;
+  self->widget = (widget_container_t){
+    Widget_Container, {0,0,0,0}, ctx,
+    ((dispatch_t)&tabs_dispatch), NULL, NULL
+  };
   self->active = malloc(sizeof(buffer_list_node_t));
   self->active->next = NULL;
   self->active->prev = NULL;
   buffer_init(&self->active->buffer, ctx, path);
   self->tabs.first = self->active;
   self->tabs.last = self->active;
-  self->focus = (some_widget_t){(dispatch_t)&buffer_dispatch, (base_widget_t *)&self->active->buffer};
-  self->hover = noop_widget;
 }
 
 void tabs_free(tabs_t *self) {
@@ -25,9 +25,6 @@ void tabs_free(tabs_t *self) {
 }
 
 void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
-  auto void title_dispatch(base_widget_t *self, widget_msg_t *msg, yield_t yield);
-  auto some_widget_t lookup_children(lookup_filter_t filter);
-
   __auto_type ctx = self->widget.ctx;
   buffer_list_node_t *current_inst = NULL;
 
@@ -59,7 +56,7 @@ void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
         return yield(&(tabs_msg_t){.tag=Tabs_Next});
       }}
     };
-    return dispatch_some(tabs_dispatch, self->focus, msg);
+    return dispatch_to(yield, self->widget.focus, msg);
   }
   case KeyPress: {
     __auto_type xkey = &msg->widget.x_event->xkey;
@@ -88,8 +85,8 @@ void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     for(; iter; iter = iter->next) {
       iter->buffer.widget.clip = self->content_clip;
       yield(&(widget_msg_t){
-        .tag=Widget_Children,
-        .children={{(dispatch_t)&buffer_dispatch, (base_widget_t *)&iter->buffer}, msg}
+        .tag=Widget_NewChildren,
+        .new_children={(new_widget_t *)&iter->buffer, msg}
       });
     }
     self->tabs_clip.x = self->widget.clip.x; self->tabs_clip.y = self->widget.clip.y;
@@ -133,45 +130,36 @@ void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     if (!(self->active) || !(self->active->next)) return;
     self->active = self->active->next;
     return yield(&msg_view);
-  }}
-
-  redirect_x_events(tabs_dispatch);
-
-  some_widget_t lookup_children(lookup_filter_t filter) {
-    switch(filter.tag) {
+  }
+  case Widget_Lookup: {
+    switch(msg->widget.lookup.request.tag) {
     case Lookup_Coords: {
-      if (self->active && is_inside_point(self->active->buffer.widget.clip, filter.coords)) {
-        return (some_widget_t){(dispatch_t)&buffer_dispatch, (base_widget_t *)&self->active->buffer.widget};
+      if (self->active && is_inside_point(self->active->buffer.widget.clip, msg->widget.lookup.request.coords)) {
+        msg->widget.lookup.response = coerce_widget(&self->active->buffer.widget);
+        return;
       }
       for(__auto_type iter = self->tabs.first; iter; iter = iter->next) {
-        if (is_inside_point(iter->title.clip, filter.coords)) {
-          return (some_widget_t){(dispatch_t)&title_dispatch, &iter->title};
+        if (is_inside_point(iter->title.clip, msg->widget.lookup.request.coords)) {
+          msg->widget.lookup.response = coerce_widget(&iter->title);
+          return;
         }
       }
     }}
-    return noop_widget;
-  }
-
-  void title_dispatch(base_widget_t *self, widget_msg_t *msg, yield_t yield) {
-    switch(msg->tag) {
-    case Widget_MouseEnter: {
-
-    }
-    case Widget_MouseLeave: {
-    }}
-  }
+    return;
+  }}
 }
 
 void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
-  void sync_active(tabs_t *self, tabs_msg_t *msg, yield_t yield, dispatch_t next) {
+  void sync_active(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
+    __auto_type next = (dispatch_t)&tabs_dispatch_;
     __auto_type prev_active = self->active;
     next(self, msg, yield);
     if (prev_active != self->active) {
-      self->focus = self->active ? (some_widget_t){(dispatch_t)&buffer_dispatch, (base_widget_t *)&self->active->buffer} : noop_widget;
+      self->widget.focus = self->active ? coerce_widget(&self->active->buffer.widget) : NULL;
     }
   }
 
-  return sync_active(self, msg, yield, (dispatch_t)tabs_dispatch_);
+  return sync_container(self, msg, yield, (dispatch_t)&sync_active);
 }
 
 void tabs_view(tabs_t *self) {

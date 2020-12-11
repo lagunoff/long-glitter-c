@@ -8,12 +8,11 @@
 struct buffer_t;
 
 typedef struct {
-  widget_t         widget;
-  some_widget_t hover;
-  some_widget_t focus;
+  widget_container_t widget;
   struct buffer_t *buffer;
   font_t          *font;
   input_t          input;
+  Window           autocomplete_window;
 } address_line_t;
 
 typedef union {

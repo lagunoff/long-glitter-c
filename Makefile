@@ -4,13 +4,13 @@ SRCS=$(wildcard src/*.c)
 CFLAGS=-O0 -g
 
 dist/%.o: src/%.c
-	$(CC) $(CFLAGS) -c -o $@ $(filter %.c,$^) -MM -MF "$(patsubst %.o,%.d,$@)" -MT "$@"
-	$(CC) $(CFLAGS) -c -o $@ $(filter %.c,$^)
+	unbuffer $(CC) $(CFLAGS) -c -o $@ $(filter %.c,$^) -MM -MF "$(patsubst %.o,%.d,$@)" -MT "$@"  2>&1 | tac
+	unbuffer $(CC) $(CFLAGS) -c -o $@ $(filter %.c,$^) 2>&1 | tac
 
 -include dist/*.d
 
 dist/long-glitter: $(patsubst src/%.c,dist/%.o,$(SRCS))
-	$(CC) $(CFLAGS) $^ -o $@
+	unbuffer $(CC) $(CFLAGS) $^ -o $@  2>&1 | tac
 
 dist/long-glitter-release: src/*.c src/*.h
 	$(CC) $(filter-out src/dev.c src/sexp.c, $(wildcard src/*.c)) -o $@ -ffunction-sections -fdata-sections -O3

@@ -280,8 +280,8 @@ void bs_forward_word(buff_string_iter_t *iter) {
 }
 
 void bs_backward_word(buff_string_iter_t *iter) {
-  bs_find_back(iter, lambda(bool _(char c) { return isalnum(c); }));
-  bs_find_back(iter, lambda(bool _(char c) { return !isalnum(c); }));
+  bs_iterate(iter, BuffString_Left, BuffString_DontIncrement, lambda(bool _(char c) { return isalnum(c); }));
+  bs_iterate(iter, BuffString_Left, BuffString_DontIncrement, lambda(bool _(char c) { return !isalnum(c); }));
 }
 
 char _bs_read_next(buff_string_iter_t *iter, bs_direction_t dir) {

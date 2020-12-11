@@ -34,8 +34,10 @@ static const int CURSOR_LINE_WIDTH = 2;
 XEvent respond;
 
 void input_init(input_t *self, widget_context_t *ctx, buff_string_t *content, syntax_highlighter_t *hl) {
-  self->widget.ctx = ctx;
-  self->widget.dispatch = (dispatch_t)&input_dispatch;
+  self->widget = (widget_basic_t){
+    Widget_Basic, {0,0,0,0}, ctx,
+    (dispatch_t)&input_dispatch
+  };
   self->font = &ctx->palette->default_font;
   self->contents = content;
   self->selection.state = Selection_Inactive;
@@ -220,10 +222,10 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       modify_cursor(cursor_bol);
       return yield(&msg_view);
     } else if (keysym == XK_v && is_ctrl || keysym == XK_Page_Down) {
-      scroll_page(&self->widget, self->font, &self->scroll, &self->cursor, 1);
+      scroll_page(coerce_widget(&self->widget), self->font, &self->scroll, &self->cursor, 1);
       return yield(&msg_view);
     } else if (keysym == XK_v && is_alt || keysym == XK_Page_Up) {
-      scroll_page(&self->widget, self->font, &self->scroll, &self->cursor, -1);
+      scroll_page(coerce_widget(&self->widget), self->font, &self->scroll, &self->cursor, -1);
       return yield(&msg_view);
     } else if (keysym == XK_bracketleft && is_altshift) {
       modify_cursor(backward_paragraph);
@@ -344,12 +346,12 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     return;
   }
   case Input_Cut: {
-    if (self->selection.state == Selection_Complete) {
-      __auto_type mark_1 = self->selection.mark_1;
-      __auto_type mark_2 = self->cursor.pos;
-      if (mark_1.global_index > mark_2.global_index) swap(mark_1, mark_2);
-      __auto_type len = mark_2.global_index - mark_1.global_index;
-      __auto_type mark_1_temp = mark_1;
+    // FIXME: This is broken
+    if (self->selection.state != Selection_Inactive) {
+      buff_string_iter_t mark_1;
+      __auto_type sel_range = selection_get_range(&self->selection, &self->cursor);
+      bs_index(&self->contents, &mark_1, sel_range.x);
+      __auto_type len = sel_range.y - sel_range.x;
       self->x_selection = realloc(self->x_selection, len + 1);
       bs_take(&mark_1, self->x_selection, len);
       XSetSelectionOwner(ctx->display, XA_PRIMARY, ctx->window, CurrentTime);
@@ -366,7 +368,8 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     return;
   }
   case Input_Copy: {
-    if (self->selection.state == Selection_Complete) {
+    // FIXME: This is broken
+    if (self->selection.state != Selection_Inactive) {
       __auto_type mark_1 = self->selection.mark_1;
       __auto_type mark_2 = self->cursor.pos;
       if (mark_1.global_index > mark_2.global_index) swap(mark_1, mark_2);

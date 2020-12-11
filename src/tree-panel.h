@@ -8,18 +8,18 @@ typedef struct {
 } directory_list_t;
 
 typedef struct tree_t {
+  widget_tag_t widget_tag;
+  rect_t clip;
+  char  *path;
   enum {
     Tree_File,
     Tree_Directory,
   } tag;
   union {
     struct {
-      rect_t  clip;
-      char   *path;
     } common;
 
     struct {
-      rect_t      clip;
       char       *path;
       struct stat st;
     } file;
@@ -43,9 +43,8 @@ typedef struct directory_list_node_t {
 } directory_list_node_t;
 
 typedef struct {
-  widget_t widget;
+  widget_container_t widget;
   tree_t  *tree;
-  tree_t  *hover;
   font_t  *font;
 } tree_panel_t;
 

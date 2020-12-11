@@ -16,13 +16,15 @@ void buffer_view_lines(buffer_t *self);
 syntax_highlighter_t *buffer_choose_syntax_highlighter(char *path);
 
 void buffer_init(buffer_t *self, widget_context_t *ctx, char *path) {
+  self->widget = (widget_container_t){
+    Widget_Container, {0,0,0,0}, ctx,
+    ((dispatch_t)&buffer_dispatch), NULL, NULL
+  };
   struct stat st;
   self->fd = open(path, O_RDONLY);
   self->path = path;
   fstat(self->fd, &st);
   char *mmaped = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, self->fd, 0);
-  self->widget.ctx = ctx;
-  self->widget.dispatch = (dispatch_t)&buffer_dispatch;
   input_init(&self->input, ctx, new_bytes(mmaped, st.st_size), buffer_choose_syntax_highlighter(path));
   self->input.font = &self->font;
   self->input.highlight_line = true;
@@ -30,9 +32,8 @@ void buffer_init(buffer_t *self, widget_context_t *ctx, char *path) {
   self->font = ctx->palette->monospace_font;
   self->modifier.state = 0;
   self->modifier.keysym = 0;
+  self->lines.tag = Widget_Rectangle;
   gx_sync_font(&ctx->palette->monospace_font);
-  self->focus = (some_widget_t){(dispatch_t)&input_dispatch, (base_widget_t *)&self->input};
-  self->hover = noop_widget;
   address_line_init(&self->address_line, ctx, self);
 }
 
@@ -46,7 +47,6 @@ void buffer_free(buffer_t *self) {
 }
 
 void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
-  auto some_widget_t lookup_children(lookup_filter_t filter);
   __auto_type ctx = self->widget.ctx;
 
   switch (msg->tag) {
@@ -73,13 +73,13 @@ void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     if (self->modifier.keysym == XK_x && (self->modifier.state & ControlMask) && keysym == XK_f && is_ctrl) {
       self->modifier.state = 0;
       self->modifier.keysym = 0;
-      self->focus = (some_widget_t){(dispatch_t)&address_line_dispatch, (base_widget_t *)&self->address_line};
-      return yield_children(address_line_dispatch, &self->address_line, &(widget_msg_t){.tag=Widget_FocusIn});
+      self->widget.focus = coerce_widget(&self->address_line.widget);
+      return dispatch_to(yield, &self->address_line, &(widget_msg_t){.tag=Widget_FocusIn});
     }
-    if (keysym == XK_Escape) {
-      self->focus = (some_widget_t){(dispatch_t)&input_dispatch, (base_widget_t *)&self->input};
-      self->focus = (some_widget_t){(dispatch_t)&input_dispatch, (base_widget_t *)&self->input};
-      return yield_children(input_dispatch, &self->input, &(widget_msg_t){.tag=Widget_FocusIn});
+    if (keysym == XK_Escape || (keysym == XK_g && is_ctrl)) {
+      self->widget.focus = coerce_widget(&self->input.widget);
+      dispatch_to(yield, &self->input, &(widget_msg_t){.tag=Widget_FocusIn});
+      break;
     }
     if (keysym == XK_x && is_ctrl) {
       self->modifier.state = xkey->state;
@@ -111,7 +111,7 @@ void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
   }
   case Widget_Layout: {
     widget_msg_t measure_address_line = {.tag=Widget_Measure, .measure={INT_MAX, INT_MAX}};
-    yield_children(address_line_dispatch, &self->address_line, &measure_address_line);
+    dispatch_to(yield, &self->address_line, &measure_address_line);
 
     self->address_line.widget.clip = (rect_t){
       self->widget.clip.x,
@@ -120,7 +120,7 @@ void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       MIN(measure_address_line.measure.y, self->widget.clip.h),
     };
 
-    self->lines = (rect_t){
+    self->lines.clip = (rect_t){
       self->widget.clip.x,
       self->widget.clip.y + self->address_line.widget.clip.h,
       self->input.font->extents.max_x_advance * 5,
@@ -128,48 +128,18 @@ void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     };
 
     self->input.widget.clip = (rect_t){
-      self->lines.x + self->lines.w,
+      self->lines.clip.x + self->lines.clip.w,
       self->widget.clip.y + self->address_line.widget.clip.h,
-      self->widget.clip.w - self->lines.w,
+      self->widget.clip.w - self->lines.clip.w,
       self->widget.clip.h - self->address_line.widget.clip.h,
     };
 
-    yield_children(input_dispatch, &self->input, msg);
-    yield_children(address_line_dispatch, &self->address_line, msg);
+    dispatch_to(yield, &self->input, msg);
+    dispatch_to(yield, &self->address_line, msg);
     return;
   }
-  case Widget_Children: {
-    if (msg->widget.children.some.dispatch == (dispatch_t)&input_dispatch) {
-      __auto_type prev_offset = bs_offset(&self->input.cursor.pos);
-      __auto_type prev_line = self->input.scroll.line;
-      dispatch_some(buffer_dispatch, msg->widget.children.some, msg->widget.children.msg);
-      __auto_type next_offset = bs_offset(&self->input.cursor.pos);
-      __auto_type next_line = self->input.scroll.line;
-      if (next_line != prev_line || prev_offset != next_offset) {
-        buffer_view_lines(self);
-      }
-    }
-    else if (msg->widget.children.some.dispatch == (dispatch_t)&menulist_dispatch) {
-      __auto_type child_msg = (menulist_msg_t *)msg->widget.children.msg;
-      if (child_msg->tag == Menulist_ItemClicked) {
-        buffer_msg_t next_msg = {.tag = child_msg->item_clicked->action};
-        yield(&next_msg);
-        /* widget_close_window(self->context_menu.ctx.window); */
-        /* self->context_menu.ctx.window = 0; */
-        return;
-      }
-      if (child_msg->tag == Menulist_Destroy) {
-        /* widget_close_window(self->context_menu.ctx.window); */
-        /* self->context_menu.ctx.window = 0; */
-        return;
-      }
-      dispatch_some(buffer_dispatch, msg->widget.children.some, msg->widget.children.msg);
-      if (child_msg->tag == Expose) {
-        // SDL_RenderPresent(self->context_menu.ctx.renderer);
-      }
-      return;
-    }
-    dispatch_some(buffer_dispatch, msg->widget.children.some, msg->widget.children.msg);
+  case Widget_Lookup: {
+    msg->widget.lookup.response = coerce_widget(&self->input);
     return;
   }
   case Buffer_Save: {
@@ -203,30 +173,54 @@ void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     self->input.contents = new_bytes(mmaped, st.st_size);
     return yield(&msg_view);
   }}
-
-  redirect_x_events(buffer_dispatch);
-
-  some_widget_t lookup_children(lookup_filter_t filter) {
-    return (some_widget_t){(dispatch_t)&input_dispatch, (base_widget_t *)&self->input};
-  }
 }
 
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
-  void sync_focus(buffer_t *self, buffer_msg_t *msg, yield_t yield, dispatch_t next) {
-    __auto_type last_focus = self->focus;
-    __auto_type last_hover = self->hover;
-    next(self, msg, yield);
-    if (last_focus.widget != self->focus.widget) {
-      dispatch_some(next, last_focus, &(widget_msg_t){.tag=Widget_FocusOut});
-      dispatch_some(next, self->focus, &(widget_msg_t){.tag=Widget_FocusIn});
-    }
-    if (last_hover.widget != self->hover.widget) {
-      dispatch_some(next, last_focus, &(widget_msg_t){.tag=Widget_MouseLeave});
-      dispatch_some(next, self->focus, &(widget_msg_t){.tag=Widget_MouseEnter});
+  void dispatch_step_1(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
+    sync_container(self, msg, yield, (dispatch_t)buffer_dispatch_);
+  }
+  void dispatch_step_2(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
+    __auto_type next = &dispatch_step_1;
+    if (msg->tag == Widget_NewChildren) {
+      if (msg->widget.new_children.widget == coerce_widget(&self->input)) {
+        __auto_type prev_offset = bs_offset(&self->input.cursor.pos);
+        __auto_type prev_line = bs_offset(&self->input.scroll.pos);
+        dispatch_to(yield, msg->widget.new_children.widget, msg->widget.new_children.msg);
+        __auto_type next_offset = bs_offset(&self->input.cursor.pos);
+        __auto_type next_line = bs_offset(&self->input.scroll.pos);
+        if ((next_line != prev_line) || (prev_offset != next_offset)) {
+          buffer_view_lines(self);
+        }
+      }
+      else if (msg->widget.new_children.widget == coerce_widget(&self->context_menu.widget)) {
+        __auto_type child_msg = (menulist_msg_t *)msg->widget.new_children.msg;
+        if (child_msg->tag == Menulist_ItemClicked) {
+          buffer_msg_t next_msg = {.tag = child_msg->item_clicked->action};
+          yield(&next_msg);
+          /* widget_close_window(self->context_menu.ctx.window); */
+          /* self->context_menu.ctx.window = 0; */
+          return;
+        }
+        if (child_msg->tag == Menulist_Destroy) {
+          /* widget_close_window(self->context_menu.ctx.window); */
+          /* self->context_menu.ctx.window = 0; */
+          return;
+        }
+        dispatch_to(yield, msg->widget.new_children.widget, msg->widget.new_children.msg);
+        if (child_msg->tag == Expose) {
+          // SDL_RenderPresent(self->context_menu.ctx.renderer);
+        }
+        return;
+      } else {
+        dispatch_to(yield, msg->widget.new_children.widget, msg->widget.new_children.msg);
+      }
+      return;
+    } else {
+      return next(self, msg, yield);
     }
   }
 
-  return sync_focus(self, msg, yield, (dispatch_t)buffer_dispatch_);
+  return sync_container(self, msg, yield, (dispatch_t)dispatch_step_1);
 }
 
 void buffer_view_lines(buffer_t *self) {
@@ -236,9 +230,9 @@ void buffer_view_lines(buffer_t *self) {
   __auto_type cursor_offset = bs_offset(&self->input.cursor.pos);
   char temp[64];
   cairo_text_extents_t text_size;
-  int y = self->lines.y;
+  int y = self->lines.clip.y;
   gx_set_color(self->widget.ctx, ctx->palette->white);
-  gx_rect(self->widget.ctx, self->lines);
+  gx_rect(self->widget.ctx, self->lines.clip);
 
   gx_set_font(ctx, self->input.font);
   for(int i = 0; i < self->input.lines_len; line++, i++) {
@@ -250,9 +244,9 @@ void buffer_view_lines(buffer_t *self) {
     sprintf(temp, "%d", line + 1);
     gx_measure_text(ctx, temp, &text_size);
     gx_set_color(ctx, color);
-    gx_text(ctx, self->lines.x + self->lines.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp);
+    gx_text(ctx, self->lines.clip.x + self->lines.clip.w - 12 - text_size.x_advance, y + ctx->font->extents.ascent, temp);
     y += ctx->font->extents.height;
-    if (y + ctx->font->extents.height >= self->lines.y + self->lines.h) break;
+    if (y + ctx->font->extents.height >= self->lines.clip.y + self->lines.clip.h) break;
   }
 }
 

@@ -7,7 +7,7 @@
 struct buffer_t;
 
 typedef struct {
-  widget_t         widget;
+  widget_basic_t   widget;
   struct buffer_t *buffer;
   font_t          *font;
 } statusbar_t;
