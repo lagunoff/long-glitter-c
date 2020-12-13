@@ -6,7 +6,8 @@ void main_window_init(main_window_t *self, widget_context_t *ctx, int argc, char
   dir_path[dirname(path, dir_path)] = '\0';
   self->widget = (widget_container_t){
     Widget_Container, {0,0,0,0}, ctx,
-    ((dispatch_t)&main_window_dispatch), NULL, NULL
+    ((dispatch_t)&main_window_dispatch),
+    NULL, coerce_widget(&self->content.widget)
   };
   self->show_sidebar = false;
   tabs_init(&self->content, ctx, path);
@@ -20,7 +21,7 @@ void main_window_free(main_window_t *self) {
   tree_panel_free(&self->sidebar);
 }
 
-void main_window_dispatch_(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
+void main_window_dispatch_(main_window_t *self, main_window_msg_t *msg, yield_t yield, dispatch_t next) {
   __auto_type ctx = self->widget.ctx;
 
   switch(msg->tag) {
@@ -94,11 +95,15 @@ void main_window_dispatch_(main_window_t *self, main_window_msg_t *msg, yield_t 
     }}
     return;
   }}
+  return next(self, msg, yield);
 }
 
 void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
   void step_1(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
-    __auto_type next = &main_window_dispatch_;
+    return sync_container(self, msg, yield, &noop_dispatch);
+  }
+  void step_2(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
+    __auto_type next = &step_1;
     if (msg->tag == Widget_NewChildren) {
       if (msg->widget.new_children.widget == coerce_widget(&self->sidebar.widget)) {
         __auto_type child_msg = (tree_panel_msg_t *)msg->widget.new_children.msg;
@@ -120,5 +125,5 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
       return next(self, msg, yield);
     }
   }
-  return sync_container(self, msg, yield, (dispatch_t)&step_1);
+  return main_window_dispatch_(self, msg, yield, (dispatch_t)&step_2);
 }

@@ -12,6 +12,7 @@
 #include <cairo-xlib.h>
 
 #include "utils.h"
+#include "dlist.h"
 #include "graphics.h"
 #include "main-window.h"
 
@@ -20,6 +21,7 @@ int main(int argc, char **argv) {
   XVisualInfo vinfo;
   XSetWindowAttributes attr;
   widget_context_t ctx;
+  widget_window_head_t window_widget = {NULL, NULL};
 
   ctx.display = XOpenDisplay(NULL); exit_if_not(ctx.display);
   XMatchVisualInfo(ctx.display, DefaultScreen(ctx.display), 32, TrueColor, &vinfo);
@@ -47,31 +49,72 @@ int main(int argc, char **argv) {
   XEvent x_event;
   char keybuf[8];
   KeySym key;
+  widget_window_node_t *current_widget = NULL;
 
-  void loop(void *user_msg) {
+  __auto_type root_node = new(((widget_window_node_t){NULL,NULL,ctx.window,NULL,NULL}));
+  root_node->msg = (void**)&root_node->msg_head;
+  dlist_insert_before((dlist_head_t *)&window_widget, (dlist_node_t *)root_node, NULL);
+
+  void loop(void *user_msg) {// XEvent
     if (!user_msg) {
       switch (x_event.type) {
+      case Expose: {
+        gx_set_color(buffer.widget.ctx, buffer.widget.ctx->palette->default_bg);
+        cairo_paint(buffer.widget.ctx->cairo);
+        break;
+      }
       case ConfigureNotify: {
         if (x_event.xconfigure.width != buffer.widget.clip.w || x_event.xconfigure.height != buffer.widget.clip.h) {
           buffer.widget.clip.w = x_event.xconfigure.width;
           buffer.widget.clip.h = x_event.xconfigure.height;
           cairo_xlib_surface_set_size(surface, buffer.widget.clip.w, buffer.widget.clip.h);
+          widget_window_node_t *iter = window_widget.first;
+          for(;iter; iter = iter->next) {
+            // FIXME: Will x_event.xany.window work with clipboard events?
+            if (iter->window == x_event.xany.window) {
+              current_widget = iter;
+              break;
+            }
+          }
           loop(&msg_layout);
+          current_widget = NULL;
+          return;
         }
         return;
-      }
-      case Expose: {
-        gx_set_color(buffer.widget.ctx, buffer.widget.ctx->palette->default_bg);
-        cairo_paint(buffer.widget.ctx->cairo);
-        break;
+      }}
+    } else {
+      __auto_type msg = (widget_msg_t *)user_msg;
+      switch (msg->tag) {
+      case Widget_NewWindow: {
+        __auto_type new_node = new(((widget_window_node_t){
+          NULL, NULL, msg->new_window.window, msg->new_window.msg_head, msg->new_window.msg,
+        }));
+        dlist_insert_before((dlist_head_t *)&window_widget, (dlist_node_t *)new_node, NULL);
+        return;
       }}
     }
-    main_window_dispatch(&buffer, user_msg ? user_msg : &x_event, &loop);
+
+    if (!user_msg) {
+      widget_window_node_t *iter = window_widget.first;
+      for(;iter; iter = iter->next) {
+        // FIXME: Will x_event.xany.window work with clipboard events?
+        if (iter->window == x_event.xany.window) {
+          current_widget = iter;
+          break;
+        }
+      }
+    }
+    if (!current_widget) return;
+    *current_widget->msg = user_msg ? : &x_event;
+    dispatch_to(&loop, &buffer, current_widget->msg_head);
+    if (!user_msg) {
+      current_widget = NULL;
+    }
   }
 
   buffer.widget.clip.x = 0; buffer.widget.clip.y = 0;
   buffer.widget.clip.w = width; buffer.widget.clip.h = height;
-  main_window_dispatch(&buffer, &layout, &loop);
+  dispatch_to(&loop, &buffer, &layout);
   while (1) {
     XNextEvent(ctx.display, &x_event);
     loop(NULL);

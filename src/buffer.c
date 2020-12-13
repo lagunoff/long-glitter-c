@@ -18,7 +18,8 @@ syntax_highlighter_t *buffer_choose_syntax_highlighter(char *path);
 void buffer_init(buffer_t *self, widget_context_t *ctx, char *path) {
   self->widget = (widget_container_t){
     Widget_Container, {0,0,0,0}, ctx,
-    ((dispatch_t)&buffer_dispatch), NULL, NULL
+    ((dispatch_t)&buffer_dispatch),
+    NULL, coerce_widget(&self->input)
   };
   struct stat st;
   self->fd = open(path, O_RDONLY);
@@ -46,7 +47,7 @@ void buffer_free(buffer_t *self) {
   close(self->fd);
 }
 
-void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
+void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield, dispatch_t next) {
   __auto_type ctx = self->widget.ctx;
 
   switch (msg->tag) {
@@ -74,12 +75,11 @@ void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       self->modifier.state = 0;
       self->modifier.keysym = 0;
       self->widget.focus = coerce_widget(&self->address_line.widget);
-      return dispatch_to(yield, &self->address_line, &(widget_msg_t){.tag=Widget_FocusIn});
+      return;
     }
     if (keysym == XK_Escape || (keysym == XK_g && is_ctrl)) {
       self->widget.focus = coerce_widget(&self->input.widget);
-      dispatch_to(yield, &self->input, &(widget_msg_t){.tag=Widget_FocusIn});
-      break;
+      return;
     }
     if (keysym == XK_x && is_ctrl) {
       self->modifier.state = xkey->state;
@@ -173,14 +173,15 @@ void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
     self->input.contents = new_bytes(mmaped, st.st_size);
     return yield(&msg_view);
   }}
+  return next(self, msg, yield);
 }
 
 void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
-  void dispatch_step_1(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
-    sync_container(self, msg, yield, (dispatch_t)buffer_dispatch_);
+  void step_1(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
+    return sync_container(self, msg, yield, &noop_dispatch);
   }
-  void dispatch_step_2(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
-    __auto_type next = &dispatch_step_1;
+  void step_2(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
+    __auto_type next = &step_1;
     if (msg->tag == Widget_NewChildren) {
       if (msg->widget.new_children.widget == coerce_widget(&self->input)) {
         __auto_type prev_offset = bs_offset(&self->input.cursor.pos);
@@ -219,8 +220,20 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       return next(self, msg, yield);
     }
   }
+  void step_3(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
+    return buffer_dispatch_(self, msg, yield, (dispatch_t)&step_2);
+  }
+  void step_4(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
+    __auto_type next = &step_3;
+    __auto_type last_focus = self->widget.focus;
+    next(self, msg, yield);
+    if (last_focus != self->widget.focus) {
+      if (last_focus) dispatch_to(yield, last_focus, &focus_out);
+      if (self->widget.focus) dispatch_to(yield, self->widget.focus, &focus_in);
+    }
+  }
 
-  return sync_container(self, msg, yield, (dispatch_t)dispatch_step_1);
+  return step_4(self, msg, yield);
 }
 
 void buffer_view_lines(buffer_t *self) {

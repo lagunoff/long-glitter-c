@@ -3,11 +3,13 @@
 #include "utils.h"
 
 void tabs_init(tabs_t *self, widget_context_t *ctx, char *path) {
+  __auto_type active_node = (buffer_list_node_t*)malloc(sizeof(buffer_list_node_t));
   self->widget = (widget_container_t){
     Widget_Container, {0,0,0,0}, ctx,
-    ((dispatch_t)&tabs_dispatch), NULL, NULL
+    ((dispatch_t)&tabs_dispatch),
+    NULL, coerce_widget(&active_node->buffer.widget)
   };
-  self->active = malloc(sizeof(buffer_list_node_t));
+  self->active = active_node;
   self->active->next = NULL;
   self->active->prev = NULL;
   buffer_init(&self->active->buffer, ctx, path);
@@ -24,7 +26,7 @@ void tabs_free(tabs_t *self) {
   }
 }
 
-void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
+void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield, dispatch_t next) {
   __auto_type ctx = self->widget.ctx;
   buffer_list_node_t *current_inst = NULL;
 
@@ -84,10 +86,7 @@ void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     self->content_clip.h = self->widget.clip.h - tabs_height;
     for(; iter; iter = iter->next) {
       iter->buffer.widget.clip = self->content_clip;
-      yield(&(widget_msg_t){
-        .tag=Widget_NewChildren,
-        .new_children={(new_widget_t *)&iter->buffer, msg}
-      });
+      dispatch_to(yield, &iter->buffer, msg);
     }
     self->tabs_clip.x = self->widget.clip.x; self->tabs_clip.y = self->widget.clip.y;
     self->tabs_clip.w = self->widget.clip.w; self->tabs_clip.h = tabs_height;
@@ -147,11 +146,18 @@ void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     }}
     return;
   }}
+  return next(self, msg, yield);
 }
 
 void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
-  void sync_active(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
-    __auto_type next = (dispatch_t)&tabs_dispatch_;
+  void step_1(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
+    return sync_container(self, msg, yield, &noop_dispatch);
+  }
+  void step_2(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
+    return tabs_dispatch_(self, msg, yield, (dispatch_t)&step_1);
+  }
+  void step_3(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
+    __auto_type next = &step_2;
     __auto_type prev_active = self->active;
     next(self, msg, yield);
     if (prev_active != self->active) {
@@ -159,7 +165,7 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     }
   }
 
-  return sync_container(self, msg, yield, (dispatch_t)&sync_active);
+  return step_3(self, msg, yield);
 }
 
 void tabs_view(tabs_t *self) {

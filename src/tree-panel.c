@@ -14,7 +14,8 @@ void tree_free(tree_t *self);
 void tree_panel_init(tree_panel_t *self, widget_context_t *ctx, char *path) {
   self->widget = (widget_container_t){
     Widget_Container, {0,0,0,0}, ctx,
-    ((dispatch_t)&tree_panel_dispatch), NULL, NULL
+    ((dispatch_t)&tree_panel_dispatch),
+    NULL, NULL
   };
   self->font = &ctx->palette->default_font;
   self->tree = malloc(sizeof(tree_t));

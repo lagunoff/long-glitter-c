@@ -15,6 +15,7 @@
 #define swap(a, b) {__auto_type temp = a; a = b; b = temp;}
 #define match(ty, a, body) ({ ty _(it) { switch(it) body;}; _(a); })
 #define return_construct(ty, body) {ty _result = body; return _result;}
+#define new(__body) ({typeof(__body) *__temp = malloc(sizeof(__body)); *__temp = __body; __temp;})
 
 typedef struct {
   int x;
