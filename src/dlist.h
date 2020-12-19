@@ -68,6 +68,23 @@ dlist_delete(
 }
 
 static inline void
+dlist_filter(
+  dlist_head_t *head,
+  void (*free_node)(dlist_node_t *),
+  bool (*pred)(dlist_node_t *)
+) {
+  __auto_type iter = head->first;
+  dlist_node_t *next;
+  for(; iter; iter = next) {
+    next = iter ? iter->next : NULL;
+    if (pred(iter) == false) {
+      dlist_delete(head, iter);
+      free_node(iter);
+    }
+  }
+}
+
+static inline void
 dlist_delete_iter_fixup(
   dlist_iter_t *iter,
   dlist_head_t *head,

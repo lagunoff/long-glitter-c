@@ -12,6 +12,7 @@ typedef struct {
   struct buffer_t *buffer;
   font_t          *font;
   input_t          input;
+  menulist_t       autocomplete;
   Window           autocomplete_window;
 } address_line_t;
 

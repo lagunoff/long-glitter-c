@@ -114,7 +114,7 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
         }
       }
       __auto_type prev_active = self->content.active;
-      dispatch_to(yield, msg->widget.new_children.widget, msg->widget.new_children.msg);
+      next(self, msg, yield);
       __auto_type next_active = self->content.active;
       if (prev_active != next_active) {
         self->statusbar.buffer = self->content.active ? &self->content.active->buffer : NULL;

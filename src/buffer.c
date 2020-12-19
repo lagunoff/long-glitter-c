@@ -186,7 +186,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
       if (msg->widget.new_children.widget == coerce_widget(&self->input)) {
         __auto_type prev_offset = bs_offset(&self->input.cursor.pos);
         __auto_type prev_line = bs_offset(&self->input.scroll.pos);
-        dispatch_to(yield, msg->widget.new_children.widget, msg->widget.new_children.msg);
+        next(self, msg, yield);
         __auto_type next_offset = bs_offset(&self->input.cursor.pos);
         __auto_type next_line = bs_offset(&self->input.scroll.pos);
         if ((next_line != prev_line) || (prev_offset != next_offset)) {
@@ -213,7 +213,7 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
         }
         return;
       } else {
-        dispatch_to(yield, msg->widget.new_children.widget, msg->widget.new_children.msg);
+        return next(self, msg, yield);
       }
       return;
     } else {

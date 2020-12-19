@@ -66,7 +66,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
 
   switch (msg->tag) {
   case Expose: {
-    return input_view(self);
+    return input_view(self, msg, yield);
   }
   case EnterNotify: {
     XDefineCursor(ctx->display, ctx->window, ctx->palette->xterm);
@@ -391,12 +391,12 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     if (msg->context_menu.tag == Menulist_ItemClicked) {
       input_msg_t next_msg = {.tag = msg->context_menu.item_clicked->action};
       yield(&next_msg);
-      widget_close_window(self->context_menu.widget.ctx->window);
+      // widget_close_window(self->context_menu.widget.ctx->window);
       // self->context_menu.ctx.window = 0;
       return;
     }
     if (msg->context_menu.tag == Menulist_Destroy) {
-      widget_close_window(self->context_menu.widget.ctx->window);
+      // widget_close_window(self->context_menu.widget.ctx->window);
       // self->context_menu.widget.ctx->window = 0;
       return;
     }
@@ -426,7 +426,7 @@ void input_set_style(widget_context_t *ctx, text_style_t *style) {
   }
 }
 
-void input_view(input_t *self) {
+void input_view(input_t *self, input_msg_t *msg, yield_t yield) {
   auto void with_styles(highlighter_t hl);
   __auto_type ctx = self->widget.ctx;
   __auto_type iter = self->scroll.pos;
@@ -434,6 +434,9 @@ void input_view(input_t *self) {
   __auto_type scroll_offset = bs_offset(&self->scroll.pos);
   __auto_type sel_range = selection_get_range(&self->selection, &self->cursor);
   __auto_type max_y = self->widget.clip.y + self->widget.clip.h;
+  __auto_type ask_context = (widget_msg_t){.tag=Widget_AskContext, .ask_context={false,false}};
+  yield(&ask_context);
+
   char syntax_hl_inst[16];
   strncpy(syntax_hl_inst, self->syntax_hl_inst, sizeof(syntax_hl_inst));
 
@@ -490,7 +493,7 @@ void input_view(input_t *self) {
     }));
 
     // Draw cursor
-    if (cursor_offset >= begin_offset && cursor_offset <= end_offset) {
+    if (ask_context.ask_context.focused && cursor_offset >= begin_offset && cursor_offset <= end_offset) {
       int cur_x_offset = cursor_offset - begin_offset;
       temp[cur_x_offset] = '\0';
       cairo_text_extents_t extents;

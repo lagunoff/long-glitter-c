@@ -80,7 +80,6 @@ typedef union widget_msg_t {
   struct {
     enum {
       Widget_Noop = LASTEvent,
-      Widget_View,
       Widget_Free,
       Widget_Measure,
       Widget_Layout,
@@ -90,9 +89,10 @@ typedef union widget_msg_t {
       Widget_FocusOut,
       Widget_NewChildren,
       Widget_Lookup,
-      Widget_NewWindow,
       Widget_TabCycle,
       Widget_AskContext,
+      Widget_NewWindow,
+      Widget_CloseWindow,
       Widget_Last,
     } tag;
     union {
@@ -106,10 +106,14 @@ typedef union widget_msg_t {
         new_widget_t   *response;
       } lookup;
       struct {
-        Window        window;
+        Window              window;
+        union new_widget_t *widget;
         union widget_msg_t *msg_head;
-        void        **msg;
+        void              **msg;
+        int                 width;
+        int                 height;
       } new_window;
+      Window close_window;
       struct {
         bool focused;
         bool hovered;
@@ -131,9 +135,11 @@ static lookup_filter_t noop_filter = {.tag = Lookup_Empty};
 static void noop_dispatch(void *self, void *msg, yield_t yield) {}
 static void noop_yield(void *msg) {}
 
-void widget_close_window(Window window);
-void dispatch_to(yield_t yield, void *w, void *m);
+void widget_close_window(Window window, yield_t yield);
+void widget_open_window(new_widget_t *self, Window window, int width, int height, yield_t yield);
 void sync_container(void *s, void *m, yield_t yield, dispatch_t next);
+void dispatch_to(yield_t yield, void *w, void *m);
+void view_to(void *w, yield_t yield);
 
 // There is better way to do this, that checks that w is one of the
 // widgets types, not just any pointer
@@ -143,8 +149,11 @@ typedef struct widget_window_node_t {
   struct widget_window_node_t *next;
   struct widget_window_node_t *prev;
   Window        window;
+  new_widget_t *widget;
   widget_msg_t *msg_head;
   void        **msg;
+  widget_context_t ctx;
+  cairo_surface_t *surface;
 } widget_window_node_t;
 
 typedef struct {

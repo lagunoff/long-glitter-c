@@ -99,7 +99,7 @@ typedef union {
 
 void input_init(input_t *self, widget_context_t *ctx, buff_string_t *content, syntax_highlighter_t *hl);
 void input_free(input_t *self);
-void input_view(input_t *self);
+void input_view(input_t *self, input_msg_t *msg, yield_t yield);
 void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield);
 bool input_iter_screen_xy(input_t *self, buff_string_iter_t *iter, int screen_x, int screen_y, bool x_adjust);
 void input_set_style(widget_context_t *ctx, text_style_t *style);

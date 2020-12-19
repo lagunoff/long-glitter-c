@@ -1,8 +1,7 @@
 #include <X11/Xlib.h>
 #include <stdlib.h>
 #include "widget.h"
-
-void widget_close_window(Window window) {}
+#include "graphics.h"
 
 void dispatch_to(yield_t yield, void *w, void *m) {
   if (w == NULL) return;
@@ -13,16 +12,29 @@ void dispatch_to(yield_t yield, void *w, void *m) {
     return msg->tag >= Widget_AskContext;
   }
   void yield_next(void *next_msg) {
+    __auto_type next_widget_msg = (widget_msg_t *)next_msg;
+    if (next_widget_msg->tag == Expose) {
+      gx_set_color(widget->basic.ctx, gx_rgba(1,1,1,0));
+      gx_box(widget->basic.ctx, widget->basic.clip.x, widget->basic.clip.y, widget->basic.clip.w, widget->basic.clip.h);
+    }
     if (does_bubble(next_msg)) {
       yield(&(widget_msg_t){.tag=Widget_NewChildren, .new_children={widget, next_msg}});
     } else {
       widget->basic.dispatch(widget, next_msg, &yield_next);
     }
   }
+  if (msg->tag == Expose) {
+    gx_set_color(widget->basic.ctx, gx_rgba(1,1,1,0));
+    gx_box(widget->basic.ctx, widget->basic.clip.x, widget->basic.clip.y, widget->basic.clip.w, widget->basic.clip.h);
+  }
 
   if (widget->tag == Widget_Container || widget->tag == Widget_Basic) {
     widget->basic.dispatch(widget, msg, &yield_next);
   }
+}
+
+void view_to(void *w, yield_t yield) {
+  dispatch_to(yield, w, &msg_view);
 }
 
 void sync_container(void *s, void *m, yield_t yield, dispatch_t next) {
@@ -74,10 +86,30 @@ void sync_container(void *s, void *m, yield_t yield, dispatch_t next) {
     }
     if (child_msg->tag == Widget_NewWindow) {
       __auto_type new_head = new(((widget_msg_t){.tag=Widget_NewChildren, .new_children={msg->new_children.widget, child_msg->new_window.msg_head}}));
+      if (child_msg->new_window.msg == (void**)&child_msg->new_window.msg_head) {
+        child_msg->new_window.msg = (void**)&new_head->new_children.msg;
+      }
       child_msg->new_window.msg_head = new_head;
+      return yield(child_msg);
+    }
+    if (child_msg->tag == Widget_CloseWindow) {
       return yield(child_msg);
     }
     return dispatch_to(yield, msg->new_children.widget, msg->new_children.msg);
   }}
   return next(s, m, yield);
+}
+
+void widget_open_window(new_widget_t *self, Window window, int width, int height, yield_t yield) {
+  self->basic.clip = (rect_t){0,0,width,height};
+  yield(&(widget_msg_t){.tag=Widget_NewChildren, .new_children={self,&msg_layout}});
+  __auto_type new_window_msg = (widget_msg_t){.tag=Widget_NewWindow, .new_window={
+    window, self, NULL, NULL, width, height,
+  }};
+  new_window_msg.new_window.msg = (void**)&new_window_msg.new_window.msg_head;
+  return yield(&(widget_msg_t){.tag=Widget_NewChildren, .new_children={self,&new_window_msg}});
+}
+
+void widget_close_window(Window window, yield_t yield) {
+  return yield(&(widget_msg_t){.tag=Widget_CloseWindow, .close_window=window});
 }
