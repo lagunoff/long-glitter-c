@@ -35,12 +35,10 @@ void menulist_dispatch_(menulist_t *self, menulist_msg_t *msg, yield_t yield, di
       return yield(&(menulist_msg_t){.tag=Menulist_Destroy});
     }
     if (keysym == XK_Down) {
-      menulist_focus_cycle(self, 1);
-      return yield(&msg_view);
+      return yield(&(menulist_msg_t){.tag=Menulist_FocusDown});
     }
     if (keysym == XK_Up) {
-      menulist_focus_cycle(self, -1);
-      return yield(&msg_view);
+      return yield(&(menulist_msg_t){.tag=Menulist_FocusUp});
     }
     return;
   }
@@ -53,6 +51,14 @@ void menulist_dispatch_(menulist_t *self, menulist_msg_t *msg, yield_t yield, di
     msg->widget.measure.x = 200;
     msg->widget.measure.y = self->len * item_height + Y_MARGIN + 2;
     return;
+  }
+  case Menulist_FocusUp: {
+    menulist_focus_cycle(self, -1);
+    return yield(&msg_view);
+  }
+  case Menulist_FocusDown: {
+    menulist_focus_cycle(self, 1);
+    return yield(&msg_view);
   }
   case Menulist_Destroy: {
     return;

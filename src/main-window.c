@@ -94,17 +94,8 @@ void main_window_dispatch_(main_window_t *self, main_window_msg_t *msg, yield_t 
       }
     }}
     return;
-  }}
-  return next(self, msg, yield);
-}
-
-void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
-  void step_1(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
-    return sync_container(self, msg, yield, &noop_dispatch);
   }
-  void step_2(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
-    __auto_type next = &step_1;
-    if (msg->tag == Widget_NewChildren) {
+  case Widget_NewChildren: {
       if (msg->widget.new_children.widget == coerce_widget(&self->sidebar.widget)) {
         __auto_type child_msg = (tree_panel_msg_t *)msg->widget.new_children.msg;
         if (child_msg->tag == TreePanel_ItemClicked && child_msg->item_clicked->tag == Tree_File) {
@@ -121,9 +112,13 @@ void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t y
         yield(&msg_view);
       }
       return;
-    } else {
-      return next(self, msg, yield);
-    }
+  }}
+  return next(self, msg, yield);
+}
+
+void main_window_dispatch(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
+  void step_1(main_window_t *self, main_window_msg_t *msg, yield_t yield) {
+    return sync_container(self, msg, yield, &noop_dispatch);
   }
-  return main_window_dispatch_(self, msg, yield, (dispatch_t)&step_2);
+  return main_window_dispatch_(self, msg, yield, (dispatch_t)&step_1);
 }

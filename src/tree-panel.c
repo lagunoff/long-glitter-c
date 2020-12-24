@@ -27,7 +27,7 @@ void tree_panel_free(tree_panel_t *self) {
   free(self->tree);
 }
 
-void tree_panel_dispatch_(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yield) {
+void tree_panel_dispatch_(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yield, dispatch_t next) {
   __auto_type ctx = self->widget.ctx;
   switch(msg->tag) {
   case Expose: {
@@ -56,7 +56,7 @@ void tree_panel_dispatch_(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yie
         gx_measure_text(ctx, name, &extents);
         clip.w = extents.x_advance;
         clip.h = extents.height;
-        tree->directory.clip = clip;
+        tree->clip = clip;
         if (tree->directory.state == Tree_Expanded) {
           int i = 0;
           for (__auto_type iter = tree->directory.items.first; iter; iter = iter->next){
@@ -167,10 +167,14 @@ void tree_panel_dispatch_(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yie
   case Widget_Layout: {
     return;
   }}
+  return next(self, msg, yield);
 }
 
 void tree_panel_dispatch(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yield) {
-  return sync_container(self, msg, yield, (dispatch_t)&tree_panel_dispatch_);
+  void step_1(tree_panel_t *self, tree_panel_msg_t *msg, yield_t yield) {
+    return sync_container(self, msg, yield, &noop_dispatch);
+  }
+  return tree_panel_dispatch_(self, msg, yield, (dispatch_t)&step_1);
 }
 
 void tree_init(tree_t *self, char *path) {
@@ -180,6 +184,7 @@ void tree_init(tree_t *self, char *path) {
   strcpy(own_path, path);
   fstat(fd, &st);
   self->widget_tag = Widget_Rectangle;
+  self->clip = (rect_t){0,0,0,0};
   if (S_ISDIR(st.st_mode)) {
     self->tag = Tree_Directory;
     self->directory.path = own_path;

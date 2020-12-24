@@ -57,6 +57,12 @@ void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield, dispatch
     address_line_dispatch(&self->address_line, (address_line_msg_t *)&msg_view, &noop_yield);
     return;
   }
+  case Widget_FocusOut: {
+    return next(self, msg, yield);
+  }
+  case Widget_FocusIn: {
+    return next(self, msg, yield);
+  }
   case KeyPress: {
     __auto_type xkey = &msg->widget.x_event->xkey;
     __auto_type keysym = XLookupKeysym(xkey, 0);
@@ -79,7 +85,7 @@ void buffer_dispatch_(buffer_t *self, buffer_msg_t *msg, yield_t yield, dispatch
     }
     if (keysym == XK_Escape || (keysym == XK_g && is_ctrl)) {
       self->widget.focus = coerce_widget(&self->input.widget);
-      return;
+      return next(self, msg, yield);
     }
     if (keysym == XK_x && is_ctrl) {
       self->modifier.state = xkey->state;
@@ -212,7 +218,19 @@ void buffer_dispatch(buffer_t *self, buffer_msg_t *msg, yield_t yield) {
           // SDL_RenderPresent(self->context_menu.ctx.renderer);
         }
         return;
-      } else {
+      }
+      else if (msg->widget.new_children.widget == coerce_widget(&self->address_line.widget)) {
+        __auto_type child_msg = (address_line_msg_t *)msg->widget.new_children.msg;
+        if (child_msg->tag == AddressLine_ItemClicked) {
+          __auto_type base = bs_copy_stringz(self->address_line.input.contents);
+          __auto_type path = pathjoin(base, child_msg->item_clicked->title);
+          yield(&(buffer_msg_t){.tag=Buffer_OpenFile,.open_file=path});
+          free(path);
+          free(base);
+        }
+        return next(self, msg, yield);
+      }
+      else {
         return next(self, msg, yield);
       }
       return;

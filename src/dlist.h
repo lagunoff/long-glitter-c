@@ -57,6 +57,22 @@ dlist_insert_after(
 }
 
 static inline void
+dlist_append(
+  dlist_head_t *head,
+  dlist_node_t *new
+) {
+  dlist_insert_after(head, new, head->last);
+}
+
+static inline void
+dlist_prepend(
+  dlist_head_t *head,
+  dlist_node_t *new
+) {
+  dlist_insert_before(head, new, head->first);
+}
+
+static inline void
 dlist_delete(
   dlist_head_t *head,
   dlist_node_t *deleted

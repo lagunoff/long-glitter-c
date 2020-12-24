@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
 #include "utils.h"
@@ -29,4 +30,20 @@ int dirname(char *str, char *out) {
   int new_len = last_slash == 0 ? len : last_slash;
   strncpy(out, str, new_len);
   return new_len;
+}
+
+char *pathjoin(char *head, char *tail) {
+  int len1 = strlen(head);
+  int len2 = strlen(tail);
+  __auto_type out = (char*)malloc(len1 + len2 + 1);
+  out[0] = '\0';
+  strcat(out, head);
+  strcat(out, tail);
+  return out;
+}
+
+char *strclone(char *str) {
+  __auto_type out = (char*)malloc(strlen(str) + 1);
+  strcpy(out, str);
+  return out;
 }

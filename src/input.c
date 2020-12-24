@@ -313,7 +313,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       self->selection.mark_1 = self->cursor.pos;
       self->selection.mark_2 = self->cursor.pos;
       return yield(&msg_view);
-    } else if (keysym == XK_g && is_ctrl) {
+    } else if (keysym == XK_Escape || (keysym == XK_g && is_ctrl)) {
       self->selection.state = Selection_Inactive;
       self->selection.mark_1 = self->cursor.pos;
       return yield(&msg_view);

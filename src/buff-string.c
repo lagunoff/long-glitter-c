@@ -15,10 +15,13 @@
 void _bs_insert_insert_fixup(buff_string_iter_t *iter, buff_string_t *new, bs_direction_t dir);
 void _bs_insert_insert_fixup_inv(buff_string_iter_t *iter, buff_string_t *new);
 
-int bs_length(buff_string_t *str) {
-  buff_string_iter_t iter;
-  bs_end(&iter, &str);
-  return iter.global_index;
+char *bs_copy_stringz(buff_string_t *str) {
+  __auto_type len = bs_length(str);
+  __auto_type mem = (char *)malloc(len + 1);
+  buff_string_t iter; bs_begin(&iter, &str);
+  bs_takewhile(&iter, mem, lambda(bool _(char c) {return true;}));
+  mem[len] = '\0';
+  return mem;
 }
 
 void bs_index(buff_string_t **str, buff_string_iter_t *iter, int i) {
@@ -282,6 +285,16 @@ void bs_forward_word(buff_string_iter_t *iter) {
 void bs_backward_word(buff_string_iter_t *iter) {
   bs_iterate(iter, BuffString_Left, BuffString_DontIncrement, lambda(bool _(char c) { return isalnum(c); }));
   bs_iterate(iter, BuffString_Left, BuffString_DontIncrement, lambda(bool _(char c) { return !isalnum(c); }));
+}
+
+int bs_length(buff_string_t *str) {
+  switch(str->tag) {
+  case BuffString_Bytes: {
+    return str->bytes.len;
+  }
+  case BuffString_Splice: {
+    return bs_length(str->splice.base) + str->splice.len - str->splice.deleted;
+  }}
 }
 
 char _bs_read_next(buff_string_iter_t *iter, bs_direction_t dir) {

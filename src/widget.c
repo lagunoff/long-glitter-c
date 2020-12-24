@@ -46,6 +46,7 @@ void sync_container(void *s, void *m, yield_t yield, dispatch_t next) {
   case MotionNotify: {
     __auto_type xmotion = &msg->x_event->xmotion;
     __auto_type lookup_msg = (widget_msg_t){.tag=Widget_Lookup, .lookup={{Lookup_Coords,{xmotion->x, xmotion->y}}, NULL}};
+    yield(&lookup_msg);
     __auto_type next_hover = lookup_msg.lookup.response;
     if (next_hover != self->container.hover) {
       dispatch_to(yield, self->container.hover,  &mouse_leave);
@@ -59,6 +60,7 @@ void sync_container(void *s, void *m, yield_t yield, dispatch_t next) {
   case ButtonPress: {
     __auto_type xbutton = &msg->x_event->xbutton;
     __auto_type lookup_msg = (widget_msg_t){.tag=Widget_Lookup, .lookup={{Lookup_Coords,{xbutton->x, xbutton->y}}, NULL}};
+    yield(&lookup_msg);
     __auto_type next_focus = lookup_msg.lookup.response;
     dispatch_to(yield, next_focus, msg);
     if (0 && next_focus != self->container.focus) {
@@ -69,9 +71,15 @@ void sync_container(void *s, void *m, yield_t yield, dispatch_t next) {
     return;
   }
   case KeyPress: {
-    return dispatch_to(yield, self->container.focus, msg);
+    return yield(&(widget_msg_t){.tag=Widget_NewChildren, .new_children={self->container.focus, msg}});
   }
   case SelectionRequest: {
+    return dispatch_to(yield, self->container.focus, msg);
+  }
+  case Widget_FocusOut: {
+    return dispatch_to(yield, self->container.focus, msg);
+  }
+  case Widget_FocusIn: {
     return dispatch_to(yield, self->container.focus, msg);
   }
   case SelectionNotify: {

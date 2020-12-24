@@ -34,7 +34,11 @@ typedef union {
   struct {
     enum {
       Buffer_Save = Widget_Last,
+      Buffer_OpenFile,
     } tag;
+    union {
+      char *open_file;
+    };
   };
 } buffer_msg_t;
 

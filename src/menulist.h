@@ -25,6 +25,8 @@ typedef union {
     enum {
       Menulist_DispatchParent = Widget_Last,
       Menulist_ItemClicked,
+      Menulist_FocusUp,
+      Menulist_FocusDown,
       Menulist_Destroy,
     } tag;
 

@@ -25,7 +25,6 @@ typedef struct tree_t {
     } file;
 
     struct {
-      rect_t           clip;
       char            *path;
       directory_list_t items;
       enum {

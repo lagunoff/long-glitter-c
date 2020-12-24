@@ -19,7 +19,13 @@ typedef struct {
 typedef union {
   widget_msg_t widget;
   struct {
-    enum { AddressLine_Open = Widget_Last, } tag;
+    enum {
+      AddressLine_Open = Widget_Last,
+      AddressLine_ItemClicked,
+    } tag;
+    union {
+      menulist_item_t *item_clicked;
+    };
   };
 } address_line_msg_t;
 

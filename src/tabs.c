@@ -12,7 +12,7 @@ void tabs_init(tabs_t *self, widget_context_t *ctx, char *path) {
   self->active = active_node;
   self->active->next = NULL;
   self->active->prev = NULL;
-  buffer_init(&self->active->buffer, ctx, path);
+  buffer_init(&self->active->buffer, ctx, strclone(path));
   self->tabs.first = self->active;
   self->tabs.last = self->active;
 }
@@ -20,7 +20,9 @@ void tabs_init(tabs_t *self, widget_context_t *ctx, char *path) {
 void tabs_free(tabs_t *self) {
   for(__auto_type iter = self->tabs.first; iter;) {
     __auto_type next_iter = iter->next;
+    __auto_type path = iter->buffer.path;
     buffer_free(&iter->buffer);
+    free(path);
     free(iter);
     iter = next_iter;
   }
@@ -58,7 +60,7 @@ void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield, dispatch_t nex
         return yield(&(tabs_msg_t){.tag=Tabs_Next});
       }}
     };
-    return dispatch_to(yield, self->widget.focus, msg);
+    break;
   }
   case KeyPress: {
     __auto_type xkey = &msg->widget.x_event->xkey;
@@ -100,7 +102,7 @@ void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield, dispatch_t nex
       }
     }
     __auto_type new_tab = (buffer_list_node_t *)malloc(sizeof(buffer_list_node_t));
-    buffer_init(&new_tab->buffer, (void *)ctx, msg->new.path);
+    buffer_init(&new_tab->buffer, (void *)ctx, strclone(msg->new.path));
     new_tab->buffer.widget.clip = self->content_clip;
     buffer_msg_t next_msg = {.tag=Widget_Layout};
     buffer_dispatch(&new_tab->buffer, &next_msg, &noop_yield);
@@ -111,7 +113,9 @@ void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield, dispatch_t nex
   }
   case Tabs_Close: {
     dlist_delete((dlist_head_t *)&self->tabs, (dlist_node_t *)msg->close);
+    __auto_type path = msg->close->buffer.path;
     buffer_free(&msg->close->buffer);
+    free(path);
     free(msg->close);
     self->active = msg->close == self->active ? self->tabs.first : self->active;
     return yield(&msg_view);
@@ -145,6 +149,15 @@ void tabs_dispatch_(tabs_t *self, tabs_msg_t *msg, yield_t yield, dispatch_t nex
       }
     }}
     return;
+  }
+  case Widget_NewChildren: {
+    if (msg->widget.new_children.widget == coerce_widget(&self->active->buffer.widget)) {
+      __auto_type child_msg = (buffer_msg_t*)msg->widget.new_children.msg;
+      if (child_msg->tag == Buffer_OpenFile) {
+        return yield(&(tabs_msg_t){.tag=Tabs_New, .new={child_msg->open_file}});
+      }
+    }
+    break;
   }}
   return next(self, msg, yield);
 }
@@ -159,9 +172,13 @@ void tabs_dispatch(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
   void step_3(tabs_t *self, tabs_msg_t *msg, yield_t yield) {
     __auto_type next = &step_2;
     __auto_type prev_active = self->active;
+    __auto_type prev_focus = self->active ? &self->active->buffer : NULL;
     next(self, msg, yield);
+    __auto_type next_focus = self->active ? &self->active->buffer : NULL;
     if (prev_active != self->active) {
       self->widget.focus = self->active ? coerce_widget(&self->active->buffer.widget) : NULL;
+      dispatch_to(yield, prev_focus, &(widget_msg_t){.tag=Widget_FocusOut});
+      dispatch_to(yield, next_focus, &(widget_msg_t){.tag=Widget_FocusIn});
     }
   }
 

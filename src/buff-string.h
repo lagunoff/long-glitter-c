@@ -67,6 +67,8 @@ void bs_end(buff_string_iter_t *iter, buff_string_t **str);
 bool bs_find(buff_string_iter_t *iter, bool (*p)(char));
 bool bs_find_back(buff_string_iter_t *iter, bool (*p)(char));
 bool bs_move(buff_string_iter_t *iter, int dx);
+int bs_length(buff_string_t *str);
+char *bs_copy_stringz(buff_string_t *str);
 int bs_diff(buff_string_iter_t *a, buff_string_iter_t *b);
 int bs_offset(buff_string_iter_t *iter);
 buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted, bs_direction_t dir, iter_get_fixups_t get_fixups);
