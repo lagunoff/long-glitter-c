@@ -18,7 +18,7 @@ void _bs_insert_insert_fixup_inv(buff_string_iter_t *iter, buff_string_t *new);
 char *bs_copy_stringz(buff_string_t *str) {
   __auto_type len = bs_length(str);
   __auto_type mem = (char *)malloc(len + 1);
-  buff_string_t iter; bs_begin(&iter, &str);
+  buff_string_iter_t iter; bs_begin(&iter, &str);
   bs_takewhile(&iter, mem, lambda(bool _(char c) {return true;}));
   mem[len] = '\0';
   return mem;
@@ -81,17 +81,17 @@ bool bs_iterate(
   bs_last_increment_policy_t last_inc,
   bool                       (*p)(char)
 ) {
-  enum {MOVING_INSIDE, LOOKING_NEXT} local_state = LOOKING_NEXT;
+  enum {Moving_Inside, Looking_Next} local_state = Looking_Next;
   buff_string_t *str;
  to_looking_next:
   str = *iter->str;
   iter->begin = 0;
   iter->end = INT_MAX / 2;
   iter->local_index = iter->global_index;
-  local_state = LOOKING_NEXT;
+  local_state = Looking_Next;
   while (1) {
     switch (local_state) {
-    case MOVING_INSIDE: {
+    case Moving_Inside: {
       if (dir == BuffString_Right) {
         if (iter->local_index >= iter->end) goto to_looking_next;
         bool is_stop = p(iter->bytes[iter->local_index]);
@@ -109,7 +109,7 @@ bool bs_iterate(
       }
       continue;
     }
-    case LOOKING_NEXT: {
+    case Looking_Next: {
       switch (str->tag) {
       case BuffString_Bytes: {
         if (dir == BuffString_Right && iter->local_index >= MIN(str->bytes.len, iter->end)) goto eof;
@@ -117,7 +117,7 @@ bool bs_iterate(
         iter->bytes = str->bytes.bytes;
         iter->begin = iter->begin;
         iter->end = MIN(iter->end, str->bytes.len);
-        local_state = MOVING_INSIDE;
+        local_state = Moving_Inside;
         continue;
       }
       case BuffString_Splice: {
@@ -137,14 +137,12 @@ bool bs_iterate(
         }
         iter->bytes = str->splice.bytes;
         iter->begin = MAX(0, iter->begin - str->splice.start);
-        iter->end = MIN(iter->end, str->splice.len);
+        iter->end = MIN(iter->end, str->splice.start + str->splice.len) - str->splice.start;
         iter->local_index = iter->local_index - str->splice.start;
-        local_state = MOVING_INSIDE;
+        local_state = Moving_Inside;
         continue;
-      }
-      }
-    }
-    }
+      }}
+    }}
   }
  stopped:
   return false;

@@ -35,7 +35,7 @@ int dirname(char *str, char *out);
 char *extension(char *str);
 char *strchr_last(char *str, int c);
 char *pathjoin(char *head, char *tail);
-char *strclone(char *str);
+char *strclone(char *str); // strcloneA comment here
 
 inline_always bool
 is_inside_xy(rect_t rect, int x, int y) {
