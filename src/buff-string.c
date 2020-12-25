@@ -222,15 +222,17 @@ int bs_offset(buff_string_iter_t *iter) {
    return iter->global_index;
 }
 
-buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted, bs_direction_t dir, iter_get_fixups_t get_fixups) {
+void bs_insert(buff_string_t **bs, int start, char *str, int deleted, bs_direction_t dir, iter_get_fixups_t get_fixups) {
   auto void fixup_cursor(buff_string_iter_t *iter);
   auto void fixup_scroll(buff_string_iter_t *iter);
+  __auto_type base = *bs;
   int start1 = dir == BuffString_Right ? start : start - deleted;
   // TODO: Check for right bound
-  if (start1 < 0) return base;
+  if (start1 < 0) return;
   buff_string_t *splice = new_splice_str(str, start1, deleted, base);
+  *bs = splice;
   if (get_fixups) get_fixups(&fixup_cursor, &fixup_scroll);
-  return splice;
+  return;
 
   void fixup_cursor(buff_string_iter_t *iter) {
     if (splice->splice.start <= iter->global_index) {

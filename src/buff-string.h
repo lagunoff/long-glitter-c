@@ -71,7 +71,7 @@ int bs_length(buff_string_t *str);
 char *bs_copy_stringz(buff_string_t *str);
 int bs_diff(buff_string_iter_t *a, buff_string_iter_t *b);
 int bs_offset(buff_string_iter_t *iter);
-buff_string_t *bs_insert(buff_string_t *base, int start, char *str, int deleted, bs_direction_t dir, iter_get_fixups_t get_fixups);
+void bs_insert(buff_string_t **bs, int start, char *str, int deleted, bs_direction_t dir, iter_get_fixups_t get_fixups);
 buff_string_t *bs_insert_undo(buff_string_t *base, ...);
 void bs_forward_word(buff_string_iter_t *iter);
 void bs_backward_word(buff_string_iter_t *iter);

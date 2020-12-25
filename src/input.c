@@ -141,8 +141,8 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
     );
     XDeleteProperty(ctx->display, ctx->window, pty);
     if (clipboard) {
-      self->contents = bs_insert(
-        self->contents,
+      bs_insert(
+        &self->contents,
         self->cursor.pos.global_index,
         clipboard, 0, BuffString_Left,
         &do_insert_fixup
@@ -238,8 +238,8 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       bs_find(&iter, lambda(bool _(char c) { return c == '\n'; }));
       __auto_type curr_offset = bs_offset(&self->cursor.pos);
       __auto_type iter_offset = bs_offset(&iter);
-      self->contents = bs_insert(
-        self->contents,
+      bs_insert(
+        &self->contents,
         self->cursor.pos.global_index,
         "", MAX(iter_offset - curr_offset, 1),
         BuffString_Right,
@@ -251,8 +251,8 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       bs_backward_word(&iter);
       __auto_type curr_offset = bs_offset(&self->cursor.pos);
       __auto_type iter_offset = bs_offset(&iter);
-      self->contents = bs_insert(
-        self->contents,
+      bs_insert(
+        &self->contents,
         self->cursor.pos.global_index,
         "", MAX(curr_offset - iter_offset, 1),
         BuffString_Left,
@@ -264,8 +264,8 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       bs_forward_word(&iter);
       __auto_type curr_offset = bs_offset(&self->cursor.pos);
       __auto_type iter_offset = bs_offset(&iter);
-      self->contents = bs_insert(
-        self->contents,
+      bs_insert(
+        &self->contents,
         self->cursor.pos.global_index,
         "", MAX(iter_offset - curr_offset, 1),
         BuffString_Right,
@@ -279,8 +279,8 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       modify_cursor(cursor_end);
       return yield(&msg_view);
     } else if ((keysym == XK_Delete) || (keysym == XK_d && is_ctrl)) {
-      self->contents = bs_insert(
-        self->contents,
+      bs_insert(
+        &self->contents,
         self->cursor.pos.global_index,
         "", 1,
         BuffString_Right,
@@ -288,8 +288,8 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       );
       return yield(&msg_view);
     } else if (keysym == XK_BackSpace) {
-      self->contents = bs_insert(
-        self->contents,
+      bs_insert(
+        &self->contents,
         self->cursor.pos.global_index,
         "", 1,
         BuffString_Left,
@@ -297,8 +297,8 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       );
       return yield(&msg_view);
     } else if (keysym == XK_Return) {
-      self->contents = bs_insert(
-        self->contents,
+      bs_insert(
+        &self->contents,
         self->cursor.pos.global_index,
         "\n", 0,
         BuffString_Left,
@@ -332,8 +332,8 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       Status return_status;
       Xutf8LookupString(ctx->xic, xkey, buffer, 32, &ignore, &return_status);
       if (strlen(buffer)) {
-        self->contents = bs_insert(
-          self->contents,
+        bs_insert(
+          &self->contents,
           self->cursor.pos.global_index,
           buffer, 0,
           BuffString_Left,
@@ -355,8 +355,8 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       self->x_selection = realloc(self->x_selection, len + 1);
       bs_take(&mark_1, self->x_selection, len);
       XSetSelectionOwner(ctx->display, XA_PRIMARY, ctx->window, CurrentTime);
-      self->contents = bs_insert(
-        self->contents,
+      bs_insert(
+        &self->contents,
         mark_1.global_index,
         "", len,
         BuffString_Right,
