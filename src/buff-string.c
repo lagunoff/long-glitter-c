@@ -222,7 +222,7 @@ int bs_offset(buff_string_iter_t *iter) {
    return iter->global_index;
 }
 
-void bs_insert(buff_string_t **bs, int start, char *str, int deleted, bs_direction_t dir, iter_get_fixups_t get_fixups) {
+void bs_insert(buff_string_t **bs, int start, char *str, int deleted, bs_direction_t dir, iter_apply_fixups_t fixup) {
   auto void fixup_cursor(buff_string_iter_t *iter);
   auto void fixup_scroll(buff_string_iter_t *iter);
   __auto_type base = *bs;
@@ -231,7 +231,7 @@ void bs_insert(buff_string_t **bs, int start, char *str, int deleted, bs_directi
   if (start1 < 0) return;
   buff_string_t *splice = new_splice_str(str, start1, deleted, base);
   *bs = splice;
-  if (get_fixups) get_fixups(&fixup_cursor, &fixup_scroll);
+  if (fixup) fixup(&fixup_cursor, &fixup_scroll);
   return;
 
   void fixup_cursor(buff_string_iter_t *iter) {
@@ -248,26 +248,37 @@ void bs_insert(buff_string_t **bs, int start, char *str, int deleted, bs_directi
   }
 }
 
-buff_string_t *bs_insert_undo(buff_string_t *base, ...) {
+void bs_insert_undo(buff_string_t **bs, iter_apply_fixups_t fixup) {
+  auto void fixup_cursor(buff_string_iter_t *iter);
+  auto void fixup_scroll(buff_string_iter_t *iter);
+  __auto_type base = *bs;
+  buff_string_t *removed = NULL;
   switch (base->tag) {
   case BuffString_Splice: {
-    __auto_type new = &base->splice;
-    va_list iters;
-    va_start(iters, base);
-    while(1) {
-      buff_string_iter_t *it = va_arg(iters, buff_string_iter_t *);
-      if (it == NULL) break;
-      _bs_insert_insert_fixup_inv(it, base);
-    }
-    va_end(iters);
-    buff_string_t *new_base = base->splice.base;
-    base->splice.base = NULL;
-    bs_free(base, lambda(void _() {}));
-    return new_base;
+    __auto_type new_base = base->splice.base;
+    removed = base;
+    *bs = new_base;
+    if (fixup) fixup(&fixup_cursor, &fixup_scroll);
+    free(base->splice.bytes);
+    free(base);
+    return;
   }
   default: {
-    return base;
+    return;
   }}
+
+  void fixup_cursor(buff_string_iter_t *iter) {
+    if (removed->splice.start <= iter->global_index) {
+      int dx = removed->splice.len - removed->splice.deleted;
+      bs_move(iter, -dx);
+    }
+  }
+  void fixup_scroll(buff_string_iter_t *iter) {
+    if (removed->splice.start < iter->global_index) {
+      int dx = removed->splice.len - removed->splice.deleted;
+      bs_move(iter, -dx);
+    }
+  }
 }
 
 void _bs_insert_insert_fixup_inv(buff_string_iter_t *iter, buff_string_t *new) {

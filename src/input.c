@@ -306,7 +306,7 @@ void input_dispatch(input_t *self, input_msg_t *msg, yield_t yield) {
       );
       return yield(&msg_view);
     } else if (keysym == XK_slash && is_ctrl) {
-      self->contents = bs_insert_undo(self->contents, &self->cursor.pos, &self->scroll.pos, NULL);
+      bs_insert_undo(&self->contents, &do_insert_fixup);
       return yield(&msg_view);
     } else if (keysym == XK_space && is_ctrl) {
       self->selection.state = Selection_DraggingKeyboard;

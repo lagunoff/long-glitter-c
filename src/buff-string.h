@@ -56,7 +56,7 @@ typedef struct {
 } buff_string_iter_t;
 
 typedef void (*iter_fixup_t)(buff_string_iter_t *iter);
-typedef void (*iter_get_fixups_t)(iter_fixup_t fix_cursor, iter_fixup_t fix_scroll);
+typedef void (*iter_apply_fixups_t)(iter_fixup_t fix_cursor, iter_fixup_t fix_scroll);
 
 bool bs_takewhile(buff_string_iter_t *iter, char *out, bool (*p)(char));
 bool bs_take(buff_string_iter_t *iter, char *out, int n);
@@ -71,8 +71,8 @@ int bs_length(buff_string_t *str);
 char *bs_copy_stringz(buff_string_t *str);
 int bs_diff(buff_string_iter_t *a, buff_string_iter_t *b);
 int bs_offset(buff_string_iter_t *iter);
-void bs_insert(buff_string_t **bs, int start, char *str, int deleted, bs_direction_t dir, iter_get_fixups_t get_fixups);
-buff_string_t *bs_insert_undo(buff_string_t *base, ...);
+void bs_insert(buff_string_t **bs, int start, char *str, int deleted, bs_direction_t dir, iter_apply_fixups_t fixups);
+void bs_insert_undo(buff_string_t **bs, iter_apply_fixups_t fixup);
 void bs_forward_word(buff_string_iter_t *iter);
 void bs_backward_word(buff_string_iter_t *iter);
 
